@@ -100,157 +100,203 @@
   </div>
 
   <script>
-    // --- 1. KHAI BÁO BIẾN TOÀN CỤC ---
-    let isRefreshing = false;
+    // --- 1. KHAI BÁO BIẾN & HÀM TIỆN ÍCH ---
+    
+    // Hàm kiểm tra Token có hết hạn chưa (Giải mã JWT)
+    function isTokenExpired(token) {
+        if (!token) return true;
+        try {
+            // Lấy phần payload (đoạn giữa 2 dấu chấm)
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
 
-    // --- 2. KIỂM TRA ĐĂNG NHẬP (CHẠY NGAY LẬP TỨC) ---
+            const { exp } = JSON.parse(jsonPayload);
+            // Kiểm tra: Thời gian hiện tại > (Thời gian hết hạn - 10 giây trừ hao)
+            return Date.now() >= (exp * 1000) - 10000;
+        } catch (e) {
+            return true; // Lỗi giải mã -> coi như hết hạn
+        }
+    }
+
+    // Hàm gọi API gia hạn token (Tách riêng để tái sử dụng)
+    async function performRefreshToken() {
+        const rfToken = localStorage.getItem('refresh_token');
+        if (!rfToken) return null;
+
+        try {
+            const res = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh_token: rfToken })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('access_token', data.access_token);
+                console.log("Auto Refresh: Thành công!");
+                return data.access_token;
+            }
+        } catch (err) {
+            console.error("Refresh Error:", err);
+        }
+        return null;
+    }
+
+    // --- 2. KIỂM TRA ĐĂNG NHẬP (CHẠY NGAY) ---
     if (!localStorage.getItem('access_token')) {
-      window.location.replace('/');
+        window.location.replace('/');
     }
 
     // Hiển thị tên Admin
     const adminName = localStorage.getItem('admin_name');
     if (adminName) {
-      document.getElementById('adminName').innerText = adminName;
+        const adminNameEl = document.getElementById('adminName');
+        if(adminNameEl) adminNameEl.innerText = adminName;
     }
 
-    // --- 3. HÀM XỬ LÝ LOGOUT CỤC BỘ
+    // --- 3. HÀM LOGOUT ---
     function handleLogout() {
         localStorage.clear();
         window.location.replace('/');
     }
 
-    // --- 4. HÀM ĐĂNG XUẤT CHỦ ĐỘNG
     async function logout() {
-      const btn = document.getElementById('btnLogout');
-      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-      btn.disabled = true;
-
-      const refreshToken = localStorage.getItem('refresh_token');
-
-      try {
-        if (refreshToken) {
-          await fetch('/api/auth/logout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh_token: refreshToken })
-          });
+        const btn = document.getElementById('btnLogout');
+        if (btn) {
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            btn.disabled = true;
         }
-      } catch (err) {
-        console.error("Lỗi logout:", err);
-      } finally {
-        handleLogout(); // Gọi hàm xử lý dọn dẹp và chuyển trang
-      }
+
+        const refreshToken = localStorage.getItem('refresh_token');
+        try {
+            if (refreshToken) {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refreshToken })
+                });
+            }
+        } catch (err) {
+            console.error("Lỗi logout:", err);
+        } finally {
+            handleLogout();
+        }
     }
 
-    // --- 5. HÀM GỌI API CHUNG (CÓ SILENT REFRESH) ---
+    // --- 4. HÀM GỌI API CHUNG (THÔNG MINH HƠN) ---
     async function api(url, options = {}) {
-      try {
-        // QUAN TRỌNG: Luôn lấy token mới nhất từ localStorage
-        const currentToken = localStorage.getItem('access_token');
-        
-        const res = await fetch(url, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
-            ...options.headers
-          }
-        });
+        let currentToken = localStorage.getItem('access_token');
 
-        // --- LOGIC SILENT REFRESH ---
-        if (res.status === 401 && !isRefreshing) {
-          console.log("Token hết hạn, đang thử gia hạn (Silent Refresh)...");
-          isRefreshing = true;
-
-          const rfToken = localStorage.getItem('refresh_token');
-          if (!rfToken) {
-            handleLogout();
-            return null;
-          }
-
-          // Gọi API Refresh
-          const refreshRes = await fetch('/api/auth/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refresh_token: rfToken })
-          });
-
-          if (refreshRes.ok) {
-            const data = await refreshRes.json();
+        // BƯỚC 1: Chủ động kiểm tra hạn sử dụng TRƯỚC khi gửi
+        // Nếu token đã hết hạn hoặc sắp hết hạn -> Refresh ngay lập tức
+        if (isTokenExpired(currentToken)) {
+            console.log("Phát hiện Token hết hạn -> Đang tự động gia hạn...");
+            const newToken = await performRefreshToken();
             
-            // Lưu Access Token mới
-            localStorage.setItem('access_token', data.access_token);
-            console.log("Gia hạn thành công!");
+            if (newToken) {
+                currentToken = newToken; // Dùng token mới
+            } else {
+                console.warn("Gia hạn thất bại -> Đăng xuất");
+                handleLogout();
+                return null;
+            }
+        }
 
-            // Reset cờ
-            isRefreshing = false;
+        // BƯỚC 2: Gửi Request (Lúc này token đảm bảo còn sống)
+        try {
+            const headers = {
+                'Authorization': `Bearer ${currentToken}`,
+                ...options.headers
+            };
 
-            // Gọi đệ quy lại chính hàm api() này để thực hiện lại request vừa thất bại
-            return await api(url, options); 
+            // Logic Content-Type cho FormData
+            if (!(options.body instanceof FormData)) {
+                headers['Content-Type'] = 'application/json';
+            }
 
-          } else {
-            // Refresh thất bại, logout
-            console.warn("Gia hạn thất bại -> Đăng xuất");
-            handleLogout();
+            const res = await fetch(url, {
+                ...options,
+                headers: headers
+            });
+
+            // BƯỚC 3: Xử lý lỗi từ Server trả về
+            // Nếu vẫn gặp 401 hoặc 403 (dù đã check hạn), có thể do token sai hoặc bị khóa
+            if (res.status === 401) {
+                handleLogout();
+                return null;
+            }
+
+            if (res.status === 403) {
+                // Đôi khi server trả 403 thay vì 401 khi hết hạn
+                // Thử refresh một lần cuối cùng "cầu may"
+                const errorBody = await res.json().catch(() => ({}));
+                if (errorBody.message === 'jwt expired' || errorBody.message === 'Token expired') {
+                     const retryToken = await performRefreshToken();
+                     if (retryToken) {
+                         // Gọi đệ quy lại chính hàm này
+                         return await api(url, options); 
+                     }
+                }
+
+                alert("Bạn không có quyền thực hiện thao tác này!");
+                return null;
+            }
+
+            return await res.json();
+
+        } catch (err) {
+            console.error("API Error:", err);
             return null;
-          }
         }
-
-        // Nếu lỗi 403 (Không quyền)
-        if (res.status === 403) {
-          console.warn("Không đủ quyền thực hiện thao tác này (403)");
-          return null;
-        }
-
-        const data = await res.json();
-        return data;
-
-      } catch (err) {
-        console.error("API Error:", err);
-        return null;
-      } finally {
-        if (isRefreshing && !localStorage.getItem('access_token')) {
-             isRefreshing = false;
-        }
-      }
     }
 
-    // --- 6. HÀM LOAD TRANG CON
+    // --- 5. HÀM LOAD TRANG CON (GIỮ NGUYÊN) ---
     async function loadPage(page) {
-      const content = document.getElementById('pageContent');
-      content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">Đang tải dữ liệu...</div></div>';
+        const content = document.getElementById('pageContent');
+        if (!content) return;
+        
+        content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">Đang tải dữ liệu...</div></div>';
 
-      try {
-        const res = await fetch(`./${page}`);
-        if (!res.ok) throw new Error("Không tìm thấy trang");
+        try {
+            const res = await fetch(`./${page}`);
+            if (!res.ok) throw new Error("Không tìm thấy trang");
 
-        const html = await res.text();
-        content.innerHTML = html;
+            const html = await res.text();
+            content.innerHTML = html;
 
-        // Reset hàm init của trang trước
-        window.initCurrentPage = null;
+            window.initCurrentPage = null;
 
-        document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-        // Tìm thẻ a có chứa tên file trong onclick
-        const activeLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
-        if (activeLink) activeLink.classList.add('active');
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            const activeLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
+            if (activeLink) activeLink.classList.add('active');
 
-        // Chạy script trong trang vừa load
-        const scripts = content.querySelectorAll('script');
-        for (const script of scripts) {
-          const newScript = document.createElement('script');
-          newScript.textContent = script.textContent;
-          document.body.appendChild(newScript);
-          script.remove(); 
+            const scripts = content.querySelectorAll('script');
+            for (const script of scripts) {
+                const newScript = document.createElement('script');
+                newScript.textContent = script.textContent;
+                document.body.appendChild(newScript);
+                script.remove();
+            }
+        } catch (err) {
+            content.innerHTML = `<div class="alert alert-danger m-4">Lỗi tải trang: ${err.message}</div>`;
         }
-      } catch (err) {
-        content.innerHTML = `<div class="alert alert-danger m-4">Lỗi tải trang: ${err.message}</div>`;
-      }
     }
 
-    // Mặc định load trang Users
-    loadPage('users.html');
+    // --- 6. KHỞI CHẠY MẶC ĐỊNH ---
+    // Kiểm tra ngay token lúc mở trang web lần đầu
+    (async () => {
+        const token = localStorage.getItem('access_token');
+        if (token && isTokenExpired(token)) {
+            console.log("Token cũ đã hết hạn khi mở trang -> Refresh...");
+            await performRefreshToken();
+        }
+        // Load trang Users
+        loadPage('users.html');
+    })();
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -1,0 +1,319 @@
+<style>
+    .cover-img {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .audio-preview {
+        width: 150px;
+        height: 30px;
+    }
+
+    #loadingOverlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+</style>
+
+<div id="loadingOverlay">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    <h5 class="mt-3">Đang xử lý file... Vui lòng đợi!</h5>
+</div>
+
+<div class="container bg-white p-4 rounded shadow">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>🎵 Kho Nhạc Karaoke</h2>
+        
+        <div class="d-flex gap-2">
+            <div class="input-group" style="width: 300px;">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchSong" class="form-control border-start-0" placeholder="Tìm bài hát, ca sĩ...">
+            </div>
+
+            <button class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#addSongModal">
+                <i class="bi bi-plus-lg"></i> Thêm bài hát
+            </button>
+        </div>
+    </div>
+
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Cover</th>
+                <th>Tên bài hát</th>
+                <th>Ca sĩ</th>
+                <th>Thể loại</th>
+                <th>Nghe thử (Beat)</th>
+                <th class="text-center">Hành động</th>
+            </tr>
+        </thead>
+        <tbody id="songTableBody">
+            </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="addSongModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Bài Hát Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addSongForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Tên bài hát</label>
+                            <input type="text" class="form-control" name="title" required placeholder="Ví dụ: Em của ngày hôm qua">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ca sĩ</label>
+                            <input type="text" class="form-control" name="artist" required placeholder="Ví dụ: Sơn Tùng M-TP">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Thể loại</label>
+                        <input type="text" class="form-control" name="genre" placeholder="Nhạc trẻ, Remix...">
+                    </div>
+
+                    <div class="mb-3 p-3 border rounded bg-light">
+                        <label class="form-label fw-bold">1. File Beat (Nhạc nền - MP3)</label>
+                        <input type="file" class="form-control" name="beat" accept=".mp3, .m4a" required>
+                    </div>
+                    <div class="mb-3 p-3 border rounded bg-light">
+                        <label class="form-label fw-bold">2. File Lyric (.lrc)</label>
+                        <input type="file" class="form-control" name="lyric" accept=".lrc" required>
+                    </div>
+                    <div class="mb-3 p-3 border rounded bg-light">
+                        <label class="form-label fw-bold">3. File Vocal (Giọng hát mẫu - Optional)</label>
+                        <input type="file" class="form-control" name="vocal" accept=".mp3">
+                        <small class="text-muted">Dùng cho tính năng chấm điểm AI.</small>
+                    </div>
+                    <div class="mb-3 p-3 border rounded bg-light">
+                        <label class="form-label fw-bold">4. Ảnh bìa</label>
+                        <input type="file" class="form-control" name="image" accept="image/*" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="submitSong()">
+                    <i class="bi bi-cloud-upload"></i> Upload Ngay
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editSongModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Sửa thông tin bài hát</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editSongForm">
+                    <input type="hidden" id="editSongId" name="id">
+                    <div class="row mb-3">
+                        <div class="col-md-4"><label class="form-label">Tên bài hát</label><input type="text" class="form-control" id="editTitle" name="title" required></div>
+                        <div class="col-md-4"><label class="form-label">Ca sĩ</label><input type="text" class="form-control" id="editArtist" name="artist" required></div>
+                        <div class="col-md-4"><label class="form-label">Thể loại</label><input type="text" class="form-control" id="editGenre" name="genre"></div>
+                    </div>
+                    <hr>
+                    <p class="text-danger fst-italic mb-2">* Chỉ chọn file nếu bạn muốn thay đổi file cũ</p>
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Đổi Beat</label><input type="file" class="form-control" name="beat" accept=".mp3,.m4a"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Đổi Lyric</label><input type="file" class="form-control" name="lyric" accept=".lrc"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Đổi Vocal</label><input type="file" class="form-control" name="vocal" accept=".mp3"></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Đổi Ảnh</label><input type="file" class="form-control" name="image" accept="image/*"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="updateSong()">Lưu thay đổi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    {
+        const SONG_API_URL = '/api/admin/songs';
+        let allSongsData = []; // Biến chứa toàn bộ bài hát để lọc offline
+
+        // --- 1. HÀM VẼ BẢNG (RENDER) ---
+        function renderSongTable() {
+            const tbody = document.getElementById('songTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            // Lấy từ khóa tìm kiếm
+            const term = document.getElementById('searchSong').value.toLowerCase().trim();
+
+            // Lọc dữ liệu
+            const filteredSongs = allSongsData.filter(song => {
+                const title = (song.title || '').toLowerCase();
+                const artist = (song.artist_name || '').toLowerCase();
+                const genre = (song.genre || '').toLowerCase();
+                return title.includes(term) || artist.includes(term) || genre.includes(term);
+            });
+
+            // Nếu không có kết quả
+            if (filteredSongs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Không tìm thấy bài hát nào phù hợp.</td></tr>';
+                return;
+            }
+
+            // Vẽ HTML
+            filteredSongs.forEach(song => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><img src="${song.image_url || 'https://via.placeholder.com/50'}" class="cover-img"></td>
+                        <td class="fw-bold text-primary">${song.title}</td>
+                        <td class="fw-bold">${song.artist_name}</td>
+                        <td><span class="badge bg-secondary">${song.genre || 'N/A'}</span></td>
+                        <td>
+                            ${song.beat_url ? `<audio controls src="${song.beat_url}" class="audio-preview"></audio>` : '<span class="text-muted small">Chưa có beat</span>'}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-warning me-1" onclick="openEditModal(${song.song_id}, '${song.title}', '${song.artist_name}', '${song.genre}')" title="Sửa">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteSong(${song.song_id})" title="Xóa">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // --- 2. HÀM TẢI DỮ LIỆU ---
+        window.fetchSongs = async function() {
+            const tbody = document.getElementById('songTableBody');
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary spinner-border-sm"></div> Đang tải...</td></tr>';
+
+            try {
+                const songs = await api(SONG_API_URL);
+                if (!songs) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Lỗi tải dữ liệu</td></tr>';
+                    return;
+                }
+
+                // Lưu dữ liệu vào biến toàn cục
+                allSongsData = songs;
+                
+                // Gọi hàm hiển thị
+                renderSongTable();
+
+            } catch (error) {
+                console.error('Lỗi tải danh sách:', error);
+            }
+        }
+
+        // --- 3. GẮN SỰ KIỆN TÌM KIẾM ---
+        const searchInput = document.getElementById('searchSong');
+        if (searchInput) {
+            searchInput.oninput = function() {
+                renderSongTable(); // Vẽ lại bảng mỗi khi gõ phím
+            };
+        }
+
+        // --- 4. CÁC HÀM XỬ LÝ (ADD, EDIT, DELETE) ---
+        window.submitSong = async function() {
+            const form = document.getElementById('addSongForm');
+            const formData = new FormData(form);
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            const modalEl = document.getElementById('addSongModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+
+            try {
+                const result = await api(SONG_API_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (result && result.status === 'success') {
+                    alert('Upload thành công!');
+                    form.reset();
+                    fetchSongs(); // Tải lại dữ liệu mới
+                } else {
+                    alert('Lỗi: ' + (result ? result.message : 'Unknown'));
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        window.deleteSong = async function(id) {
+            if (!confirm('Bạn có chắc muốn xóa bài này không?')) return;
+            try {
+                const res = await api(`${SONG_API_URL}/${id}`, { method: 'DELETE' });
+                if (res && res.status === 'success') {
+                    fetchSongs();
+                } else {
+                    alert('Lỗi xóa: ' + (res ? res.message : 'Unknown'));
+                }
+            } catch (error) {
+                alert('Lỗi kết nối!');
+            }
+        }
+
+        window.openEditModal = function(id, title, artist, genre) {
+            document.getElementById('editSongId').value = id;
+            document.getElementById('editTitle').value = title;
+            document.getElementById('editArtist').value = artist;
+            document.getElementById('editGenre').value = (genre === 'null' || genre === 'undefined') ? '' : genre;
+            // Reset các ô chọn file
+            document.querySelectorAll('#editSongForm input[type="file"]').forEach(i => i.value = '');
+            new bootstrap.Modal(document.getElementById('editSongModal')).show();
+        }
+
+        window.updateSong = async function() {
+            const id = document.getElementById('editSongId').value;
+            const form = document.getElementById('editSongForm');
+            const formData = new FormData(form);
+
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            bootstrap.Modal.getInstance(document.getElementById('editSongModal')).hide();
+
+            try {
+                const result = await api(`${SONG_API_URL}/${id}`, {
+                    method: 'PUT',
+                    body: formData
+                });
+
+                if (result && result.status === 'success') {
+                    alert('Cập nhật thành công!');
+                    fetchSongs();
+                } else {
+                    alert('Lỗi: ' + (result ? result.message : 'Unknown'));
+                }
+            } catch (error) {
+                alert('Lỗi: ' + error.message);
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        // Khởi chạy lần đầu
+        fetchSongs();
+    }
+</script>

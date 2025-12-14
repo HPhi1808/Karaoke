@@ -47,32 +47,21 @@ app.get('/admin', (req, res) => {
 const authRouter = require('./routes/auth');
 const adminUsersRouter = require('./routes/adminUsers');
 const adminSongsRouter = require('./routes/adminSongs');
-const userRouter = require('./routes/user');
-const roomsRouter = require('./routes/rooms');
-const momentsRouter = require('./routes/moments');
-const chatRouter = require('./routes/chat');
-const songSearchRouter = require('./routes/songSearch');
+const appUsersRoutes = require('./routes/appUsers');
+const appSongsRouter = require('./routes/appSongs');
+const appRoomsRouter = require('./routes/appRooms');
+const appMomentsRouter = require('./routes/appMoments');
+const appChatRouter = require('./routes/appChat');
 
 // Use routers
 app.use('/api/auth', authRouter);
 app.use('/api/admin/users', verifyToken, requireAdmin, adminUsersRouter);
 app.use('/api/admin/songs', verifyToken, requireAdmin, adminSongsRouter);
-app.use('/api/user', verifyToken, userRouter);
-app.use('/api/rooms', roomsRouter);
-app.use('/api/moments', momentsRouter);
-app.use('/api/chat', verifyToken, chatRouter);
-app.use('/api/songs/search', songSearchRouter);
-
-// Public songs
-app.get('/api/songs', async (req, res) => {
-  const pool = require('./config/db');
-  try {
-    const result = await pool.query('SELECT * FROM songs ORDER BY created_at DESC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+app.use('/api/user', verifyToken, appUsersRoutes);
+app.use('/api/songs', appSongsRouter);
+app.use('/api/rooms', appRoomsRouter);
+app.use('/api/moments', appMomentsRouter);
+app.use('/api/chat', verifyToken, appChatRouter);
 
 app.listen(port, () => {
   console.log(`Server đang chạy tại: http://localhost:${port}`);
