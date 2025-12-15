@@ -2,7 +2,48 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 
-// --- 1. LẤY DANH SÁCH BÀI HÁT
+// --- LẤY DỮ LIỆU TRANG CHỦ APP ---
+router.get('/home', async (req, res) => {
+    try {
+        // userId có thể lấy từ token (req.user.id)
+        // Tạm thời mình giả lập logic đề xuất là lấy ngẫu nhiên
+        
+        const limit = 10;
+
+        const [newest, popular, recommended] = await Promise.all([
+            // 1. Mới nhất
+            pool.query(`
+                SELECT song_id, title, artist_name, image_url, beat_url, lyric_url, vocal_url, view_count 
+                FROM songs ORDER BY created_at DESC LIMIT $1
+            `, [limit]),
+
+            // 2. Thịnh hành (Top View)
+            pool.query(`
+                SELECT song_id, title, artist_name, image_url, beat_url, lyric_url, vocal_url, view_count 
+                FROM songs ORDER BY view_count DESC LIMIT $1
+            `, [limit]),
+
+            // 3. Đề xuất (Tạm thời: Random)
+            // Sau này bạn sửa query này để JOIN với bảng history_view
+            pool.query(`
+                SELECT song_id, title, artist_name, image_url, beat_url, lyric_url, vocal_url, view_count 
+                FROM songs ORDER BY RANDOM() LIMIT $1
+            `, [limit])
+        ]);
+
+        res.json({
+            newest: newest.rows,
+            popular: popular.rows,
+            recommended: recommended.rows
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Lỗi tải trang chủ' });
+    }
+});
+
+// --- LẤY DANH SÁCH BÀI HÁT
 router.get('/', async (req, res) => {
     try {
         // Lấy tham số từ App gửi lên
@@ -43,7 +84,7 @@ router.get('/', async (req, res) => {
     }
 });
 
-// --- 2. TĂNG LƯỢT XEM (View Count) ---
+// --- TĂNG LƯỢT XEM (View Count) ---
 // App gọi API này khi người dùng bấm vào bài hát để hát
 // GET /api/app/songs/:id/view
 router.post('/:id/view', async (req, res) => {
@@ -57,7 +98,7 @@ router.post('/:id/view', async (req, res) => {
     }
 });
 
-// --- 3. LẤY CHI TIẾT 1 BÀI HÁT (Optional) ---
+// --- LẤY CHI TIẾT 1 BÀI HÁT (Optional) ---
 router.get('/:id', async (req, res) => {
     const { id } = req.params;
     try {
