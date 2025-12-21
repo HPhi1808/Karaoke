@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "575075728372",
+    "project_id": "karaokeapp-b1dfb",
+    "storage_bucket": "karaokeapp-b1dfb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:575075728372:android:caec3c8f486e49cf6ad7a1",
+        "android_client_info": {
+          "package_name": "com.example.karaokeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzmqZ0Ks25EwWgl-RbbzuS31gmIHrX-Xs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

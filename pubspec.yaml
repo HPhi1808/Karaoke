@@ -1,0 +1,48 @@
+name: karaoke
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # UI & Utilities
+  cached_network_image: ^3.3.1
+  fluttertoast: ^8.2.4
+  permission_handler: ^11.3.0
+  logger: ^2.0.0
+
+  # State Management
+  provider: ^6.1.1
+  get_it: ^7.6.7
+
+  # Networking
+  dio: ^5.4.1
+  json_annotation: ^4.8.1
+
+  # Audio
+  just_audio: ^0.10.5
+  audio_session: ^0.1.18
+
+  # Storage (Bảo mật token)
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.5.4
+  http: ^1.6.0
+  rxdart: ^0.28.0
+  scroll_to_index: ^3.0.1
+  supabase_flutter: ^2.12.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.8
+  json_serializable: ^6.7.1
+
+flutter:
+  uses-material-design: true

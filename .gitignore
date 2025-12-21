@@ -1,0 +1,91 @@
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+key.properties
+
+# -----------------------
+# Miscellaneous
+# -----------------------
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# -----------------------
+# IntelliJ / Android Studio
+# -----------------------
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# -----------------------
+# VS Code
+# -----------------------
+.vscode/
+
+# -----------------------
+# Flutter/Dart/Pub
+# -----------------------
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# -----------------------
+# Android Related
+# -----------------------
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/.gradle
+**/android/**/generated/
+**/android/**/intermediates/
+**/android/**/tmp/
+**/android/**/outputs/
+**/android/gradle-wrapper.jar
+
+# -----------------------
+# iOS / macOS Related
+# -----------------------
+**/ios/**/AppDelegate.h
+**/ios/**/nm
+**/ios/**/Runner.app.dSYM
+**/ios/**/Runner/GeneratedPluginRegistrant.h
+**/ios/**/Runner/GeneratedPluginRegistrant.m
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/ServiceDefinitions.json
+**/ios/Runner/Base.lproj/LaunchScreen.storyboard
+**/ios/Pods/
+**/macos/Pods/
+**/ios/Flutter/Flutter.podspec
+
+# -----------------------
+# Other
+# -----------------------
+app.*.symbols
+app.*.map.json
+.fvm/
