@@ -26,6 +26,7 @@
       color: #ddd;
       border-radius: 8px;
       margin: 5px 10px;
+      cursor: pointer;
     }
 
     .sidebar .nav-link:hover,
@@ -42,16 +43,10 @@
 </head>
 
 <body>
-  <script>
-    window.addEventListener('pageshow', function (event) {
-      if (!localStorage.getItem('access_token')) {
-        window.location.replace('/');
-      }
-    });
-  </script>
+
   <nav class="navbar navbar-dark shadow sticky-top">
     <div class="container-fluid">
-      <a class="navbar-brand" href="/admin/base.html">
+      <a class="navbar-brand" href="#">
         <i class="bi bi-mic-fill"></i> Karaoke Admin
       </a>
       <div class="text-white d-flex align-items-center">
@@ -67,22 +62,22 @@
     <div class="sidebar p-3 d-none d-md-block" style="width: 260px;">
       <ul class="nav flex-column">
         <li class="nav-item">
-          <a class="nav-link active" href="#" onclick="loadPage('users.html'); return false;">
+          <a class="nav-link active" onclick="loadPage('users.html', this)">
             <i class="bi bi-people-fill"></i> Quản lý Users
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#" onclick="loadPage('songs.html')">
+          <a class="nav-link" onclick="loadPage('songs.html', this)">
             <i class="bi bi-music-note-list"></i> Quản lý Bài hát
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#" onclick="loadPage('rooms.html')">
+          <a class="nav-link" onclick="loadPage('rooms.html', this)">
             <i class="bi bi-house-door-fill"></i> Phòng Live
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#" onclick="loadPage('moments.html')">
+          <a class="nav-link" onclick="loadPage('moments.html', this)">
             <i class="bi bi-camera-reels-fill"></i> Khoảnh khắc
           </a>
         </li>
@@ -92,21 +87,20 @@
     <div class="flex-grow-1 p-4 content-area">
       <div id="pageContent">
         <div class="text-center py-5">
-          <h2>Chào mừng đến Admin Panel</h2>
-          <p>Chọn mục quản lý ở bên trái</p>
+           <div class="spinner-border text-primary" role="status"></div>
+           <div class="mt-2">Đang tải dữ liệu...</div>
         </div>
       </div>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
   <script>
-    // --- 1. KHAI BÁO BIẾN & HÀM TIỆN ÍCH ---
-    
-    // Hàm kiểm tra Token có hết hạn chưa (Giải mã JWT)
+    // --- 1. TIỆN ÍCH AUTH ---
     function isTokenExpired(token) {
         if (!token) return true;
         try {
-            // Lấy phần payload (đoạn giữa 2 dấu chấm)
             const base64Url = token.split('.')[1];
             const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
@@ -114,150 +108,122 @@
             }).join(''));
 
             const { exp } = JSON.parse(jsonPayload);
-            // Kiểm tra: Thời gian hiện tại > (Thời gian hết hạn - 10 giây trừ hao)
             return Date.now() >= (exp * 1000) - 10000;
         } catch (e) {
-            return true; // Lỗi giải mã -> coi như hết hạn
+            return true;
         }
     }
 
-    // Hàm gọi API gia hạn token (Tách riêng để tái sử dụng)
     async function performRefreshToken() {
         const rfToken = localStorage.getItem('refresh_token');
         if (!rfToken) return null;
 
         try {
+            // Giả lập refresh token thành công (vì không có endpoint thực tế)
+            return null; 
+            
+            /* Code chuẩn nếu có endpoint:
             const res = await fetch('/api/auth/refresh', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ refresh_token: rfToken })
             });
-
             if (res.ok) {
                 const data = await res.json();
                 localStorage.setItem('access_token', data.access_token);
-                console.log("Auto Refresh: Thành công!");
                 return data.access_token;
             }
+            */
         } catch (err) {
-            console.error("Refresh Error:", err);
+            console.error(err);
         }
         return null;
     }
 
-    // --- 2. KIỂM TRA ĐĂNG NHẬP (CHẠY NGAY) ---
-    if (!localStorage.getItem('access_token')) {
-        window.location.replace('/');
-    }
-
-    // Hiển thị tên Admin
-    const adminName = localStorage.getItem('admin_name');
-    if (adminName) {
-        const adminNameEl = document.getElementById('adminName');
-        if(adminNameEl) adminNameEl.innerText = adminName;
+    // --- 2. HIỂN THỊ TÊN ADMIN ---
+    const adminInfo = localStorage.getItem('admin_info');
+    if (adminInfo) {
+        try {
+            const user = JSON.parse(adminInfo);
+            const name = user.full_name || user.email || 'Admin';
+            document.getElementById('adminName').innerText = name;
+        } catch(e) {}
     }
 
     // --- 3. HÀM LOGOUT ---
     function handleLogout() {
         localStorage.clear();
-        window.location.replace('/');
+        window.location.replace('/admin/login.html');
     }
 
     async function logout() {
         const btn = document.getElementById('btnLogout');
-        if (btn) {
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-            btn.disabled = true;
-        }
+        if (btn) btn.disabled = true;
 
-        const refreshToken = localStorage.getItem('refresh_token');
-        try {
-            if (refreshToken) {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh_token: refreshToken })
-                });
-            }
-        } catch (err) {
-            console.error("Lỗi logout:", err);
-        } finally {
-            handleLogout();
-        }
+        // Nếumuốn gọi API logout phía server (Supabase signOut)
+        // await fetch('/api/auth/logout', ...);
+        
+        handleLogout();
     }
 
-    // --- 4. HÀM GỌI API CHUNG (THÔNG MINH HƠN) ---
-    async function api(url, options = {}) {
+    // --- 4. HÀM GỌI API TOÀN CỤC (WINDOW.API) ---
+    window.api = async function(url, options = {}) {
         let currentToken = localStorage.getItem('access_token');
 
-        // BƯỚC 1: Chủ động kiểm tra hạn sử dụng TRƯỚC khi gửi
-        // Nếu token đã hết hạn hoặc sắp hết hạn -> Refresh ngay lập tức
         if (isTokenExpired(currentToken)) {
-            console.log("Phát hiện Token hết hạn -> Đang tự động gia hạn...");
+            console.log("Token hết hạn -> Refreshing...");
             const newToken = await performRefreshToken();
-            
             if (newToken) {
-                currentToken = newToken; // Dùng token mới
+                currentToken = newToken;
             } else {
-                console.warn("Gia hạn thất bại -> Đăng xuất");
                 handleLogout();
                 return null;
             }
         }
 
-        // BƯỚC 2: Gửi Request (Lúc này token đảm bảo còn sống)
         try {
             const headers = {
                 'Authorization': `Bearer ${currentToken}`,
                 ...options.headers
             };
 
-            // Logic Content-Type cho FormData
-            if (!(options.body instanceof FormData)) {
+            if (!(options.body instanceof FormData) && !headers['Content-Type']) {
                 headers['Content-Type'] = 'application/json';
             }
 
-            const res = await fetch(url, {
-                ...options,
-                headers: headers
-            });
+            const res = await fetch(url, { ...options, headers });
 
-            // BƯỚC 3: Xử lý lỗi từ Server trả về
-            // Nếu vẫn gặp 401 hoặc 403 (dù đã check hạn), có thể do token sai hoặc bị khóa
             if (res.status === 401) {
                 handleLogout();
                 return null;
             }
-
-            if (res.status === 403) {
-                // Đôi khi server trả 403 thay vì 401 khi hết hạn
-                // Thử refresh một lần cuối cùng "cầu may"
-                const errorBody = await res.json().catch(() => ({}));
-                if (errorBody.message === 'jwt expired' || errorBody.message === 'Token expired') {
-                     const retryToken = await performRefreshToken();
-                     if (retryToken) {
-                         // Gọi đệ quy lại chính hàm này
-                         return await api(url, options); 
-                     }
-                }
-
-                alert("Bạn không có quyền thực hiện thao tác này!");
-                return null;
+            
+            // Xử lý JSON response
+            const data = await res.json();
+            
+            // Nếu data là Mảng (ví dụ danh sách user), trả về nguyên vẹn
+            if (Array.isArray(data)) {
+                return data;
             }
 
-            return await res.json();
+            // Nếu data là Object, trộn thêm status vào để tiện check lỗi
+            return { ok: res.ok, status: res.status, ...data };
 
         } catch (err) {
             console.error("API Error:", err);
-            return null;
+            return { status: 'error', message: "Lỗi kết nối Server" };
         }
-    }
+    };
 
-    // --- 5. HÀM LOAD TRANG CON (GIỮ NGUYÊN) ---
-    async function loadPage(page) {
+    // --- 5. HÀM LOAD TRANG ---
+    window.loadPage = async function(page, element) {
+        // UI Active Tab
+        if (element) {
+            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            element.classList.add('active');
+        }
+
         const content = document.getElementById('pageContent');
-        if (!content) return;
-        
         content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">Đang tải dữ liệu...</div></div>';
 
         try {
@@ -267,38 +233,26 @@
             const html = await res.text();
             content.innerHTML = html;
 
-            window.initCurrentPage = null;
-
-            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-            const activeLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
-            if (activeLink) activeLink.classList.add('active');
-
+            // Thực thi script trong trang con
             const scripts = content.querySelectorAll('script');
             for (const script of scripts) {
                 const newScript = document.createElement('script');
                 newScript.textContent = script.textContent;
                 document.body.appendChild(newScript);
+                // Xóa script thẻ cũ đi để tránh rác DOM
                 script.remove();
             }
         } catch (err) {
             content.innerHTML = `<div class="alert alert-danger m-4">Lỗi tải trang: ${err.message}</div>`;
         }
-    }
+    };
 
-    // --- 6. KHỞI CHẠY MẶC ĐỊNH ---
-    // Kiểm tra ngay token lúc mở trang web lần đầu
+    // --- 6. KHỞI CHẠY ---
     (async () => {
-        const token = localStorage.getItem('access_token');
-        if (token && isTokenExpired(token)) {
-            console.log("Token cũ đã hết hạn khi mở trang -> Refresh...");
-            await performRefreshToken();
-        }
-        // Load trang Users
+        // Mặc định load trang Users
         loadPage('users.html');
     })();
 
-</script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </script>
 </body>
-
 </html>

@@ -1,367 +1,416 @@
-// routes/auth.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const pool = require('../config/db');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const { verifyToken } = require('../middlewares/auth');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+// Client với Service Role để thao tác admin khi cần
+const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-// Kiểm tra Secret Key
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-    throw new Error("JWT_SECRET is not defined in environment variables");
-}
+const ALLOWED_PROVINCES = [
+    "TP Hà Nội", "TP Huế", "Quảng Ninh", "Cao Bằng", "Lạng Sơn", "Lai Châu",
+    "Điện Biên", "Sơn La", "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Tuyên Quang",
+    "Lào Cai", "Thái Nguyên", "Phú Thọ", "Bắc Ninh", "Hưng Yên", "TP Hải Phòng",
+    "Ninh Bình", "Quảng Trị", "TP Đà Nẵng", "Quảng Ngãi", "Gia Lai", "Khánh Hòa",
+    "Lâm Đồng", "Đắk Lắk", "TP Hồ Chí Minh", "Đồng Nai", "Tây Ninh", "TP Cần Thơ",
+    "Vĩnh Long", "Đồng Tháp", "Cà Mau", "An Giang"
+];
 
-// Hàm helper tạo Refresh Token
-const generateRefreshToken = async (userId, role) => {
-    const token = crypto.randomBytes(64).toString('hex');
+// --- LUỒNG ĐĂNG KÝ ---
 
-    // 1. Single Session: Xóa token cũ để đảm bảo chỉ đăng nhập 1 nơi
-    await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
-
-    // 2. Quyết định thời gian hết hạn dựa vào Role
-    let expiryInterval = '90 days'; // Mặc định cho User/Guest
-
-    if (role === 'admin' || role === 'own') {
-        expiryInterval = '1 day';
-    }
-
-    // 3. Thêm mới với thời gian hết hạn cụ thể
-    await pool.query(
-        `INSERT INTO refresh_tokens (user_id, token, expires_at) 
-         VALUES ($1, $2, NOW() + $3::INTERVAL)`,
-        [userId, token, expiryInterval]
-    );
-
-    return token;
-};
-
-// --- 1. ĐĂNG KÝ (REGISTER) - MỚI BỔ SUNG ---
-router.post('/register', async (req, res) => {
-    const { username, password, email, full_name } = req.body;
-
-    // Validate cơ bản
-    if (!username || !password || !email) {
-        return res.status(400).json({ status: 'error', message: 'Vui lòng nhập đủ thông tin!' });
-    }
-
+// ============================================================
+// BƯỚC 1: GỬI OTP XÁC THỰC EMAIL
+// ============================================================
+router.post('/register/send-otp', async (req, res) => {
+    const { email } = req.body;
     try {
-        // Kiểm tra user tồn tại chưa
-        const userExist = await pool.query(
-            'SELECT id FROM users WHERE username = $1 OR email = $2',
-            [username, email]
-        );
+        // 1. KIỂM TRA TÀI KHOẢN TRONG PUBLIC.USERS
+        const { data: publicUser } = await supabase
+            .from('users')
+            .select('username') 
+            .eq('email', email)
+            .maybeSingle();
 
-        if (userExist.rows.length > 0) {
-            return res.status(400).json({ status: 'error', message: 'Username hoặc Email đã tồn tại' });
+        // TRƯỜNG HỢP A: TÀI KHOẢN ĐÃ HOÀN TẤT
+        if (publicUser && publicUser.username) {
+             if (!publicUser.username.startsWith('guest_')) {
+                return res.status(400).json({ status: 'error', message: 'Email này đã được đăng ký và sử dụng!' });
+             }
         }
+        
+        // TRƯỜNG HỢP B: TÀI KHOẢN ĐANG TREO (Username là NULL) HOẶC CHƯA CÓ
+        const { data: verifyData } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
 
-        // Mã hóa mật khẩu
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        if (verifyData && verifyData.is_verified) {
+            const now = new Date();
+            const verifiedTime = new Date(verifyData.verified_at);
+            const diffMinutes = (now - verifiedTime) / (1000 * 60);
 
-        // Tạo user mới (Mặc định role là 'user')
-        const newUser = await pool.query(
-            `INSERT INTO users (username, password_hash, email, full_name, role) 
-             VALUES ($1, $2, $3, $4, 'user') 
-             RETURNING id, username, email, full_name, role, created_at`,
-            [username, hashedPassword, email, full_name || username]
-        );
-
-        const user = newUser.rows[0];
-
-        // Tạo token ngay sau khi đăng ký để tự động đăng nhập
-        const accessToken = jwt.sign(
-            { user_id: user.id, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '30m' }
-        );
-        const refreshToken = await generateRefreshToken(user.id);
-
-        res.json({
-            status: 'success',
-            message: 'Đăng ký thành công',
-            user,
-            access_token: accessToken,
-            refresh_token: refreshToken
-        });
-
-    } catch (err) {
-        console.error("Register Error:", err);
-        res.status(500).json({ status: 'error', message: 'Lỗi server khi đăng ký' });
-    }
-});
-
-// --- 2. ĐĂNG NHẬP (LOGIN) ---
-router.post('/login', async (req, res) => {
-    // Thêm biến platform từ req.body
-    const { identifier, password, platform } = req.body;
-
-    try {
-        const result = await pool.query(
-            `SELECT id, username, email, full_name, role, avatar_url, bio, password_hash, locked_until
-             FROM users WHERE email = $1 OR username = $1`,
-            [identifier]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({ status: 'error', message: 'Tài khoản không tồn tại!' });
-        }
-
-        const user = result.rows[0];
-        const validPassword = await bcrypt.compare(password, user.password_hash);
-        if (!validPassword) {
-            return res.status(400).json({ status: 'error', message: 'Sai mật khẩu!' });
-        }
-
-        if (user.locked_until && new Date(user.locked_until) > new Date()) {
-            return res.status(403).json({
-                status: 'error',
-                message: `Tài khoản của bạn đã bị khoá đến: ${new Date(user.locked_until).toLocaleString('vi-VN')} do vi phạm tiêu chuẩn cộng đồng.`
-            });
-        }
-
-        // === [LOGIC MỚI] CHẶN ADMIN ĐĂNG NHẬP TỪ APP ===
-        if ((user.role === 'admin' || user.role === 'own')) {
-            // Nếu là Admin, bắt buộc phải có cờ platform = 'web_admin'
-            if (platform !== 'web_admin') {
-                // Trả về lỗi 403 Forbidden ngay lập tức
-                // KHÔNG tạo token, KHÔNG ghi vào DB
-                return res.status(403).json({
-                    status: 'error',
-                    message: 'Tài khoản Admin vui lòng đăng nhập trên trang quản trị Web!'
+            // Nếu còn hạn 15 phút -> CHO PHÉP NHẢY BƯỚC (Không gửi OTP nữa)
+            if (diffMinutes <= 15) {
+                return res.json({ 
+                    status: 'already_verified', 
+                    message: 'Email đã được xác thực thành công trước đó. Chuyển sang điền thông tin.' 
                 });
             }
         }
-        // ===============================================
 
-        // Tạo Access Token
-        const accessToken = jwt.sign(
-            { user_id: user.id, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '30m' }
-        );
+        // 3. DỌN DẸP USER RÁC ĐỂ GỬI LẠI TỪ ĐẦU
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+        const existingAuthUser = users.find(u => u.email === email);
+        
+        if (existingAuthUser) {
+            await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id);
+        }
 
-        // Tạo Refresh Token (Truyền thêm Role để tính thời hạn)
-        const refreshToken = await generateRefreshToken(user.id, user.role);
-
-        delete user.password_hash;
-
-        res.json({
-            status: 'success',
-            message: 'Đăng nhập thành công',
-            user,
-            access_token: accessToken,
-            refresh_token: refreshToken,
+        // 4. GỬI OTP MỚI
+        const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password: 'temp_password_123',
+            options: { emailRedirectTo: null }
         });
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: 'Lỗi server' });
-    }
-});
-
-// --- 3. REFRESH TOKEN ---
-router.post('/refresh', async (req, res) => {
-    const { refresh_token } = req.body;
-    if (!refresh_token) return res.status(401).json({ message: 'Thiếu token' });
-
-    try {
-        const result = await pool.query(
-            `SELECT user_id FROM refresh_tokens WHERE token = $1 AND expires_at > NOW()`,
-            [refresh_token]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(403).json({ message: 'Token không hợp lệ' });
+        if (signUpError) {
+            if (signUpError.message.includes("rate limit")) {
+                throw new Error("Gửi yêu cầu quá nhanh. Vui lòng đợi 1 phút.");
+            }
+            throw signUpError;
         }
 
-        const { user_id } = result.rows[0];
-        const userRes = await pool.query(`SELECT id, role FROM users WHERE id = $1`, [user_id]);
-        const user = userRes.rows[0];
+        // 5. KHỞI TẠO TRẠNG THÁI VERIFY LÀ FALSE
+        await supabase.from('email_verifications').upsert({
+            email: email,
+            is_verified: false,
+            verified_at: new Date(0).toISOString()
+        }, { onConflict: 'email' });
 
-        const newAccessToken = jwt.sign(
-            { user_id: user.id, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '30m' }
-        );
+        res.json({ status: 'success', message: 'Mã OTP đã được gửi vào Email.' });
 
-        res.json({ access_token: newAccessToken });
     } catch (err) {
-        res.status(403).json({ message: 'Token không hợp lệ' });
+        console.error("Lỗi send-otp:", err);
+        res.status(400).json({ status: 'error', message: err.message });
     }
 });
 
-// --- 4. LOGOUT ---
-router.post('/logout', async (req, res) => {
+// ============================================================
+// BƯỚC 2: XÁC THỰC MÃ OTP
+// ============================================================
+router.post('/register/verify-otp', async (req, res) => {
+    const { email, token } = req.body;
     try {
-        const refresh_token = req.body?.refresh_token;
+        // 1. Xác thực với Supabase Auth
+        const { error } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'signup'
+        });
 
-        // Chỉ xóa nếu Client có gửi token lên
-        if (refresh_token) {
-            await pool.query('DELETE FROM refresh_tokens WHERE token = $1', [refresh_token]);
+        if (error) throw error;
+
+        // 2. Cập nhật bảng email_verifications thành TRUE
+        await supabase.from('email_verifications').upsert({ 
+            email, 
+            is_verified: true, 
+            verified_at: new Date().toISOString()
+        }, { onConflict: 'email' }); 
+
+        res.json({ status: 'success', message: 'Xác thực Email thành công.' });
+    } catch (err) {
+        res.status(400).json({ status: 'error', message: 'Mã OTP không chính xác hoặc đã hết hạn.' });
+    }
+});
+
+// ============================================================
+// BƯỚC 3: HOÀN TẤT ĐĂNG KÝ
+// ============================================================
+router.post('/register/complete', async (req, res) => {
+    const { email, password, full_name, username, gender, region } = req.body;
+    
+    try {
+        // 1. VALIDATION CƠ BẢN
+        if (!['Nam', 'Nữ', 'Khác'].includes(gender)) {
+            return res.status(400).json({ status: 'error', message: 'Giới tính không hợp lệ.' });
+        }
+        if (!ALLOWED_PROVINCES.includes(region)) {
+             return res.status(400).json({ status: 'error', message: 'Khu vực không hợp lệ.' });
         }
 
-        // để App yên tâm xóa local data
-        res.json({ status: 'success', message: 'Đăng xuất thành công' });
+        // 2. KIỂM TRA QUYỀN
+        const { data: verifyData } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (!verifyData || !verifyData.is_verified) {
+            return res.status(400).json({ status: 'error', message: "Vui lòng xác thực OTP trước." });
+        }
+        
+        // Kiểm tra thời hạn 15 phút
+        const diffMinutes = (new Date() - new Date(verifyData.verified_at)) / (1000 * 60);
+        if (diffMinutes > 15) {
+            return res.status(400).json({ status: 'error', message: "Phiên xác thực đã hết hạn. Vui lòng gửi lại OTP." });
+        }
+
+        // 3. TÌM USER AUTH
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = users.find(u => u.email === email);
+
+        if (!existingUser) {
+            return res.status(404).json({ status: 'error', message: "Không tìm thấy tài khoản chờ kích hoạt." });
+        }
+
+        // 4. CẬP NHẬT AUTH
+        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, { 
+            password: password,
+            email_confirm: true,
+            user_metadata: {
+                full_name, username, gender, region, role: 'user'
+            }
+        });
+
+        // 5. CẬP NHẬT PUBLIC.USERS
+        let avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/defautl.jpg';
+        if (gender === 'Nam') avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/man.jpg';
+        if (gender === 'Nữ') avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/woman.jpg';
+
+        const { error: dbError } = await supabaseAdmin
+            .from('users')
+            .update({ 
+                username: username,
+                full_name: full_name,
+                role: 'user',
+                gender: gender,
+                region: region,
+                avatar_url: avatarUrl
+            })
+            .eq('id', existingUser.id);
+
+        if (dbError) throw dbError;
+
+        // 6. DỌN DẸP: Xóa verification để kết thúc quy trình
+        await supabase.from('email_verifications').delete().eq('email', email);
+
+        res.json({ status: 'success', message: 'Đăng ký thành công!' });
+
     } catch (err) {
-        console.error("Logout Error:", err);
-        // Vẫn trả về lỗi server để log, nhưng App sẽ không quan tâm lắm
-        res.status(500).json({ status: 'error', message: 'Lỗi server khi đăng xuất' });
+        console.error("Lỗi register/complete:", err);
+        res.status(400).json({ status: 'error', message: err.message });
     }
 });
 
-// --- 5. KIỂM TRA EMAIL (CHECK EMAIL) ---
-router.post('/check-email', async (req, res) => {
+
+// --- LUỒNG QUÊN MẬT KHẨU ---
+// Bước 1: Gửi OTP recovery (Có kiểm tra nhảy bước)
+router.post('/forgot-password/send-otp', async (req, res) => {
     const { email } = req.body;
     try {
-        const user = await pool.query('SELECT id, role FROM users WHERE email = $1', [email]);
+        // 1. Kiểm tra Email có tồn tại và lấy Role
+        const { data: user } = await supabase
+            .from('users')
+            .select('username, role') 
+            .eq('email', email)
+            .maybeSingle();
 
-        // Trả về cấu trúc chuẩn có status để App dễ xử lý
-        res.json({
-            status: 'success',
-            exists: user.rows.length > 0,
-            message: user.rows.length > 0 ? 'Email đã tồn tại' : 'Email chưa tồn tại',
-            role: user.rows[0].role
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: 'Lỗi server khi kiểm tra email' });
-    }
-});
-
-// --- 6. ĐỒNG BỘ MẬT KHẨU (CÓ TRẢ VỀ TOKEN) ---
-router.post('/sync-password', async (req, res) => {
-    const { identifier, password } = req.body;
-    // Map lại biến
-    const email = identifier;
-    const newPassword = password;
-
-    try {
-        if (!email || !newPassword) {
-            return res.status(400).json({ status: 'error', message: 'Thiếu thông tin email hoặc mật khẩu' });
+        // Kiểm tra tồn tại
+        if (!user || !user.username) {
+            return res.status(404).json({ status: 'error', message: 'Email này chưa được đăng ký tài khoản.' });
         }
 
-        // 1. Mã hóa mật khẩu mới
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-        // 2. Cập nhật vào DB
-        const updateRes = await pool.query(
-            'UPDATE users SET password_hash = $1 WHERE email = $2 RETURNING id, username, email, full_name, role, created_at',
-            [hashedPassword, email]
-        );
-
-        if (updateRes.rowCount === 0) {
-            return res.status(404).json({ status: 'error', message: 'Email không tồn tại trong hệ thống' });
-        }
-
-        const user = updateRes.rows[0];
-
-        // === 3. TẠO TOKEN MỚI ===
-        const accessToken = jwt.sign(
-            { user_id: user.id, role: user.role },
-            JWT_SECRET,
-            { expiresIn: '30m' }
-        );
-
-        const refreshToken = await generateRefreshToken(user.id);
-
-        // 4. Trả về kết quả đầy đủ
-        res.json({
-            status: 'success',
-            message: 'Đồng bộ mật khẩu thành công!',
-            user: user,
-            access_token: accessToken,  // App sẽ nhận được token mới
-            refresh_token: refreshToken
-        });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: 'Lỗi Server khi đồng bộ' });
-    }
-});
-
-// --- 7. ĐĂNG NHẬP KHÁCH (GUEST LOGIN) ---
-router.post('/guest-login', async (req, res) => {
-    try {
-        // 1. Tạo một định danh ngẫu nhiên cho khách
-        const randomId = crypto.randomBytes(8).toString('hex');
-        const guestUsername = `guest_${randomId}`;
-        const guestEmail = `${guestUsername}@anon.com`;
-
-        // 2. Tạo password ngẫu nhiên
-        const randomPass = crypto.randomBytes(16).toString('hex');
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(randomPass, salt);
-
-        // 3.TẠO MỚI khách vào Database
-        const newUser = await pool.query(
-            `INSERT INTO users (username, password_hash, email, full_name, role) 
-             VALUES ($1, $2, $3, $4, 'guest') 
-             RETURNING id, username, email, full_name, role, created_at`,
-            [guestUsername, hashedPassword, guestEmail, 'Khách ghé thăm']
-        );
-
-        const user = newUser.rows[0];
-
-        // 4. Tạo Token cho khách (Role là 'guest')
-        const accessToken = jwt.sign(
-            { user_id: user.id, role: 'guest' },
-            JWT_SECRET,
-            { expiresIn: '30m' }
-        );
-
-        // Tạo Refresh Token
-        const refreshToken = await generateRefreshToken(user.id);
-
-        res.json({
-            status: 'success',
-            message: 'Đăng nhập khách thành công',
-            user: {
-                id: user.id,
-                username: user.username,
-                full_name: user.full_name,
-                role: user.role,
-                created_at: user.created_at
-            },
-            access_token: accessToken,
-            refresh_token: refreshToken
-        });
-
-    } catch (err) {
-        console.error("Guest Login Error:", err);
-        res.status(500).json({ status: 'error', message: 'Lỗi tạo tài khoản khách' });
-    }
-});
-
-
-
-// API Xóa tài khoản vĩnh viễn (Dùng để dọn dẹp Guest)
-router.delete('/delete-guest', verifyToken, async (req, res) => {
-    try {
-        const { user_id, role } = req.user; // Lấy thông tin từ Token
-
-        // BƯỚC BẢO MẬT: Kiểm tra xem có đúng là Guest không?
-        if (role !== 'guest') {
-            return res.status(403).json({
-                status: 'error',
-                message: 'Chỉ tài khoản Khách mới được phép sử dụng API này!'
+        // --- CHẶN ADMIN & OWNER ---
+        if (user.role === 'admin' || user.role === 'own') {
+            return res.status(403).json({ 
+                status: 'error', 
+                message: 'Tài khoản Quản trị không được phép khôi phục mật khẩu qua App. Vui lòng liên hệ Owner hoặc dùng Web Admin.' 
             });
         }
+        // ----------------------------------------------
 
-        // Nếu đúng là Guest thì cho phép xóa chính mình
-        await pool.query('DELETE FROM refresh_tokens WHERE user_id = $1', [user_id]);
-        await pool.query('DELETE FROM users WHERE id = $1', [user_id]);
+        // 2. KIỂM TRA NHẢY BƯỚC: Nếu đã verify trong vòng 15p
+        const { data: verifyData } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
 
-        res.json({ status: 'success', message: 'Đã dọn dẹp tài khoản khách.' });
+        if (verifyData && verifyData.is_verified) {
+            const diffMinutes = (new Date() - new Date(verifyData.verified_at)) / (1000 * 60);
+            if (diffMinutes <= 15) {
+                return res.json({ status: 'already_verified', message: 'Phiên xác thực vẫn còn hiệu lực.' });
+            }
+        }
+
+        // 3. Gửi OTP Recovery từ Supabase
+        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        
+        if (error) throw error;
+
+        res.json({ status: 'success', message: 'Mã OTP đặt lại mật khẩu đã được gửi.' });
+
     } catch (err) {
-        console.error("Delete Guest Error:", err);
-        res.status(500).json({ status: 'error', message: 'Lỗi server' });
+        res.status(400).json({ status: 'error', message: err.message });
     }
 });
 
+// Bước 2: Verify OTP recovery
+router.post('/forgot-password/verify-otp', async (req, res) => {
+    const { email, token } = req.body;
+    try {
+        const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+        if (error) throw error;
+
+        // Lưu trạng thái vào bảng tạm để đánh dấu đã xác thực (để check 15p ở bước sau)
+        await supabase.from('email_verifications').upsert({ 
+            email, 
+            is_verified: true, 
+            verified_at: new Date() 
+        }, { onConflict: 'email' });
+
+        res.json({ 
+            status: 'success', 
+            temp_token: data.session.access_token
+        });
+    } catch (err) {
+        res.status(400).json({ status: 'error', message: 'Mã OTP không đúng hoặc hết hạn.' });
+    }
+});
+
+// Bước 3: Đặt lại mật khẩu mới
+router.post('/forgot-password/reset', async (req, res) => {
+    const { email, new_password } = req.body;
+
+    try {
+        // 1. Lấy biên lai xác thực
+        const { data: verifyData } = await supabase
+            .from('email_verifications')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle();
+
+        // Kiểm tra xem đã verify chưa
+        if (!verifyData || !verifyData.is_verified) {
+            return res.status(403).json({ status: 'error', message: 'Vui lòng xác thực mã OTP trước.' });
+        }
+
+        // 2. Kiểm tra thời gian
+        const diffMs = new Date().getTime() - new Date(verifyData.verified_at).getTime();
+        const diffMinutes = diffMs / (1000 * 60);
+
+        if (diffMinutes > 15) {
+            // Nếu quá hạn thì xóa luôn bản ghi cũ
+            await supabase.from('email_verifications').delete().eq('email', email);
+            return res.status(403).json({ status: 'error', message: 'Phiên xác thực đã hết hạn (15 phút). Vui lòng gửi lại mã.' });
+        }
+
+        // 3. Thực hiện đổi mật khẩu bằng quyền Admin (supabaseAdmin)
+        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+        const user = users.find(u => u.email === email);
+        
+        if (!user) throw new Error("Không tìm thấy người dùng.");
+
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            user.id,
+            { password: new_password }
+        );
+
+        if (updateError) throw updateError;
+
+        // 4. Xóa biên lai sau khi thành công để không dùng lại được lần 2
+        await supabase.from('email_verifications').delete().eq('email', email);
+
+        res.json({ status: 'success', message: 'Đổi mật khẩu thành công!' });
+
+    } catch (err) {
+        res.status(400).json({ status: 'error', message: err.message });
+    }
+});
+
+// --- LUỒNG ĐĂNG NHẬP (LOGIN) ---
+router.post('/login', async (req, res) => {
+    const { identifier, password } = req.body; // identifier có thể là email hoặc username
+
+    try {
+        let emailToLogin = identifier.trim();
+
+        // 1. Nếu người dùng nhập Username, ta cần tìm Email tương ứng
+        if (!emailToLogin.includes('@')) {
+            const { data: user, error } = await supabase
+                .from('users')
+                .select('email')
+                .eq('username', emailToLogin)
+                .maybeSingle();
+
+            if (error || !user) {
+                return res.status(404).json({ status: 'error', message: 'Tên đăng nhập không tồn tại!' });
+            }
+            emailToLogin = user.email;
+        }
+
+        // 2. Gọi Supabase để đăng nhập
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: emailToLogin,
+            password: password,
+        });
+
+        if (error) throw error;
+
+        // 3. (Tùy chọn) Kiểm tra xem user này có phải Admin không
+        // Nếu trang này chỉ dành cho Admin, bạn cần check role trong bảng users
+        const { data: userProfile } = await supabase
+            .from('users')
+            .select('role, full_name, username')
+            .eq('id', data.user.id)
+            .single();
+
+        // Ví dụ: chặn nếu không phải admin (bỏ comment nếu cần)
+        if (userProfile.role !== 'admin' && userProfile.role !== 'own') {
+           return res.status(403).json({ status: 'error', message: 'Bạn không có quyền truy cập Admin!' });
+        }
+
+        res.json({
+        status: 'success',
+        message: 'Đăng nhập thành công!',
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        user: {
+            id: data.user.id,
+            email: emailToLogin,
+            username: userProfile.username,
+            full_name: userProfile.full_name,
+            role: userProfile.role
+        }
+    });
+
+    } catch (err) {
+        res.status(400).json({ status: 'error', message: 'Sai tài khoản hoặc mật khẩu!' });
+    }
+});
+
+
+// API dọn dẹp Guest (Chỉ server mới xóa được user khỏi auth.users)
+router.post('/cleanup-guest', async (req, res) => {
+    const { guest_id } = req.body;
+
+    if (!guest_id) return res.status(400).json({ message: 'Thiếu guest_id' });
+
+    try {
+        // Cần dùng supabaseAdmin (Service Role Key) để xóa user
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(guest_id);
+        
+        if (error) throw error;
+
+        // Xóa luôn dữ liệu trong bảng public.users (nếu chưa cascade)
+        await supabaseAdmin.from('users').delete().eq('id', guest_id);
+
+        res.json({ status: 'success', message: 'Đã xóa guest thành công' });
+    } catch (err) {
+        console.error("Lỗi xóa guest:", err);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+});
 
 module.exports = router;

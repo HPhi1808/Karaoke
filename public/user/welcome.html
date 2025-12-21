@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Karaoke Entertainment Plus - Thỏa Đam Mê Ca Hát</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #FF00CC;
+            --secondary-color: #00FFFF;
+            --bg-dark: #0a0a1a;
+            --text-color: #ffffff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box_sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Chặn thanh cuộn thừa */
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg-dark);
+            background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
+            color: var(--text-color);
+            position: relative;
+        }
+
+        /* Hiệu ứng đốm sáng nền */
+        .glow-bg {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(255, 0, 204, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            animation: pulse 5s infinite alternate;
+        }
+
+        .container {
+            /* --- CẤU HÌNH CĂN GIỮA TUYỆT ĐỐI --- */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            
+            width: 90%;
+            max-width: 800px;
+            
+            text-align: center;
+            z-index: 10;
+            padding: 3rem;
+            
+            /* Glassmorphism */
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .logo {
+            width: 160px;
+            height: auto;
+            margin-bottom: 20px;
+            border-radius: 35px;
+            filter: drop-shadow(0 0 20px rgba(255, 0, 204, 0.6));
+            animation: float 3s ease-in-out infinite;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, #fff, #b3b3b3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 900;
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        p {
+            font-size: 1rem;
+            line-height: 1.6;
+            color: #dddddd;
+            margin-bottom: 40px;
+            max-width: 650px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(45deg, var(--primary-color), #aa00ff);
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            border-radius: 50px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 0, 204, 0.4);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 0, 204, 0.7);
+        }
+
+        /* --- STYLES MỚI CHO THANH ĐIỀU HƯỚNG PHỤ --- */
+        .secondary-nav {
+            margin-top: 30px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            color: #aaa;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-link:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .nav-link i {
+            color: var(--primary-color);
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: #666;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 20px;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+            100% { transform: translateY(0px); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.8); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+        }
+        
+        /* Mobile adjustment */
+        @media (max-width: 600px) {
+            .container {
+                padding: 2rem 1.5rem;
+                width: 95%;
+            }
+            h1 { font-size: 1.8rem; }
+            h2 { font-size: 0.9rem; }
+            .secondary-nav { gap: 10px; }
+            .nav-link { font-size: 0.85rem; padding: 6px 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glow-bg"></div>
+
+    <div class="container">
+        <img src="https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/Logo.png" alt="Logo" class="logo">
+        
+        <h1>Karaoke Entertainment Plus</h1>
+        <h2>Thỏa Đam Mê - Kết Nối Cảm Xúc</h2>
+        
+        <p>
+            Chào mừng bạn đến với trang chủ chính thức của ứng dụng <strong>Karaoke Entertainment Plus</strong>.<br>
+            Chúng tôi mang đến trải nghiệm ca hát đỉnh cao với kho nhạc khổng lồ, 
+            âm thanh chất lượng studio và tính năng thu âm chuyên nghiệp ngay trên điện thoại của bạn.
+        </p>
+
+        <a href="#" class="btn">Sắp có mặt trên Android & iOS</a>
+
+        <div class="secondary-nav">
+            <a href="/support" class="nav-link">
+                <i class="fas fa-headset"></i> Trung tâm Hỗ trợ
+            </a>
+            <a href="/policy" class="nav-link">
+                <i class="fas fa-shield-alt"></i> Chính sách & Quy định
+            </a>
+        </div>
+
+        <footer>
+            <p>&copy; 2025 Karaoke Entertainment Plus. All rights reserved.<br>
+            Website chính thức: <a href="https://karaokeplus.cloud" style="color: #FF00CC; text-decoration: none;">karaokeplus.cloud</a></p>
+        </footer>
+    </div>
+
+</body>
+</html>

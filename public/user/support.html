@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hỗ trợ - Karaoke Entertainment Plus</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary-color: #FF00CC;
+            --secondary-color: #00FFFF;
+            --bg-dark: #0a0a1a;
+            --text-color: #ffffff;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box_sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--bg-dark);
+            background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
+            color: var(--text-color);
+            position: relative;
+        }
+
+        .glow-bg {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(255, 0, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 0;
+            animation: pulse 6s infinite alternate;
+        }
+
+        .glass-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            
+            width: 90%;
+            max-width: 800px;
+            height: 85vh;
+            max-height: 800px;
+            
+            z-index: 10;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 30px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; 
+        }
+
+        /* Header cố định */
+        .panel-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid var(--glass-border);
+            text-align: center;
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+
+        .mini-logo {
+            width: 40px;
+            height: 40px;
+            vertical-align: middle;
+            border-radius: 10px;
+            margin-right: 10px;
+            object-fit: cover;
+        }
+
+        h1 {
+            display: inline-block;
+            font-size: 1.5rem;
+            vertical-align: middle;
+            font-weight: 700;
+            background: linear-gradient(to right, #fff, #b3b3b3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Phần nội dung cuộn bên trong */
+        .panel-content {
+            padding: 30px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        /* Custom Scrollbar */
+        .panel-content::-webkit-scrollbar { width: 6px; }
+        .panel-content::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+        .panel-content::-webkit-scrollbar-thumb { background: rgba(255, 0, 204, 0.3); border-radius: 4px; }
+        .panel-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 204, 0.6); }
+
+        h2 {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-left: 3px solid var(--primary-color);
+            padding-left: 10px;
+        }
+
+        .contact-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 40px;
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .contact-box:hover {
+            border-color: var(--primary-color);
+            background: rgba(255, 0, 204, 0.05);
+        }
+
+        .email-display {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #fff;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.2s, background 0.2s;
+            border: none;
+            margin: 5px;
+        }
+        
+        .btn-copy {
+            background: linear-gradient(45deg, var(--primary-color), #aa00ff);
+            color: white;
+        }
+        
+        .btn-send {
+            background: rgba(255,255,255,0.1); 
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+        }
+        .btn-send:hover { background: rgba(255,255,255,0.2); }
+        .action-btn:active { transform: scale(0.95); }
+
+        /* FAQ Style */
+        .faq-item {
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .faq-question {
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            color: #ddd;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 15px 0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: color 0.3s;
+        }
+        .faq-question:hover { color: var(--primary-color); }
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            color: #aaa;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        .faq-answer p { padding-bottom: 15px; }
+        .active .faq-question { color: var(--primary-color); }
+        .active .faq-question i { transform: rotate(180deg); transition: transform 0.3s; }
+
+        .panel-footer {
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid var(--glass-border);
+            font-size: 0.9rem;
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        .home-link {
+            color: #888;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            transition: color 0.3s;
+        }
+        .home-link:hover { color: #fff; }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
+            100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 50px;
+            padding: 16px;
+            position: fixed;
+            z-index: 100;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 17px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            border: 1px solid var(--primary-color);
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+        
+        @media (max-width: 600px) {
+            .glass-panel { width: 95%; height: 90vh; }
+            h1 { font-size: 1.2rem; }
+            .email-display { font-size: 0.9rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="glow-bg"></div>
+
+    <div class="glass-panel">
+        <div class="panel-header">
+            <a href="index.html" style="text-decoration: none;">
+                <img src="https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/Logo.png" alt="Logo" class="mini-logo">
+                <h1>Trung Tâm Hỗ Trợ</h1>
+            </a>
+        </div>
+
+        <div class="panel-content">
+            
+            <h2>Liên hệ trực tiếp</h2>
+            <div class="contact-box">
+                <p style="color: #aaa; margin-bottom: 5px;">Gặp sự cố? Gửi email cho chúng tôi:</p>
+                <div class="email-display" id="emailText">karaokeentertainmentplus@gmail.com</div>
+                
+                <div style="margin-top: 15px;">
+                    <button class="action-btn btn-copy" onclick="copyEmail()">
+                        <i class="fas fa-copy"></i> Sao chép
+                    </button>
+
+                    <a href="https://mail.google.com/mail/?view=cm&fs=1&to=karaokeentertainmentplus@gmail.com" 
+                       target="_blank" 
+                       class="action-btn btn-send">
+                        <i class="fas fa-paper-plane"></i> Gửi Gmail
+                    </a>
+                </div>
+            </div>
+
+            <h2>Câu hỏi thường gặp (FAQ)</h2>
+            
+            <div class="faq-item">
+                <button class="faq-question">Tôi quên mật khẩu phải làm sao? <i class="fas fa-chevron-down"></i></button>
+                <div class="faq-answer">
+                    <p>Tại màn hình đăng nhập, bạn vui lòng nhấn vào dòng chữ "Quên mật khẩu?". Hệ thống sẽ gửi mã xác thực (OTP) về email của bạn để tiến hành đặt lại mật khẩu mới.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">Ứng dụng có miễn phí không? <i class="fas fa-chevron-down"></i></button>
+                <div class="faq-answer">
+                    <p>Karaoke Entertainment Plus cho phép tải và sử dụng miễn phí các tính năng cơ bản như hát, thu âm. Tuy nhiên, một số bài hát VIP hoặc tính năng nâng cao có thể yêu cầu nâng cấp tài khoản.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <button class="faq-question">Làm sao để xóa tài khoản? <i class="fas fa-chevron-down"></i></button>
+                <div class="faq-answer">
+                    <p>Để xóa tài khoản vĩnh viễn, vui lòng vào mục <strong>Cài đặt > Tài khoản > Xóa tài khoản</strong> trong ứng dụng. Hoặc gửi email yêu cầu đến địa chỉ hỗ trợ ở trên.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-footer">
+            <a href="/" class="home-link">
+                <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Quay về Trang chủ
+            </a>
+        </div>
+    </div>
+
+    <div id="toast">Đã sao chép Email vào bộ nhớ tạm!</div>
+
+    <script>
+        function copyEmail() {
+            var emailText = document.getElementById("emailText").innerText;
+            navigator.clipboard.writeText(emailText).then(function() {
+                var x = document.getElementById("toast");
+                x.className = "show";
+                setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+            }, function(err) {
+                console.error('Lỗi sao chép: ', err);
+            });
+        }
+
+        var acc = document.getElementsByClassName("faq-question");
+        var i;
+        for (i = 0; i < acc.length; i++) {
+            acc[i].addEventListener("click", function() {
+                this.parentElement.classList.toggle("active");
+                var panel = this.nextElementSibling;
+                if (panel.style.maxHeight) {
+                    panel.style.maxHeight = null;
+                } else {
+                    panel.style.maxHeight = panel.scrollHeight + "px";
+                } 
+            });
+        }
+    </script>
+</body>
+</html>
