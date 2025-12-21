@@ -1,4 +1,4 @@
-# **Karaoke App**
+# **Karaoke Entertainment Plus**
 
 ## Yêu cầu môi trường (Prerequisites)
 Để chạy dự án này, máy tính của bạn BẮT BUỘC phải có:
@@ -11,5 +11,16 @@
 ## Cách chạy dự án (Quick Start)
 Dự án đã được cấu hình sẵn script tự động.
 
-1. Clone dự án về máy.
-2. Chạy file `setup.bat` (trên Windows) để cài đặt và khởi động.
+1. Clone dự án về máy:
+
+        git clone https://github.com/Phap625/App-karaoke.git
+2. Chạy máy ảo.
+
+3. Chạy file `setup.bat` (trên Windows) để cài đặt và khởi động bằng lệnh:
+
+        .\setup.bat
+
+4. Fix lỗi(nếu có) bằng lệnh:
+
+        https://gemini.google.com
+
