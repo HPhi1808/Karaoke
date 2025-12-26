@@ -111,15 +111,18 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
         if (resSong.rows.length === 0) return res.status(404).json({ message: 'Bài hát không tồn tại' });
         const song = resSong.rows[0];
 
-        // Xóa file trên Cloud R2
-        await Promise.all([
-            deleteFromR2(song.beat_url), 
-            deleteFromR2(song.lyric_url),
-            deleteFromR2(song.vocal_url), 
-            deleteFromR2(song.image_url)
-        ]);
+        const filesToDelete = [song.beat_url, song.lyric_url, song.vocal_url, song.image_url];
+        
+        await Promise.all(filesToDelete.map(async (url) => {
+            if (url) {
+                try {
+                    await deleteFromR2(url);
+                } catch (e) {
+                    console.error(`Lỗi xóa file R2 (${url}):`, e.message); 
+                }
+            }
+        }));
 
-        // Xóa DB
         await pool.query('DELETE FROM songs WHERE song_id = $1', [id]);
         
         res.json({ status: 'success', message: 'Đã xóa bài hát' });

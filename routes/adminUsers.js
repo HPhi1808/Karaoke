@@ -92,29 +92,29 @@ router.post('/:id/lock', verifyToken, requireAdmin, async (req, res) => {
     
     try {
         let sql = '';
+        
         if (duration === 'unlock') {
-            // Mở khóa DB
             sql = 'UPDATE users SET locked_until = NULL WHERE id = $1';
-            // Mở khóa Supabase
-            await supabaseAdmin.auth.admin.updateUserById(id, { ban_duration: "none" });
+            
         } else {
-            // Tính thời gian cho DB
             const intervalMap = { '1h': '1 hour', '24h': '1 day', '7d': '7 days', 'forever': '100 years' };
             const dbInterval = intervalMap[duration] || '1 hour';
+            
             sql = `UPDATE users SET locked_until = (NOW() + interval '${dbInterval}') WHERE id = $1`;
             
-            // Tính thời gian cho Supabase Auth
-            let banTime = "1h";
-            if (duration === '24h') banTime = "24h";
-            if (duration === '7d') banTime = "168h";
-            if (duration === 'forever') banTime = "876000h";
-
-            await supabaseAdmin.auth.admin.updateUserById(id, { ban_duration: banTime });
+            
+            try {
+                await supabaseAdmin.auth.admin.signOut(id, 'global');
+            } catch (e) {
+                console.log("User session cleared or not found.");
+            }
         }
         
         await pool.query(sql, [id]);
+        
         res.json({ status: 'success', message: 'Thao tác thành công' });
     } catch (err) {
+        console.error("Lock Error:", err);
         res.status(500).json({ error: err.message });
     }
 });

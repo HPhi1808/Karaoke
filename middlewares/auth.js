@@ -1,7 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-// Khởi tạo Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
@@ -11,7 +10,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- 1. Middleware Xác thực & Lấy Metadata ---
 const verifyToken = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
@@ -25,7 +23,6 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
-        // Gọi Supabase Auth để kiểm tra Token và lấy thông tin User mới nhất
         const { data: { user }, error } = await supabase.auth.getUser(token);
 
         if (error || !user) {
@@ -35,15 +32,31 @@ const verifyToken = async (req, res, next) => {
             });
         }
 
-        // --- QUAN TRỌNG: LẤY ROLE TỪ METADATA ---
-        // user.user_metadata tương ứng với cột raw_user_meta_data trong DB
-        const userRole = user.user_metadata?.role || 'user';
+        const { data: publicUser, error: dbError } = await supabase
+            .from('users')
+            .select('locked_until, role')
+            .eq('id', user.id)
+            .single();
 
-        // Gắn thông tin vào request
+        if (!dbError && publicUser) {
+            if (publicUser.locked_until && new Date(publicUser.locked_until) > new Date()) {
+                
+                const unlockTime = new Date(publicUser.locked_until).toLocaleString('vi-VN');
+                
+                return res.status(403).json({
+                    status: 'locked',
+                    message: `Tài khoản của bạn đang bị tạm khoá đến: ${unlockTime}. Vui lòng liên hệ Quản trị viên.`
+                });
+            }
+        }
+        // ==================================================================
+
+        const finalRole = publicUser?.role || user.user_metadata?.role || 'user';
+
         req.user = {
             user_id: user.id,
             email: user.email,
-            role: userRole 
+            role: finalRole
         };
 
         next();
@@ -57,11 +70,9 @@ const verifyToken = async (req, res, next) => {
     }
 };
 
-// --- 2. Các hàm kiểm tra quyền (Giữ nguyên) ---
 const requireAdmin = (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Chưa xác thực' });
     
-    // Role 'own' quyền cao nhất
     if (req.user.role === 'own') return next(); 
 
     if (req.user.role !== 'admin') {

@@ -330,12 +330,12 @@ router.post('/forgot-password/reset', async (req, res) => {
 
 // --- LUỒNG ĐĂNG NHẬP (LOGIN) ---
 router.post('/login', async (req, res) => {
-    const { identifier, password } = req.body; // identifier có thể là email hoặc username
+    const { identifier, password } = req.body;
 
     try {
         let emailToLogin = identifier.trim();
 
-        // 1. Nếu người dùng nhập Username, ta cần tìm Email tương ứng
+        // 1. Nếu nhập Username thì tìm Email
         if (!emailToLogin.includes('@')) {
             const { data: user, error } = await supabase
                 .from('users')
@@ -355,37 +355,67 @@ router.post('/login', async (req, res) => {
             password: password,
         });
 
-        if (error) throw error;
+        // Xử lý lỗi đăng nhập sai pass riêng biệt
+        if (error) {
+            return res.status(400).json({ status: 'error', message: 'Mật khẩu không chính xác!' });
+        }
 
-        // 3. (Tùy chọn) Kiểm tra xem user này có phải Admin không
-        // Nếu trang này chỉ dành cho Admin, bạn cần check role trong bảng users
-        const { data: userProfile } = await supabase
+        // 3. Kiểm tra Role và trạng thái tài khoản từ bảng public.users        
+        const { data: userProfile, error: profileError } = await supabase
             .from('users')
-            .select('role, full_name, username')
+            .select('role, full_name, username, locked_until') 
             .eq('id', data.user.id)
-            .single();
+            .maybeSingle(); 
 
-        // Ví dụ: chặn nếu không phải admin (bỏ comment nếu cần)
+        if (profileError || !userProfile) {
+            await supabase.auth.admin.signOut(data.user.id, 'global');
+            return res.status(500).json({ status: 'error', message: 'Lỗi hệ thống: Không tìm thấy hồ sơ người dùng.' });
+        }
+
         if (userProfile.role !== 'admin' && userProfile.role !== 'own') {
-           return res.status(403).json({ status: 'error', message: 'Bạn không có quyền truy cập Admin!' });
+            await supabaseAdmin.rpc('force_revoke_user', { 
+                target_user_id: data.user.id
+            });
+            return res.status(403).json({ status: 'error', message: 'Bạn không có quyền truy cập Admin!' });
         }
 
-        res.json({
-        status: 'success',
-        message: 'Đăng nhập thành công!',
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-        user: {
-            id: data.user.id,
-            email: emailToLogin,
-            username: userProfile.username,
-            full_name: userProfile.full_name,
-            role: userProfile.role
+        const now = new Date().getTime();
+        const lockTime = userProfile.locked_until ? new Date(userProfile.locked_until).getTime() : 0;
+
+        if (lockTime > now) {
+            const unlockTimeStr = new Date(userProfile.locked_until).toLocaleString('vi-VN', {
+                timeZone: 'Asia/Ho_Chi_Minh',
+                hour12: false
+            });
+
+            await supabaseAdmin.rpc('force_revoke_user', { 
+                target_user_id: data.user.id 
+            });
+
+            return res.status(403).json({ 
+                status: 'locked', 
+                message: `Tài khoản đang bị tạm khóa đến: ${unlockTimeStr}. Vui lòng quay lại sau.` 
+            });
         }
-    });
+
+        // 4. Trả về kết quả thành công
+        res.json({
+            status: 'success',
+            message: 'Đăng nhập thành công!',
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+            user: {
+                id: data.user.id,
+                email: emailToLogin,
+                username: userProfile.username,
+                full_name: userProfile.full_name,
+                role: userProfile.role
+            }
+        });
 
     } catch (err) {
-        res.status(400).json({ status: 'error', message: 'Sai tài khoản hoặc mật khẩu!' });
+        console.error("Login System Error:", err); 
+        res.status(500).json({ status: 'error', message: 'Lỗi Server: ' + err.message });
     }
 });
 

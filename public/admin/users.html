@@ -139,7 +139,96 @@
         let currentSearchTerm = '';
         let hasLoadedData = false;
 
-        // --- 2. CÁC HÀM HÀNH ĐỘNG  ---
+        // --- 2. HÀM SINH HTML CHO 1 DÒNG (Dùng chung) ---
+        function generateRowHtml(u, currentUserId, currentUserRole) {
+            const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+            const safeName = (u.full_name || u.username || '').replace(/'/g, "\\'");
+            
+            let actionButtons = '';
+            
+            // Logic hiển thị nút
+            if (u.id !== currentUserId) {
+                const canEdit = currentUserRole === 'own' || (currentUserRole === 'admin' && u.role === 'user');
+                
+                if (canEdit) {
+                    if (u.role !== 'own') {
+                        const btnClass = u.role === 'admin' ? 'btn-secondary' : 'btn-warning';
+                        const btnText = u.role === 'admin' ? 'Hạ User' : 'Lên Admin';
+                        actionButtons += `<button class="btn btn-sm ${btnClass} me-1" onclick="window.toggleRole('${u.id}','${u.role}')" title="Đổi quyền">${btnText}</button>`;
+                    }
+
+                    const lockIcon = isLocked ? '<i class="bi bi-unlock-fill"></i>' : '<i class="bi bi-lock-fill"></i>';
+                    const lockClass = isLocked ? 'btn-success' : 'btn-dark';
+                    const lockTitle = isLocked ? 'Mở khoá' : 'Khoá tài khoản';
+                    actionButtons += `<button class="btn btn-sm ${lockClass} me-1" onclick="window.openLockModal('${u.id}', '${safeName}')" title="${lockTitle}">${lockIcon}</button>`;
+
+                    actionButtons += `<button class="btn btn-sm btn-danger me-1" onclick="window.deleteUser('${u.id}')" title="Xóa"><i class="bi bi-trash"></i></button>`;
+                    actionButtons += `<button class="btn btn-sm btn-info text-white" onclick="window.openMsgModal('${u.id}', '${safeName}')" title="Gửi tin"><i class="bi bi-envelope"></i></button>`;
+                } else {
+                    if (currentUserRole === 'admin' && (u.role === 'admin' || u.role === 'own')) {
+                        actionButtons = '<span class="text-muted small fst-italic">Không đủ quyền</span>';
+                    }
+                }
+            } else {
+                actionButtons = '<span class="badge bg-info">Bạn</span>';
+            }
+
+            const statusBadge = isLocked ? '<span class="badge bg-danger ms-2"><i class="bi bi-lock-fill"></i> Locked</span>' : '';
+            const rowClass = isLocked ? 'table-secondary' : '';
+
+            // QUAN TRỌNG: Thêm id="user-row-${u.id}" để dễ tìm và replace
+            return `
+                <tr id="user-row-${u.id}" class="${rowClass}">
+                    <td class="text-center">
+                        <img src="${u.avatar_url || 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/defautl.jpg'}" class="rounded-circle border" width="40" height="40" style="object-fit: cover;">
+                    </td>
+                    <td class="fw-bold text-dark">${u.full_name || 'Chưa đặt tên'} ${statusBadge}</td>
+                    <td class="text-muted">@${u.username || '---'}</td>
+                    <td>${u.email}</td>
+                    <td class="text-center">
+                        <span class="badge ${u.role === 'own' ? 'bg-dark' : u.role === 'admin' ? 'bg-danger' : 'bg-success'}">
+                        ${u.role.toUpperCase()}
+                        </span>
+                    </td>
+                    <td>${new Date(u.created_at).toLocaleDateString('vi-VN')}</td>
+                    <td class="text-center">${actionButtons}</td>
+                </tr>
+            `;
+        }
+
+        // --- 3. HÀM CẬP NHẬT 1 DÒNG (Không load lại trang) ---
+        function updateLocalRow(userId, newData) {
+            // 1. Cập nhật dữ liệu trong mảng bộ nhớ
+            const index = allUsersData.findIndex(u => u.id === userId);
+            if (index !== -1) {
+                // Merge dữ liệu cũ với dữ liệu mới
+                allUsersData[index] = { ...allUsersData[index], ...newData };
+                const updatedUser = allUsersData[index];
+
+                // 2. Lấy thông tin người đang đăng nhập để vẽ lại nút bấm cho đúng quyền
+                let currentUserId = null; 
+                let currentUserRole = '';
+                try {
+                    const adminInfo = JSON.parse(localStorage.getItem('admin_info'));
+                    currentUserId = adminInfo?.id;
+                    currentUserRole = adminInfo?.role;
+                } catch(e) {}
+
+                // 3. Tìm dòng cũ trong DOM và thay thế bằng HTML mới
+                const oldRow = document.getElementById(`user-row-${userId}`);
+                if (oldRow) {
+                    // Tạo một thẻ template tạm để chứa HTML mới
+                    const temp = document.createElement('tbody');
+                    temp.innerHTML = generateRowHtml(updatedUser, currentUserId, currentUserRole);
+                    // Thay thế dòng cũ
+                    oldRow.replaceWith(temp.firstElementChild);
+                }
+            }
+        }
+
+        // --- 4. CÁC HÀM HÀNH ĐỘNG (Đã sửa để dùng updateLocalRow) ---
+        
+        // ĐỔI ROLE
         window.toggleRole = async function (id, currentRole) {
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
             if (!confirm(`Bạn muốn đổi quyền user này thành ${newRole.toUpperCase()}?`)) return;
@@ -150,22 +239,68 @@
             });
 
             if (res && res.status === 'success') {
-                await loadDataFromServer();
+                // ✅ Thay vì loadDataFromServer(), ta cập nhật cục bộ
+                updateLocalRow(id, { role: newRole });
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không thể đổi quyền'));
             }
         };
 
+        // KHOÁ TÀI KHOẢN
+        window.submitLock = async function () {
+            const userId = document.getElementById('lockUserId').value;
+            const duration = document.querySelector('input[name="lockDuration"]:checked').value;
+            
+            const btn = document.querySelector('#lockModal .btn-danger');
+            btn.innerText = 'Xử lý...';
+            btn.disabled = true;
+
+            const res = await window.api(`/api/admin/users/${userId}/lock`, {
+                method: 'POST',
+                body: JSON.stringify({ duration })
+            });
+
+            btn.innerText = 'Xác nhận';
+            btn.disabled = false;
+
+            if (res && res.status === 'success') {
+                bootstrap.Modal.getInstance(document.getElementById('lockModal')).hide();
+                
+                // ✅ Tính toán thời gian khoá giả lập để cập nhật UI ngay lập tức
+                let newLockedUntil = null;
+                if (duration !== 'unlock') {
+                    const now = new Date();
+                    if (duration === '1h') now.setHours(now.getHours() + 1);
+                    if (duration === '24h') now.setDate(now.getDate() + 1);
+                    if (duration === '7d') now.setDate(now.getDate() + 7);
+                    if (duration === 'forever') now.setFullYear(now.getFullYear() + 100);
+                    newLockedUntil = now.toISOString();
+                }
+
+                updateLocalRow(userId, { locked_until: newLockedUntil });
+                
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Thất bại'));
+            }
+        }
+
+        // XÓA USER (Xóa luôn dòng)
         window.deleteUser = async function (id) {
             if (!confirm('Hành động này không thể hoàn tác. XÓA người dùng này?')) return;
             const res = await window.api(`/api/admin/users/${id}`, { method: 'DELETE' });
+            
             if (res && res.status === 'success') {
-                await loadDataFromServer();
+                // Xóa khỏi mảng dữ liệu
+                allUsersData = allUsersData.filter(u => u.id !== id);
+                // Xóa dòng khỏi bảng (Hiệu ứng biến mất)
+                const row = document.getElementById(`user-row-${id}`);
+                if (row) row.remove();
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không xóa được'));
             }
         };
 
+        // --- CÁC HÀM KHÁC (GIỮ NGUYÊN) ---
         window.openMsgModal = function (userId, userName) {
             document.getElementById('msgUserId').value = userId;
             document.getElementById('msgUserName').value = userName;
@@ -175,25 +310,22 @@
         };
 
         window.submitMessage = async function () {
+            // (Giữ nguyên code gửi tin nhắn cũ...)
             const userId = document.getElementById('msgUserId').value;
             const title = document.getElementById('msgTitle').value;
             const message = document.getElementById('msgContent').value;
             const type = document.getElementById('msgType').value;
-
             if (!title || !message) { alert('Vui lòng nhập đủ thông tin!'); return; }
-
+            
             const btn = document.querySelector('#messageModal .btn-primary');
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Đang gửi...';
 
             const res = await window.api(`/api/admin/users/${userId}/message`, {
-                method: 'POST',
-                body: JSON.stringify({ title, message, type })
+                method: 'POST', body: JSON.stringify({ title, message, type })
             });
-
-            btn.disabled = false;
-            btn.innerHTML = originalText;
+            btn.disabled = false; btn.innerHTML = originalText;
 
             if (res && res.status === 'success') {
                 alert('Gửi thành công!');
@@ -210,93 +342,47 @@
             new bootstrap.Modal(document.getElementById('lockModal')).show();
         };
 
-        window.submitLock = async function () {
-            const userId = document.getElementById('lockUserId').value;
-            const duration = document.querySelector('input[name="lockDuration"]:checked').value;
-            const btn = document.querySelector('#lockModal .btn-danger');
-            
-            btn.innerText = 'Xử lý...';
-            btn.disabled = true;
-
-            const res = await window.api(`/api/admin/users/${userId}/lock`, {
-                method: 'POST',
-                body: JSON.stringify({ duration })
-            });
-
-            btn.innerText = 'Xác nhận';
-            btn.disabled = false;
-
-            if (res && res.status === 'success') {
-                alert(res.message);
-                bootstrap.Modal.getInstance(document.getElementById('lockModal')).hide();
-                await loadDataFromServer();
-            } else {
-                alert('Lỗi: ' + (res?.message || 'Thất bại'));
-            }
-        }
-
-        // --- 3. LOGIC LỌC DỮ LIỆU ---
-        
-        // Hàm này được gọi khi User chọn menu dropdown
+        // --- 5. LOGIC LỌC & RENDER BẢNG ---
         window.filterRole = async function (role, element) {
             currentRoleFilter = role;
-            
-            // Cập nhật giao diện Dropdown
             document.querySelectorAll('.dropdown-item').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
-
             const labelMap = { 'all': 'Tất cả', 'admin': 'Admin', 'user': 'User' };
             document.getElementById('roleFilterLabel').innerText = labelMap[role] || 'Vai trò';
 
-            // Nếu chưa tải data lần nào thì giờ mới tải
-            if (!hasLoadedData) {
-                await loadDataFromServer();
-            } else {
-                // Nếu đã có data rồi thì chỉ việc vẽ lại bảng
-                renderTable();
-            }
+            if (!hasLoadedData) await loadDataFromServer();
+            else renderTable();
         }
 
         const searchInput = document.getElementById('searchUser');
         if (searchInput) {
             searchInput.oninput = function (e) {
                 currentSearchTerm = e.target.value.toLowerCase();
-                // Nếu chưa chọn Role mà đã nhập từ khoá thì tự động chuyển sang 'all'
                 if (currentRoleFilter === 'none' && currentSearchTerm.length > 0) {
-                     currentRoleFilter = 'all';
-                     document.getElementById('roleFilterLabel').innerText = 'Tất cả';
-                     if (!hasLoadedData) loadDataFromServer();
-                     else renderTable();
+                      currentRoleFilter = 'all';
+                      document.getElementById('roleFilterLabel').innerText = 'Tất cả';
+                      if (!hasLoadedData) loadDataFromServer();
+                      else renderTable();
                 } else {
-                     renderTable();
+                      renderTable();
                 }
             };
         }
 
-        // --- 4. HÀM VẼ BẢNG ---
         function renderTable() {
             const tbody = document.getElementById('usersTableBody');
             if (!tbody) return;
             tbody.innerHTML = '';
 
-            // Nếu chưa chọn Role -> Hiện thông báo
             if (currentRoleFilter === 'none') {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" class="text-center py-5 text-muted">
-                            <i class="bi bi-funnel display-4"></i>
-                            <p class="mt-3">Vui lòng chọn <strong>Vai trò</strong> (Admin/User) để xem danh sách.</p>
-                        </td>
-                    </tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-funnel display-4"></i><p class="mt-3">Vui lòng chọn <strong>Vai trò</strong>.</p></td></tr>`;
                 return;
             }
 
             const filteredUsers = allUsersData.filter(u => {
                 const matchRole = currentRoleFilter === 'all' || u.role === currentRoleFilter;
                 const term = currentSearchTerm;
-                const matchSearch = (u.full_name || '').toLowerCase().includes(term) ||
-                    (u.username || '').toLowerCase().includes(term) ||
-                    (u.email || '').toLowerCase().includes(term);
+                const matchSearch = (u.full_name || '').toLowerCase().includes(term) || (u.username || '').toLowerCase().includes(term) || (u.email || '').toLowerCase().includes(term);
                 return matchRole && matchSearch;
             });
 
@@ -305,92 +391,26 @@
                 return;
             }
 
-            // Lấy info từ admin_info thay vì decode token
-            let currentUserId = null;
-            let currentUserRole = '';
+            // Lấy info hiện tại
+            let currentUserId = null; let currentUserRole = '';
             try {
-                const adminInfoStr = localStorage.getItem('admin_info');
-                if (adminInfoStr) {
-                    const adminInfo = JSON.parse(adminInfoStr);
-                    currentUserId = adminInfo.id;
-                    currentUserRole = adminInfo.role;
-                }
-            } catch (e) { console.error("Lỗi parse admin info:", e); }
+                const adminInfo = JSON.parse(localStorage.getItem('admin_info'));
+                currentUserId = adminInfo?.id; currentUserRole = adminInfo?.role;
+            } catch (e) {}
 
-            // Nếu không lấy được role, mặc định coi như không có quyền
-            if (!currentUserRole) console.warn("Không tìm thấy Role của người đang đăng nhập!");
-
-            filteredUsers.forEach(u => {
-                // Admin thường không được thấy Owner
-                if (u.role === 'own' && currentUserRole !== 'own') return; 
-
-                const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
-                const tr = document.createElement('tr');
-                if (isLocked) tr.classList.add('table-secondary');
-
-                let actionButtons = '';
-                
-                // Logic hiển thị nút
-                if (u.id !== currentUserId) {
-                    const canEdit = currentUserRole === 'own' || (currentUserRole === 'admin' && u.role === 'user');
-                    const safeName = (u.full_name || u.username || '').replace(/'/g, "\\'");
-
-                    if (canEdit) {
-                        if (u.role !== 'own') {
-                            const btnClass = u.role === 'admin' ? 'btn-secondary' : 'btn-warning';
-                            const btnText = u.role === 'admin' ? 'Hạ User' : 'Lên Admin';
-                            actionButtons += `<button class="btn btn-sm ${btnClass} me-1" onclick="window.toggleRole('${u.id}','${u.role}')" title="Đổi quyền">${btnText}</button>`;
-                        }
-
-                        const lockIcon = isLocked ? '<i class="bi bi-unlock-fill"></i>' : '<i class="bi bi-lock-fill"></i>';
-                        const lockClass = isLocked ? 'btn-success' : 'btn-dark';
-                        const lockTitle = isLocked ? 'Mở khoá' : 'Khoá tài khoản';
-                        actionButtons += `<button class="btn btn-sm ${lockClass} me-1" onclick="window.openLockModal('${u.id}', '${safeName}')" title="${lockTitle}">${lockIcon}</button>`;
-
-                        actionButtons += `<button class="btn btn-sm btn-danger me-1" onclick="window.deleteUser('${u.id}')" title="Xóa"><i class="bi bi-trash"></i></button>`;
-                        actionButtons += `<button class="btn btn-sm btn-info text-white" onclick="window.openMsgModal('${u.id}', '${safeName}')" title="Gửi tin"><i class="bi bi-envelope"></i></button>`;
-                    } else {
-                        if (currentUserRole === 'admin' && (u.role === 'admin' || u.role === 'own')) {
-                             actionButtons = '<span class="text-muted small fst-italic">Không đủ quyền</span>';
-                        }
-                    }
-                } else {
-                    actionButtons = '<span class="badge bg-info">Bạn</span>';
-                }
-
-                const statusBadge = isLocked ? '<span class="badge bg-danger ms-2"><i class="bi bi-lock-fill"></i> Locked</span>' : '';
-
-                tr.innerHTML = `
-                    <td class="text-center">
-                        <img src="${u.avatar_url || 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/defautl.jpg'}" class="rounded-circle border" width="40" height="40" style="object-fit: cover;">
-                    </td>
-                    <td class="fw-bold text-dark">${u.full_name || 'Chưa đặt tên'} ${statusBadge}</td>
-                    <td class="text-muted">@${u.username || '---'}</td>
-                    <td>${u.email}</td>
-                    <td class="text-center">
-                        <span class="badge ${u.role === 'own' ? 'bg-dark' : u.role === 'admin' ? 'bg-danger' : 'bg-success'}">
-                        ${u.role.toUpperCase()}
-                        </span>
-                    </td>
-                    <td>${new Date(u.created_at).toLocaleDateString('vi-VN')}</td>
-                    <td class="text-center">${actionButtons}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+            // Dùng join('') để tối ưu performance khi nối chuỗi HTML
+            tbody.innerHTML = filteredUsers.map(u => generateRowHtml(u, currentUserId, currentUserRole)).join('');
         }
 
-        // --- 5. HÀM TẢI DỮ LIỆU TỪ SERVER ---
         async function loadDataFromServer() {
             const tbody = document.getElementById('usersTableBody');
             if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div> Đang tải dữ liệu...</td></tr>';
 
             const data = await window.api('/api/admin/users');
-
             if (!data || (data.status && data.status !== 'success' && !Array.isArray(data))) {
-                 if(data && Array.isArray(data)) {
-                     // OK
-                 } else {
+                 if(data && Array.isArray(data)) {} 
+                 else {
                      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${data?.message || 'Không tải được dữ liệu'}</td></tr>`;
                      return;
                  }
@@ -401,7 +421,6 @@
             renderTable();
         }
 
-        // --- 6. KHỞI CHẠY ---
         renderTable();
     }
 </script>
