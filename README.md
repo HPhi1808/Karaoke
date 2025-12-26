@@ -23,4 +23,4 @@ Dự án đã được cấu hình sẵn script tự động.
 4. Fix lỗi(nếu có) bằng lệnh:
 
         https://gemini.google.com
-
+nakfbaksbfjasdgfkaweg
