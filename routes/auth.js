@@ -4,7 +4,6 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-// Client với Service Role để thao tác admin khi cần
 const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 const ALLOWED_PROVINCES = [
@@ -387,6 +386,33 @@ router.post('/login', async (req, res) => {
 
     } catch (err) {
         res.status(400).json({ status: 'error', message: 'Sai tài khoản hoặc mật khẩu!' });
+    }
+});
+
+
+
+// API ĐĂNG XUẤT (LOGOUT) VỚI REVOKE TOKEN
+router.post('/logout', async (req, res) => {
+    const { userId } = req.body;
+
+    if (!userId) return res.status(400).json({ status: 'error', message: 'Thiếu userId' });
+
+    try {
+        // Gọi RPC để thu hồi token
+        const { error } = await supabaseAdmin.rpc('force_revoke_user', { 
+            target_user_id: userId 
+        });
+
+        if (error) {
+            console.error("Lỗi RPC:", error);
+            throw error;
+        }
+
+        res.json({ status: 'success', message: 'Đăng xuất và thu hồi token thành công.' });
+
+    } catch (err) {
+        console.error("[Logout Error]", err);
+        res.status(200).json({ status: 'success', message: 'Đã xử lý (có cảnh báo).' });
     }
 });
 

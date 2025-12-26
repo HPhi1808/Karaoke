@@ -19,13 +19,11 @@
         * {
             margin: 0;
             padding: 0;
-            box_sizing: border-box;
+            box-sizing: border-box;
         }
 
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden; /* Chặn thanh cuộn thừa */
+        html {
+            scroll-behavior: smooth;
         }
 
         body {
@@ -33,120 +31,124 @@
             background-color: var(--bg-dark);
             background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
             color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             position: relative;
+            padding: 40px 0;
+            overflow-x: hidden;
         }
 
-        /* Hiệu ứng đốm sáng nền */
         .glow-bg {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(255, 0, 204, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            position: fixed;
+            width: 80vw;
+            height: 80vw;
+            max-width: 800px;
+            max-height: 800px;
+            background: radial-gradient(circle, rgba(255, 0, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 0;
-            animation: pulse 5s infinite alternate;
+            animation: pulse 8s infinite alternate ease-in-out;
+            pointer-events: none;
         }
 
         .container {
-            /* --- CẤU HÌNH CĂN GIỮA TUYỆT ĐỐI --- */
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            
-            width: 90%;
-            max-width: 800px;
-            
+            position: relative;
+            width: 81%;
+            max-width: 720px;
             text-align: center;
             z-index: 10;
-            padding: 3rem;
-            
-            /* Glassmorphism */
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border-radius: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            padding: 2.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
         .logo {
-            width: 160px;
+            width: 140px;
             height: auto;
-            margin-bottom: 20px;
-            border-radius: 35px;
-            filter: drop-shadow(0 0 20px rgba(255, 0, 204, 0.6));
-            animation: float 3s ease-in-out infinite;
+            margin-bottom: 25px;
+            border-radius: 30px;
+            filter: drop-shadow(0 0 15px rgba(255, 0, 204, 0.5));
+            animation: float 4s ease-in-out infinite;
         }
 
         h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            background: linear-gradient(to right, #fff, #b3b3b3);
+            font-size: clamp(1.5rem, 5vw, 2.2rem);
+            margin-bottom: 8px;
+            background: linear-gradient(to bottom, #ffffff 30%, #b3b3b3 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 1px;
             font-weight: 900;
         }
 
         h2 {
-            font-size: 1.2rem;
+            font-size: clamp(0.8rem, 3vw, 1.1rem);
             font-weight: 700;
             color: var(--primary-color);
-            margin-bottom: 30px;
+            margin-bottom: 25px;
             text-transform: uppercase;
-            letter-spacing: 4px;
+            letter-spacing: 3px;
+            opacity: 0.9;
         }
 
         p {
-            font-size: 1rem;
-            line-height: 1.6;
-            color: #dddddd;
-            margin-bottom: 40px;
-            max-width: 650px;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 35px;
+            max-width: 550px;
             margin-left: auto;
             margin-right: auto;
         }
 
         .btn {
             display: inline-block;
-            padding: 15px 40px;
+            padding: 16px 35px;
             background: linear-gradient(45deg, var(--primary-color), #aa00ff);
             color: white;
             text-decoration: none;
-            font-weight: bold;
+            font-weight: 800;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
             border-radius: 50px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            box-shadow: 0 4px 15px rgba(255, 0, 204, 0.4);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 10px 20px rgba(255, 0, 204, 0.3);
             border: none;
-            cursor: pointer;
         }
 
         .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(255, 0, 204, 0.7);
+            transform: scale(1.05);
+            box-shadow: 0 15px 30px rgba(255, 0, 204, 0.5);
+            filter: brightness(1.1);
         }
 
-        /* --- STYLES MỚI CHO THANH ĐIỀU HƯỚNG PHỤ --- */
         .secondary-nav {
-            margin-top: 30px;
+            margin-top: 35px;
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 15px;
             flex-wrap: wrap;
         }
 
         .nav-link {
-            color: #aaa;
+            color: rgba(255, 255, 255, 0.6);
             text-decoration: none;
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             font-weight: 600;
-            padding: 8px 15px;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.2);
+            padding: 10px 20px;
+            border-radius: 100px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.03);
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
@@ -155,45 +157,51 @@
 
         .nav-link:hover {
             color: #fff;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.08);
             border-color: var(--primary-color);
             transform: translateY(-2px);
         }
 
         .nav-link i {
             color: var(--primary-color);
+            font-size: 1rem;
         }
 
         footer {
             margin-top: 40px;
-            font-size: 0.8rem;
-            color: #666;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 20px;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 25px;
+        }
+
+        footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
         }
 
         /* Animations */
         @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-12px); }
-            100% { transform: translateY(0px); }
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
         }
 
         @keyframes pulse {
-            0% { opacity: 0.4; transform: translate(-50%, -50%) scale(0.8); }
-            100% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+            0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.5; }
+            100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
         }
         
-        /* Mobile adjustment */
-        @media (max-width: 600px) {
+        @media (max-width: 480px) {
+            body { padding: 20px 0; }
             .container {
-                padding: 2rem 1.5rem;
-                width: 95%;
+                padding: 2rem 1rem;
+                width: 90%;
+                border-radius: 30px;
             }
-            h1 { font-size: 1.8rem; }
-            h2 { font-size: 0.9rem; }
-            .secondary-nav { gap: 10px; }
-            .nav-link { font-size: 0.85rem; padding: 6px 12px; }
+            .logo { width: 110px; }
+            .secondary-nav { flex-direction: column; align-items: center; }
+            .nav-link { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -201,34 +209,37 @@
 
     <div class="glow-bg"></div>
 
-    <div class="container">
-        <img src="https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/Logo.png" alt="Logo" class="logo">
+    <main class="container">
+        <img src="https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/Logo.png" alt="Logo Karaoke Plus" class="logo">
         
-        <h1>Karaoke Entertainment Plus</h1>
-        <h2>Thỏa Đam Mê - Kết Nối Cảm Xúc</h2>
+        <header>
+            <h1>Karaoke Entertainment Plus</h1>
+            <h2>Thỏa Đam Mê - Kết Nối Cảm Xúc</h2>
+        </header>
         
-        <p>
-            Chào mừng bạn đến với trang chủ chính thức của ứng dụng <strong>Karaoke Entertainment Plus</strong>.<br>
-            Chúng tôi mang đến trải nghiệm ca hát đỉnh cao với kho nhạc khổng lồ, 
-            âm thanh chất lượng studio và tính năng thu âm chuyên nghiệp ngay trên điện thoại của bạn.
-        </p>
+        <article>
+            <p>
+                Trải nghiệm ca hát đỉnh cao với kho nhạc khổng lồ, âm thanh studio chuyên nghiệp 
+                và tính năng thu âm thế hệ mới ngay trên thiết bị của bạn.
+            </p>
+        </article>
 
         <a href="#" class="btn">Sắp có mặt trên Android & iOS</a>
 
-        <div class="secondary-nav">
+        <nav class="secondary-nav">
             <a href="/support" class="nav-link">
-                <i class="fas fa-headset"></i> Trung tâm Hỗ trợ
+                <i class="fas fa-headset"></i> Hỗ trợ
             </a>
             <a href="/policy" class="nav-link">
-                <i class="fas fa-shield-alt"></i> Chính sách & Quy định
+                <i class="fas fa-shield-alt"></i> Chính sách
             </a>
-        </div>
+        </nav>
 
         <footer>
             <p>&copy; 2025 Karaoke Entertainment Plus. All rights reserved.<br>
-            Website chính thức: <a href="https://karaokeplus.cloud" style="color: #FF00CC; text-decoration: none;">karaokeplus.cloud</a></p>
+            Khám phá tại: <a href="https://karaokeplus.cloud">karaokeplus.cloud</a></p>
         </footer>
-    </div>
+    </main>
 
 </body>
 </html>
