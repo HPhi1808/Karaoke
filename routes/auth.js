@@ -37,20 +37,17 @@ router.post('/register/send-otp', async (req, res) => {
              }
         }
         
-        // TRƯỜNG HỢP B: TÀI KHOẢN ĐANG TREO (Username là NULL) HOẶC CHƯA CÓ
+        // TRƯỜNG HỢP B: TÀI KHOẢN ĐANG TREO
         const { data: verifyData } = await supabase
             .from('email_verifications')
             .select('*')
             .eq('email', email)
             .maybeSingle();
 
-        if (verifyData && verifyData.is_verified) {
-            const now = new Date();
-            const verifiedTime = new Date(verifyData.verified_at);
-            const diffMinutes = (now - verifiedTime) / (1000 * 60);
-
-            // Nếu còn hạn 15 phút -> CHO PHÉP NHẢY BƯỚC (Không gửi OTP nữa)
-            if (diffMinutes <= 15) {
+        // Kiểm tra nhảy bước (Dùng expires_at mới)
+        if (verifyData && verifyData.is_verified && verifyData.expires_at) {
+            // Kiểm tra xem còn hạn không
+            if (new Date() < new Date(verifyData.expires_at)) {
                 return res.json({ 
                     status: 'already_verified', 
                     message: 'Email đã được xác thực thành công trước đó. Chuyển sang điền thông tin.' 
@@ -66,7 +63,7 @@ router.post('/register/send-otp', async (req, res) => {
             await supabaseAdmin.auth.admin.deleteUser(existingAuthUser.id);
         }
 
-        // 4. GỬI OTP MỚI
+        // 4. GỬI OTP MỚI (Supabase tự gửi email)
         const { error: signUpError } = await supabase.auth.signUp({
             email,
             password: 'temp_password_123',
@@ -80,11 +77,13 @@ router.post('/register/send-otp', async (req, res) => {
             throw signUpError;
         }
 
-        // 5. KHỞI TẠO TRẠNG THÁI VERIFY LÀ FALSE
+        // 5. KHỞI TẠO BẢNG VERIFICATION
+        // Reset lại token và expires_at về null để bắt đầu quy trình mới
         await supabase.from('email_verifications').upsert({
             email: email,
             is_verified: false,
-            verified_at: new Date(0).toISOString()
+            token: null,       // Xóa token cũ
+            expires_at: null   // Xóa hạn cũ
         }, { onConflict: 'email' });
 
         res.json({ status: 'success', message: 'Mã OTP đã được gửi vào Email.' });
@@ -99,7 +98,7 @@ router.post('/register/send-otp', async (req, res) => {
 // BƯỚC 2: XÁC THỰC MÃ OTP
 // ============================================================
 router.post('/register/verify-otp', async (req, res) => {
-    const { email, token } = req.body;
+    const { email, token } = req.body; // Client gửi mã OTP lên
     try {
         // 1. Xác thực với Supabase Auth
         const { error } = await supabase.auth.verifyOtp({
@@ -110,11 +109,13 @@ router.post('/register/verify-otp', async (req, res) => {
 
         if (error) throw error;
 
-        // 2. Cập nhật bảng email_verifications thành TRUE
+        // 2. Cập nhật bảng email_verifications
+        // [QUAN TRỌNG] Lưu mã OTP vào cột token để đối chiếu sau này
+        // Trigger DB sẽ tự động set expires_at khi is_verified chuyển thành true
         await supabase.from('email_verifications').upsert({ 
             email, 
-            is_verified: true, 
-            verified_at: new Date().toISOString()
+            token: token,      // Lưu mã OTP làm bằng chứng
+            is_verified: true
         }, { onConflict: 'email' }); 
 
         res.json({ status: 'success', message: 'Xác thực Email thành công.' });
@@ -138,7 +139,7 @@ router.post('/register/complete', async (req, res) => {
              return res.status(400).json({ status: 'error', message: 'Khu vực không hợp lệ.' });
         }
 
-        // 2. KIỂM TRA QUYỀN
+        // 2. KIỂM TRA QUYỀN VÀ THỜI HẠN
         const { data: verifyData } = await supabase
             .from('email_verifications')
             .select('*')
@@ -149,9 +150,8 @@ router.post('/register/complete', async (req, res) => {
             return res.status(400).json({ status: 'error', message: "Vui lòng xác thực OTP trước." });
         }
         
-        // Kiểm tra thời hạn 15 phút
-        const diffMinutes = (new Date() - new Date(verifyData.verified_at)) / (1000 * 60);
-        if (diffMinutes > 15) {
+        // [MỚI] Kiểm tra bằng cột expires_at
+        if (!verifyData.expires_at || new Date() > new Date(verifyData.expires_at)) {
             return res.status(400).json({ status: 'error', message: "Phiên xác thực đã hết hạn. Vui lòng gửi lại OTP." });
         }
 
@@ -191,7 +191,7 @@ router.post('/register/complete', async (req, res) => {
 
         if (dbError) throw dbError;
 
-        // 6. DỌN DẸP: Xóa verification để kết thúc quy trình
+        // 6. DỌN DẸP
         await supabase.from('email_verifications').delete().eq('email', email);
 
         res.json({ status: 'success', message: 'Đăng ký thành công!' });
@@ -204,49 +204,53 @@ router.post('/register/complete', async (req, res) => {
 
 
 // --- LUỒNG QUÊN MẬT KHẨU ---
-// Bước 1: Gửi OTP recovery (Có kiểm tra nhảy bước)
+
+// Bước 1: Gửi OTP recovery
 router.post('/forgot-password/send-otp', async (req, res) => {
     const { email } = req.body;
     try {
-        // 1. Kiểm tra Email có tồn tại và lấy Role
+        // 1. Kiểm tra Email
         const { data: user } = await supabase
             .from('users')
             .select('username, role') 
             .eq('email', email)
             .maybeSingle();
 
-        // Kiểm tra tồn tại
         if (!user || !user.username) {
             return res.status(404).json({ status: 'error', message: 'Email này chưa được đăng ký tài khoản.' });
         }
 
-        // --- CHẶN ADMIN & OWNER ---
         if (user.role === 'admin' || user.role === 'own') {
             return res.status(403).json({ 
                 status: 'error', 
-                message: 'Tài khoản Quản trị không được phép khôi phục mật khẩu qua App. Vui lòng liên hệ Owner hoặc dùng Web Admin.' 
+                message: 'Tài khoản Quản trị không được phép khôi phục mật khẩu qua App.' 
             });
         }
-        // ----------------------------------------------
 
-        // 2. KIỂM TRA NHẢY BƯỚC: Nếu đã verify trong vòng 15p
+        // 2. KIỂM TRA NHẢY BƯỚC (Dùng expires_at mới)
         const { data: verifyData } = await supabase
             .from('email_verifications')
             .select('*')
             .eq('email', email)
             .maybeSingle();
 
-        if (verifyData && verifyData.is_verified) {
-            const diffMinutes = (new Date() - new Date(verifyData.verified_at)) / (1000 * 60);
-            if (diffMinutes <= 15) {
+        if (verifyData && verifyData.is_verified && verifyData.expires_at) {
+            if (new Date() < new Date(verifyData.expires_at)) {
                 return res.json({ status: 'already_verified', message: 'Phiên xác thực vẫn còn hiệu lực.' });
             }
         }
 
-        // 3. Gửi OTP Recovery từ Supabase
+        // 3. Gửi OTP Recovery
         const { error } = await supabase.auth.resetPasswordForEmail(email);
-        
         if (error) throw error;
+
+        // Reset lại bảng verification
+        await supabase.from('email_verifications').upsert({
+            email: email,
+            is_verified: false,
+            token: null,
+            expires_at: null
+        }, { onConflict: 'email' });
 
         res.json({ status: 'success', message: 'Mã OTP đặt lại mật khẩu đã được gửi.' });
 
@@ -262,16 +266,18 @@ router.post('/forgot-password/verify-otp', async (req, res) => {
         const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
         if (error) throw error;
 
-        // Lưu trạng thái vào bảng tạm để đánh dấu đã xác thực (để check 15p ở bước sau)
+        // [QUAN TRỌNG] Lưu token (OTP) vào DB để dùng cho bước reset
+        // Trigger DB sẽ tự động set expires_at
         await supabase.from('email_verifications').upsert({ 
             email, 
-            is_verified: true, 
-            verified_at: new Date() 
+            token: token,     // Lưu lại OTP
+            is_verified: true
         }, { onConflict: 'email' });
 
         res.json({ 
             status: 'success', 
-            temp_token: data.session.access_token
+            // Vẫn trả về token này, nhưng logic server sẽ kiểm tra token trong DB
+            temp_token: data.session.access_token 
         });
     } catch (err) {
         res.status(400).json({ status: 'error', message: 'Mã OTP không đúng hoặc hết hạn.' });
@@ -280,32 +286,34 @@ router.post('/forgot-password/verify-otp', async (req, res) => {
 
 // Bước 3: Đặt lại mật khẩu mới
 router.post('/forgot-password/reset', async (req, res) => {
-    const { email, new_password } = req.body;
+    // Client cần gửi: email, new_password, và token (là OTP đã nhập)
+    const { email, new_password, token } = req.body; 
 
     try {
-        // 1. Lấy biên lai xác thực
-        const { data: verifyData } = await supabase
+        if (!token) {
+            return res.status(400).json({ status: 'error', message: 'Thiếu token xác thực.' });
+        }
+
+        // 2. [SỬA]: Truy vấn token trong DB và kiểm tra expires_at
+        const { data: verifyData } = await supabaseAdmin
             .from('email_verifications')
             .select('*')
             .eq('email', email)
+            .eq('token', token)
             .maybeSingle();
 
-        // Kiểm tra xem đã verify chưa
         if (!verifyData || !verifyData.is_verified) {
-            return res.status(403).json({ status: 'error', message: 'Vui lòng xác thực mã OTP trước.' });
+            return res.status(403).json({ status: 'error', message: 'Mã OTP không hợp lệ hoặc chưa được xác thực.' });
         }
 
-        // 2. Kiểm tra thời gian
-        const diffMs = new Date().getTime() - new Date(verifyData.verified_at).getTime();
-        const diffMinutes = diffMs / (1000 * 60);
-
-        if (diffMinutes > 15) {
-            // Nếu quá hạn thì xóa luôn bản ghi cũ
+        // 3. Kiểm tra thời gian bằng cột expires_at
+        if (!verifyData.expires_at || new Date() > new Date(verifyData.expires_at)) {
+            // Xóa bản ghi hết hạn
             await supabase.from('email_verifications').delete().eq('email', email);
-            return res.status(403).json({ status: 'error', message: 'Phiên xác thực đã hết hạn (15 phút). Vui lòng gửi lại mã.' });
+            return res.status(403).json({ status: 'error', message: 'Phiên xác thực đã hết hạn. Vui lòng thử lại.' });
         }
 
-        // 3. Thực hiện đổi mật khẩu bằng quyền Admin (supabaseAdmin)
+        // 4. Thực hiện đổi mật khẩu
         const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
         const user = users.find(u => u.email === email);
         
@@ -318,7 +326,7 @@ router.post('/forgot-password/reset', async (req, res) => {
 
         if (updateError) throw updateError;
 
-        // 4. Xóa biên lai sau khi thành công để không dùng lại được lần 2
+        // 5. Dọn dẹp
         await supabase.from('email_verifications').delete().eq('email', email);
 
         res.json({ status: 'success', message: 'Đổi mật khẩu thành công!' });
@@ -328,14 +336,13 @@ router.post('/forgot-password/reset', async (req, res) => {
     }
 });
 
-// --- LUỒNG ĐĂNG NHẬP (LOGIN) ---
+// --- LUỒNG ĐĂNG NHẬP (LOGIN) - KHÔNG ĐỔI ---
 router.post('/login', async (req, res) => {
     const { identifier, password } = req.body;
 
     try {
         let emailToLogin = identifier.trim();
 
-        // 1. Nếu nhập Username thì tìm Email
         if (!emailToLogin.includes('@')) {
             const { data: user, error } = await supabase
                 .from('users')
@@ -349,18 +356,15 @@ router.post('/login', async (req, res) => {
             emailToLogin = user.email;
         }
 
-        // 2. Gọi Supabase để đăng nhập
         const { data, error } = await supabase.auth.signInWithPassword({
             email: emailToLogin,
             password: password,
         });
 
-        // Xử lý lỗi đăng nhập sai pass riêng biệt
         if (error) {
             return res.status(400).json({ status: 'error', message: 'Mật khẩu không chính xác!' });
         }
 
-        // 3. Kiểm tra Role và trạng thái tài khoản từ bảng public.users        
         const { data: userProfile, error: profileError } = await supabase
             .from('users')
             .select('role, full_name, username, locked_until') 
@@ -398,7 +402,6 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // 4. Trả về kết quả thành công
         res.json({
             status: 'success',
             message: 'Đăng nhập thành công!',
@@ -419,16 +422,12 @@ router.post('/login', async (req, res) => {
     }
 });
 
-
-
-// API ĐĂNG XUẤT (LOGOUT) VỚI REVOKE TOKEN
+// --- LUỒNG ĐĂNG XUẤT (LOGOUT) ---
 router.post('/logout', async (req, res) => {
     const { userId } = req.body;
-
     if (!userId) return res.status(400).json({ status: 'error', message: 'Thiếu userId' });
 
     try {
-        // Gọi RPC để thu hồi token
         const { error } = await supabaseAdmin.rpc('force_revoke_user', { 
             target_user_id: userId 
         });
@@ -446,22 +445,14 @@ router.post('/logout', async (req, res) => {
     }
 });
 
-
-// API dọn dẹp Guest (Chỉ server mới xóa được user khỏi auth.users)
 router.post('/cleanup-guest', async (req, res) => {
     const { guest_id } = req.body;
-
     if (!guest_id) return res.status(400).json({ message: 'Thiếu guest_id' });
 
     try {
-        // Cần dùng supabaseAdmin (Service Role Key) để xóa user
         const { error } = await supabaseAdmin.auth.admin.deleteUser(guest_id);
-        
         if (error) throw error;
-
-        // Xóa luôn dữ liệu trong bảng public.users (nếu chưa cascade)
         await supabaseAdmin.from('users').delete().eq('id', guest_id);
-
         res.json({ status: 'success', message: 'Đã xóa guest thành công' });
     } catch (err) {
         console.error("Lỗi xóa guest:", err);
