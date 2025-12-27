@@ -2,6 +2,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'song_model.g.dart';
 
+// ==========================================
+// 1. MODEL BÀI HÁT (Map từ API JSON)
+// ==========================================
 @JsonSerializable()
 class SongModel {
   @JsonKey(name: 'song_id')
@@ -47,4 +50,34 @@ class SongModel {
 
   factory SongModel.fromJson(Map<String, dynamic> json) => _$SongModelFromJson(json);
   Map<String, dynamic> toJson() => _$SongModelToJson(this);
+}
+
+// ==========================================
+// 2. MODEL LỜI BÀI HÁT (Dùng để hiển thị Karaoke)
+// ==========================================
+
+class LyricLine {
+  final int startTime; // Thời gian bắt đầu (ms)
+  final int endTime;   // Thời gian kết thúc (ms)
+  final String content; // Nội dung cả dòng
+  final List<LyricWord> words; // Danh sách các từ (để tô màu karaoke)
+
+  LyricLine({
+    required this.startTime,
+    required this.endTime,
+    required this.content,
+    required this.words,
+  });
+}
+
+class LyricWord {
+  final String text;
+  final int startTime;
+  final int endTime;
+
+  LyricWord({
+    required this.text,
+    required this.startTime,
+    required this.endTime,
+  });
 }

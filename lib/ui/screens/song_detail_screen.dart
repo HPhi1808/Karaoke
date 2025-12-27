@@ -1,18 +1,19 @@
 import 'dart:async';
-import 'dart:ui'; // Để dùng ImageFilter nếu cần
+import 'dart:convert';
+import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart'; // Thay thế ExoPlayer
-import 'package:scroll_to_index/scroll_to_index.dart'; // Hỗ trợ scroll tới index
-import 'package:http/http.dart' as http; // Để tải file lrc
+import 'package:just_audio/just_audio.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:http/http.dart' as http;
 
-// Import models & utils
 import '../../models/song_model.dart';
-import '../../services/api_service.dart';
-import '../../utils/lrc_parser.dart'; // Giả sử bạn đã có class LrcParser.dart (code cũ)
+import '../../services/song_service.dart';
+import '../../utils/lrc_parser.dart';
 
 class SongDetailScreen extends StatefulWidget {
-  final int songId; // Flutter dùng int
+  final int songId;
   final VoidCallback onBack;
 
   const SongDetailScreen({
@@ -25,109 +26,158 @@ class SongDetailScreen extends StatefulWidget {
   State<SongDetailScreen> createState() => _SongDetailScreenState();
 }
 
-class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerProviderStateMixin {
-  // Data State
+class _SongDetailScreenState extends State<SongDetailScreen> with TickerProviderStateMixin {
   SongModel? _song;
   List<LyricLine> _lyrics = [];
   bool _isLoading = true;
 
-  // Player State
-  final AudioPlayer _player = AudioPlayer();
-  final AutoScrollController _scrollController = AutoScrollController();
+  final AudioPlayer _beatPlayer = AudioPlayer();
+  final AudioPlayer _vocalPlayer = AudioPlayer();
 
-  // Animation Controller cho đĩa quay (Optional visual effect)
+  final AutoScrollController _scrollController = AutoScrollController();
   late AnimationController _diskController;
 
-  // Stream Subscription
-  StreamSubscription? _playerStateSub;
-  StreamSubscription? _positionSub;
+  bool _isVocalEnabled = false;
+  bool _hasVocalUrl = false;
+
+  int _lastAutoScrollIndex = -1;
+  bool _isUserScrolling = false;
+  Timer? _scrollResumeTimer;
+
+  final StreamController<Duration> _positionStreamController = StreamController.broadcast();
 
   @override
   void initState() {
     super.initState();
     _diskController = AnimationController(vsync: this, duration: const Duration(seconds: 10));
+
+    _beatPlayer.positionStream.listen((position) {
+      if (!_positionStreamController.isClosed) {
+        _positionStreamController.add(position);
+      }
+
+      if (_beatPlayer.playing && !_isUserScrolling) {
+        _autoScroll(position);
+      }
+    });
+
+    _beatPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed) {
+        _vocalPlayer.pause();
+        _vocalPlayer.seek(Duration.zero);
+        _diskController.stop();
+      }
+    });
+
     _loadData();
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    _beatPlayer.dispose();
+    _vocalPlayer.dispose();
     _scrollController.dispose();
     _diskController.dispose();
-    _playerStateSub?.cancel();
-    _positionSub?.cancel();
+    _scrollResumeTimer?.cancel();
+    _positionStreamController.close();
     super.dispose();
   }
 
   Future<void> _loadData() async {
     try {
-      // 1. Gọi API lấy chi tiết bài hát
-      final song = await ApiService.instance.getSongDetail(widget.songId);
+      final song = await SongService.instance.getSongDetail(widget.songId);
+      if (mounted) setState(() => _song = song);
 
-      if (mounted) {
-        setState(() {
-          _song = song;
-        });
-      }
+      List<Future> setupFutures = [];
 
-      // 2. Chuẩn bị nhạc (Beat)
+      // Set tốc độ chuẩn
+      await _beatPlayer.setSpeed(1.0);
+      await _vocalPlayer.setSpeed(1.0);
+
       if (song.beatUrl != null) {
-        await _player.setUrl(song.beatUrl!);
-        _player.play(); // Auto play
-        _diskController.repeat(); // Quay đĩa
+        setupFutures.add(_beatPlayer.setUrl(song.beatUrl!));
+      }
+      if (song.vocalUrl != null && song.vocalUrl!.isNotEmpty) {
+        _hasVocalUrl = true;
+        setupFutures.add(_vocalPlayer.setUrl(song.vocalUrl!));
+        await _vocalPlayer.setVolume(0.0);
       }
 
-      // 3. Tải và Parse Lyric
+      await Future.wait(setupFutures);
+
+      _beatPlayer.play();
+      if (_hasVocalUrl) _vocalPlayer.play();
+      _diskController.repeat();
+
       if (song.lyricUrl != null) {
         final response = await http.get(Uri.parse(song.lyricUrl!));
         if (response.statusCode == 200) {
-          // Xử lý parse trên isolate khác để tránh lag UI nếu file nặng (Optional)
-          // Ở đây parse trực tiếp vì lrc nhẹ
-          final lrcContent = response.body; // utf8.decode(response.bodyBytes) nếu lỗi font
-          final parsedLyrics = LrcParser.parse(lrcContent);
+          final lrcContent = utf8.decode(response.bodyBytes);
 
-          if (mounted) {
-            setState(() {
-              _lyrics = parsedLyrics;
-            });
-          }
+          // [ĐÃ SỬA] Dùng compute thay vì Future.compute
+          final parsedLyrics = await compute(LrcParser.parse, lrcContent);
+
+          if (mounted) setState(() => _lyrics = parsedLyrics);
         }
       }
-
     } catch (e) {
-      debugPrint("Error loading song detail: $e");
+      debugPrint("Error: $e");
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Hàm scroll tự động
+  void _toggleVocal() {
+    if (!_hasVocalUrl) return;
+    setState(() => _isVocalEnabled = !_isVocalEnabled);
+    _vocalPlayer.setVolume(_isVocalEnabled ? 1.0 : 0.0);
+  }
+
+  void _onSeek(double value) {
+    final position = Duration(milliseconds: value.toInt());
+    _beatPlayer.seek(position);
+    if (_hasVocalUrl) _vocalPlayer.seek(position);
+  }
+
+  void _onPlayPause() {
+    if (_beatPlayer.playing) {
+      _beatPlayer.pause();
+      if (_hasVocalUrl) _vocalPlayer.pause();
+      _diskController.stop();
+    } else {
+      if (_hasVocalUrl) {
+        _vocalPlayer.seek(_beatPlayer.position);
+        _vocalPlayer.play();
+      }
+      _beatPlayer.play();
+      if (!_diskController.isAnimating) _diskController.repeat();
+    }
+    setState(() {});
+  }
+
   void _autoScroll(Duration position) {
     if (_lyrics.isEmpty) return;
+    int currentMs = position.inMilliseconds;
 
-    // Tìm index dòng đang hát
     final activeIndex = _lyrics.indexWhere((line) =>
-    position.inMilliseconds >= line.startTime &&
-        position.inMilliseconds <= line.endTime);
+    currentMs >= line.startTime && currentMs <= line.endTime);
 
-    if (activeIndex != -1) {
-      // Chỉ scroll nếu chưa scroll tới đó (tránh spam lệnh scroll)
-      // AutoScrollController hỗ trợ scroll tới index cụ thể
-      _scrollController.scrollToIndex(
-        activeIndex,
-        preferPosition: AutoScrollPosition.middle,
-        duration: const Duration(milliseconds: 500),
-      );
+    if (activeIndex != -1 && activeIndex != _lastAutoScrollIndex) {
+      _lastAutoScrollIndex = activeIndex;
+      if (_scrollController.hasClients) {
+        _scrollController.scrollToIndex(
+          activeIndex,
+          preferPosition: AutoScrollPosition.middle,
+          duration: const Duration(milliseconds: 600),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Gradient Background: Tím đậm -> Đen
     return Scaffold(
-      extendBodyBehindAppBar: true, // Để AppBar đè lên background
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -151,20 +201,16 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
             : Column(
           children: [
             SizedBox(height: kToolbarHeight + MediaQuery.of(context).padding.top + 20),
-
-            // 1. Đĩa nhạc + Info
             _buildHeader(),
-
             const SizedBox(height: 20),
 
-            // 2. Lyric (Chiếm phần lớn không gian)
             Expanded(
-              child: _buildLyricSection(),
+              child: RepaintBoundary(
+                child: _buildLyricSection(),
+              ),
             ),
 
-            // 3. Controls (Slider + Play/Pause)
             _buildControls(),
-
             const SizedBox(height: 30),
           ],
         ),
@@ -175,12 +221,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
   Widget _buildHeader() {
     return Column(
       children: [
-        // Đĩa quay
         RotationTransition(
           turns: _diskController,
           child: Container(
-            width: 220,
-            height: 220,
+            width: 220, height: 220,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: Colors.grey, width: 2),
@@ -188,23 +232,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
                 image: NetworkImage(_song!.imageUrl ?? "https://via.placeholder.com/220"),
                 fit: BoxFit.cover,
               ),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)
-              ],
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)],
             ),
           ),
         ),
         const SizedBox(height: 16),
-        Text(
-          _song!.title,
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          _song!.artistName,
-          style: const TextStyle(fontSize: 14, color: Colors.white70),
-          textAlign: TextAlign.center,
-        ),
+        Text(_song!.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(_song!.artistName, style: const TextStyle(fontSize: 14, color: Colors.white70)),
       ],
     );
   }
@@ -214,35 +248,43 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
       return const Center(child: Text("Đang tải lời...", style: TextStyle(color: Colors.grey)));
     }
 
-    // Lắng nghe position để update UI lyric
     return StreamBuilder<Duration>(
-      stream: _player.positionStream,
+      stream: _positionStreamController.stream,
+      initialData: Duration.zero,
       builder: (context, snapshot) {
         final position = snapshot.data ?? Duration.zero;
 
-        // Trigger auto scroll (Debounce logic đã được xử lý trong thư viện hoặc gọi hàm riêng)
-        // Tuy nhiên gọi trực tiếp ở đây cũng tạm ổn vì scrollToIndex có cơ chế check
-        // Tốt nhất là dùng Listener riêng, nhưng để đơn giản code thì đặt ở đây.
-        WidgetsBinding.instance.addPostFrameCallback((_) => _autoScroll(position));
-
-        return ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(vertical: 120), // Padding lớn để active item ở giữa
-          itemCount: _lyrics.length,
-          itemBuilder: (context, index) {
-            final line = _lyrics[index];
-
-            // Bọc bằng AutoScrollTag để controller tìm được index
-            return AutoScrollTag(
-              key: ValueKey(index),
-              controller: _scrollController,
-              index: index,
-              child: KaraokeLineItem(
-                line: line,
-                currentPositionMs: position.inMilliseconds,
-              ),
-            );
+        return NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification is ScrollStartNotification) {
+              _isUserScrolling = true;
+              _scrollResumeTimer?.cancel();
+            } else if (notification is ScrollEndNotification) {
+              _scrollResumeTimer = Timer(const Duration(seconds: 3), () {
+                _isUserScrolling = false;
+              });
+            }
+            return false;
           },
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(vertical: 120),
+            itemCount: _lyrics.length,
+            physics: const BouncingScrollPhysics(),
+            cacheExtent: 500,
+            itemBuilder: (context, index) {
+              final line = _lyrics[index];
+              return AutoScrollTag(
+                key: ValueKey(index),
+                controller: _scrollController,
+                index: index,
+                child: KaraokeLineItem(
+                  line: line,
+                  currentPositionMs: position.inMilliseconds,
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -250,12 +292,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
 
   Widget _buildControls() {
     return StreamBuilder<Duration?>(
-      stream: _player.durationStream,
+      stream: _beatPlayer.durationStream,
       builder: (context, snapshotDuration) {
         final duration = snapshotDuration.data ?? Duration.zero;
-
         return StreamBuilder<Duration>(
-          stream: _player.positionStream,
+          stream: _beatPlayer.positionStream,
           builder: (context, snapshotPosition) {
             var position = snapshotPosition.data ?? Duration.zero;
             if (position > duration) position = duration;
@@ -264,7 +305,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
-                  // Slider
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       thumbColor: const Color(0xFFFF00CC),
@@ -272,19 +312,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
                       inactiveTrackColor: Colors.grey,
                       trackHeight: 4,
                       thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                      overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                     ),
                     child: Slider(
                       value: position.inMilliseconds.toDouble(),
-                      max: duration.inMilliseconds.toDouble() > 0
-                          ? duration.inMilliseconds.toDouble()
-                          : 1.0,
-                      onChanged: (value) {
-                        _player.seek(Duration(milliseconds: value.toInt()));
-                      },
+                      max: duration.inMilliseconds.toDouble() > 0 ? duration.inMilliseconds.toDouble() : 1.0,
+                      onChanged: _onSeek,
                     ),
                   ),
-
-                  // Time Labels
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -292,48 +327,36 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
                       Text(_formatTime(duration), style: const TextStyle(color: Colors.white, fontSize: 12)),
                     ],
                   ),
-
                   const SizedBox(height: 10),
-
-                  // Play/Pause Button
-                  StreamBuilder<PlayerState>(
-                    stream: _player.playerStateStream,
-                    builder: (context, snapshot) {
-                      final playerState = snapshot.data;
-                      final processingState = playerState?.processingState;
-                      final playing = playerState?.playing;
-
-                      if (processingState == ProcessingState.loading || processingState == ProcessingState.buffering) {
-                        return const CircularProgressIndicator(color: Color(0xFFFF00CC));
-                      }
-
-                      final isPlaying = playing == true && processingState != ProcessingState.completed;
-
-                      return GestureDetector(
-                        onTap: () {
-                          if (isPlaying) {
-                            _player.pause();
-                            _diskController.stop();
-                          } else {
-                            _player.play();
-                            _diskController.repeat();
-                          }
-                        },
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        onPressed: _toggleVocal,
+                        iconSize: 32,
+                        icon: Icon(Icons.mic, color: _isVocalEnabled ? const Color(0xFFFF00CC) : Colors.grey),
+                      ),
+                      GestureDetector(
+                        onTap: _onPlayPause,
                         child: Container(
-                          width: 64,
-                          height: 64,
+                          width: 64, height: 64,
                           decoration: const BoxDecoration(
                             shape: BoxShape.circle,
                             color: Color(0xFFFF00CC),
+                            boxShadow: [BoxShadow(color: Color(0x66FF00CC), blurRadius: 15, spreadRadius: 2)],
                           ),
                           child: Icon(
-                            isPlaying ? Icons.pause : Icons.play_arrow,
-                            color: Colors.white,
-                            size: 32,
+                            _beatPlayer.playing ? Icons.pause : Icons.play_arrow,
+                            color: Colors.white, size: 32,
                           ),
                         ),
-                      );
-                    },
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        iconSize: 32,
+                        icon: const Icon(Icons.playlist_play, color: Colors.grey),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -352,7 +375,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> with SingleTickerPr
   }
 }
 
-// --- WIDGET XỬ LÝ LYRIC TÔ MÀU (KARAOKE EFFECT) ---
+// --- WIDGET KARAOKE  ---
 class KaraokeLineItem extends StatelessWidget {
   final LyricLine line;
   final int currentPositionMs;
@@ -365,31 +388,51 @@ class KaraokeLineItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Xác định trạng thái dòng
     final isCurrentLine = currentPositionMs >= line.startTime && currentPositionMs <= line.endTime;
     final isPastLine = currentPositionMs > line.endTime;
 
-    // Animation scale & opacity (giản lược bằng AnimatedDefaultTextStyle/AnimatedOpacity)
-    // Flutter không có animateFloatAsState dùng trực tiếp trong build như Compose,
-    // nhưng có thể dùng Implicit Animations
+    // 1. CỐ ĐỊNH FONT SIZE (Tuyệt đối không đổi số này)
+    // Chọn font vừa phải để khi phóng to lên là vừa đẹp
+    const double fixedFontSize = 20.0;
 
-    return AnimatedScale(
-      scale: isCurrentLine ? 1.2 : 1.0,
+    final TextStyle commonStyle = TextStyle(
+      fontSize: fixedFontSize,
+      fontWeight: FontWeight.w600,
+      height: 1.4,
+      color: Colors.white,
+    );
+
+    return AnimatedOpacity(
+      opacity: isCurrentLine ? 1.0 : (isPastLine ? 0.4 : 0.6),
       duration: const Duration(milliseconds: 300),
-      child: AnimatedOpacity(
-        opacity: isCurrentLine ? 1.0 : (isPastLine ? 0.4 : 0.6), // Past mờ hơn, Future hơi mờ
+      curve: Curves.easeInOut,
+      child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        // Chỉ thay đổi margin dọc để đẩy các dòng khác ra xa khi dòng này to lên
+        // Không thay đổi margin ngang ở đây
+        margin: EdgeInsets.symmetric(
+          vertical: isCurrentLine ? 16.0 : 6.0,
+        ),
+
+        // [MẤU CHỐT VẤN ĐỀ Ở ĐÂY]
+        // Tạo một Padding ngang ĐỦ LỚN (ví dụ 32.0).
+        // Wrap sẽ tính toán xuống dòng dựa trên không gian hẹp này.
+        // Khi Scale lên 1.25, nó sẽ lấp đầy khoảng trống 32.0 này mà không tràn ra ngoài.
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-          child: isCurrentLine
-              ? _buildKaraokeText() // Nếu đang hát dòng này -> Tô màu từng chữ
-              : Text( // Nếu không phải dòng này -> Text thường
-            line.content, // Giả sử LyricLine có field content (ghép các words lại)
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.normal
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          child: AnimatedScale(
+            // Chỉ thay đổi Scale: Bố cục giữ nguyên, chỉ hình ảnh to lên
+            scale: isCurrentLine ? 1.2 : 1.0, // Giảm scale xuống 1.2 cho an toàn
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            alignment: Alignment.center,
+            child: isCurrentLine
+                ? _buildActiveLine(commonStyle)
+                : Text(
+              line.content,
+              textAlign: TextAlign.center,
+              style: commonStyle,
             ),
           ),
         ),
@@ -397,64 +440,47 @@ class KaraokeLineItem extends StatelessWidget {
     );
   }
 
-  // Logic tô màu gradient từng chữ (Phức tạp nhất)
-  Widget _buildKaraokeText() {
-    // Dùng RichText để ghép từng từ lại
-    List<InlineSpan> spans = [];
+  Widget _buildActiveLine(TextStyle style) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 5.0,
+      runSpacing: 2.0,
+      children: line.words.map((word) {
+        return _buildSingleWord(word, style);
+      }).toList(),
+    );
+  }
 
-    for (var i = 0; i < line.words.length; i++) {
-      final word = line.words[i];
-      final isWordPast = currentPositionMs >= word.endTime;
-      final isWordFuture = currentPositionMs < word.startTime;
+  Widget _buildSingleWord(LyricWord word, TextStyle style) {
+    final isWordPast = currentPositionMs >= word.endTime;
+    final isWordFuture = currentPositionMs < word.startTime;
 
-      if (isWordPast) {
-        // Đã hát xong -> Màu Hồng (Full)
-        spans.add(TextSpan(
-          text: word.text + " ",
-          style: const TextStyle(color: Color(0xFFFF00CC)),
-        ));
-      } else if (isWordFuture) {
-        // Chưa hát tới -> Màu Trắng (Full)
-        spans.add(TextSpan(
-          text: word.text + " ",
-          style: const TextStyle(color: Colors.white),
-        ));
-      } else {
-        // --- ĐANG HÁT TỪ NÀY ---
-        // Tính % đã hát của từ đó
-        final double progress = (currentPositionMs - word.startTime) / (word.endTime - word.startTime);
-        final clampedProgress = progress.clamp(0.0, 1.0); // 0.0 -> 1.0
-
-        // Dùng ShaderMask để tô màu gradient cho TỪNG TỪ ĐANG HÁT
-        // Đây là kỹ thuật tô màu Karaoke chuẩn trong Flutter
-        spans.add(WidgetSpan(
-          child: ShaderMask(
-            shaderCallback: (bounds) {
-              return LinearGradient(
-                colors: const [Color(0xFFFF00CC), Colors.white],
-                stops: [clampedProgress, clampedProgress], // Cắt màu tại điểm progress
-                tileMode: TileMode.clamp,
-              ).createShader(bounds);
-            },
-            blendMode: BlendMode.srcIn, // Chỉ tô màu vào vùng text
-            child: Text(
-              word.text + " ",
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white // Màu nền cơ bản (bị shader đè lên)
-              ),
-            ),
-          ),
-        ));
-      }
+    if (isWordPast) {
+      return Text(word.text, style: style.copyWith(color: const Color(0xFFFF00CC)));
     }
 
-    return RichText(
-      textAlign: TextAlign.center,
-      text: TextSpan(
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        children: spans,
+    if (isWordFuture) {
+      return Text(word.text, style: style.copyWith(color: Colors.white));
+    }
+
+    // ĐANG HÁT
+    final double progress = (currentPositionMs - word.startTime) / (word.endTime - word.startTime);
+    final clampedProgress = progress.clamp(0.0, 1.0);
+
+    return ShaderMask(
+      shaderCallback: (bounds) {
+        if (bounds.width == 0) return const LinearGradient(colors: [Colors.white, Colors.white]).createShader(bounds);
+        return LinearGradient(
+          colors: const [Color(0xFFFF00CC), Colors.white],
+          stops: [clampedProgress, clampedProgress],
+          tileMode: TileMode.clamp,
+        ).createShader(bounds);
+      },
+      blendMode: BlendMode.srcIn,
+      child: Text(
+        word.text,
+        style: style.copyWith(color: Colors.white),
       ),
     );
   }

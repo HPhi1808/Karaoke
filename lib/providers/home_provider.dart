@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/home_model.dart';
-import '../services/api_service.dart';
+import '../services/song_service.dart';
+import '../services/api_client.dart';
+
 
 class HomeProvider extends ChangeNotifier {
   // 1. Dữ liệu trang chủ
@@ -28,7 +30,7 @@ class HomeProvider extends ChangeNotifier {
 
     try {
       // Gọi API qua Singleton đã tạo ở bước trước
-      _homeData = await ApiService.instance.getHomeData();
+      _homeData = await SongService.instance.getHomeData();
     } catch (e) {
       _errorMessage = "Lỗi kết nối: ${e.toString()}";
       print(_errorMessage);
@@ -42,7 +44,7 @@ class HomeProvider extends ChangeNotifier {
   // Kotlin dùng Long, Dart dùng int (int Dart đủ chứa Long)
   Future<void> onSongSelected(int songId) async {
     try {
-      await ApiService.instance.incrementView(songId);
+      await SongService.instance.incrementView(songId);
       // Không cần notifyListeners() vì tăng view chạy ngầm, không đổi giao diện ngay
     } catch (e) {
       print("Lỗi tăng view: $e");

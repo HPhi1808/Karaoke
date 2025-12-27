@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart'; // [QUAN TRỌNG] Nhớ import thư viện này
+
 import '../../services/auth_service.dart';
-import '../../services/api_service.dart';
+import '../../services/user_service.dart';
 import '../../models/user_model.dart';
 
 class MeScreen extends StatefulWidget {
@@ -23,17 +25,15 @@ class _MeScreenState extends State<MeScreen> {
     _loadUserData();
   }
 
-  /// Hàm tải dữ liệu thông minh cho cả Guest và User
   Future<void> _loadUserData() async {
-    final isGuest = AuthService.instance.isGuest;
+    // Giả lập delay 1 chút để bạn kịp nhìn thấy hiệu ứng skeleton (nếu mạng quá nhanh)
+    // await Future.delayed(const Duration(seconds: 1));
 
-    if (mounted) {
-      setState(() => _isGuest = isGuest);
-    }
+    final isGuest = AuthService.instance.isGuest;
+    if (mounted) setState(() => _isGuest = isGuest);
 
     try {
-      final profile = await ApiService.instance.getUserProfile();
-
+      final profile = await UserService.instance.getUserProfile();
       if (mounted) {
         setState(() {
           _userProfile = profile;
@@ -41,17 +41,17 @@ class _MeScreenState extends State<MeScreen> {
         });
       }
     } catch (e) {
-      print("LỖI LOAD PROFILE: $e");
+      debugPrint("LỖI LOAD PROFILE: $e");
       if (mounted) {
         if (isGuest) {
-          final user = AuthService.instance.currentUser;
+          // Tạo user ảo cho khách
           _userProfile = UserModel(
-            id: user?.id ?? 'guest',
+            id: 'guest',
             email: '',
             username: 'guest_mode',
             fullName: 'Khách Trải Nghiệm',
             role: 'guest',
-            avatarUrl: 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/defautl.jpg',
+            avatarUrl: '', // Để trống để hiện icon mặc định
             gender: null,
             region: null,
           );
@@ -61,9 +61,9 @@ class _MeScreenState extends State<MeScreen> {
     }
   }
 
-  // Xử lý nút hành động chính
   void _handleMainAction() {
     if (_isGuest) {
+      // Điều hướng đến trang đăng nhập (Cần định nghĩa route '/login' ở main.dart)
       Navigator.pushNamed(context, '/login');
     } else {
       _showLogoutDialog();
@@ -92,7 +92,6 @@ class _MeScreenState extends State<MeScreen> {
     );
   }
 
-  // Hàm lấy icon theo giới tính (Chấp nhận null)
   IconData _getGenderIcon(String? gender) {
     if (gender == 'Nam') return Icons.male;
     if (gender == 'Nữ') return Icons.female;
@@ -111,52 +110,53 @@ class _MeScreenState extends State<MeScreen> {
           centerTitle: true,
           elevation: 0
       ),
+      // [THAY ĐỔI] Kiểm tra loading để hiện Skeleton
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            // Header Avatar & Tên & Giới tính/Khu vực
-            _buildHeader(),
+          ? const _MeSkeletonLoading() // Widget khung xương mới
+          : RefreshIndicator(
+        onRefresh: _loadUserData, // Kéo xuống để tải lại
+        color: primaryColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              _buildHeader(),
+              const SizedBox(height: 32),
+              _buildMenu(context, primaryColor),
+              const SizedBox(height: 40),
 
-            const SizedBox(height: 32),
-
-            // Menu Chức năng
-            _buildMenu(context, primaryColor),
-
-            const SizedBox(height: 40),
-
-            // Nút Hành động Chính
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: _handleMainAction,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isGuest ? primaryColor : Colors.red.shade400,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 4,
-                ),
-                icon: Icon(_isGuest ? Icons.login : Icons.logout, color: Colors.white),
-                label: Text(
-                  _isGuest ? "ĐĂNG NHẬP / ĐĂNG KÝ NGAY" : "ĐĂNG XUẤT",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ),
-            ),
-
-            if (_isGuest)
-              Padding(
-                padding: const EdgeInsets.only(top: 12.0),
-                child: const Text(
-                  "Đăng nhập để lưu bài hát vĩnh viễn và tham gia cộng đồng!",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
+              // Nút Hành động Chính
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _handleMainAction,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isGuest ? primaryColor : Colors.red.shade400,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 4,
+                  ),
+                  icon: Icon(_isGuest ? Icons.login : Icons.logout, color: Colors.white),
+                  label: Text(
+                    _isGuest ? "ĐĂNG NHẬP / ĐĂNG KÝ NGAY" : "ĐĂNG XUẤT",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                 ),
               ),
-          ],
+
+              if (_isGuest)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12.0),
+                  child: const Text(
+                    "Đăng nhập để lưu bài hát vĩnh viễn và tham gia cộng đồng!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -164,19 +164,14 @@ class _MeScreenState extends State<MeScreen> {
 
   Widget _buildHeader() {
     String displayName = "Người dùng";
+    String avatarUrl = "";
+
     if (_userProfile != null) {
-      if (_userProfile!.fullName != null && _userProfile!.fullName!.isNotEmpty) {
-        displayName = _userProfile!.fullName!;
-      } else if (_userProfile!.username != null && _userProfile!.username!.isNotEmpty) {
-        displayName = _userProfile!.username!;
-      } else if (_userProfile!.email != null && _userProfile!.email!.isNotEmpty) {
-        displayName = _userProfile!.email!.split('@')[0];
-      } else if (_isGuest) {
-        displayName = "Khách Trải Nghiệm";
-      }
+      displayName = _userProfile!.fullName ?? _userProfile!.username ?? _userProfile!.email?.split('@')[0] ?? "Người dùng";
+      avatarUrl = _userProfile!.avatarUrl ?? "";
+      if (_isGuest) displayName = "Khách Trải Nghiệm";
     }
 
-    String avatarUrl = _userProfile?.avatarUrl ?? "";
     bool hasAvatar = avatarUrl.isNotEmpty;
 
     return Column(
@@ -205,7 +200,6 @@ class _MeScreenState extends State<MeScreen> {
 
         const SizedBox(height: 6),
 
-        // Role Badge
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
@@ -222,22 +216,18 @@ class _MeScreenState extends State<MeScreen> {
           ),
         ),
 
-        // --- HIỂN THỊ GIỚI TÍNH & KHU VỰC (Chỉ cho User thật) ---
         if (!_isGuest && _userProfile != null)
           Padding(
             padding: const EdgeInsets.only(top: 8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Icon Giới tính
                 Icon(
                   _getGenderIcon(_userProfile?.gender),
                   size: 16,
                   color: Colors.grey[600],
                 ),
                 const SizedBox(width: 6),
-
-                // Text: Giới tính | Khu vực
                 Text(
                   "${_userProfile?.gender ?? '---'}  •  ${_userProfile?.region ?? 'Chưa cập nhật'}",
                   style: TextStyle(
@@ -263,28 +253,19 @@ class _MeScreenState extends State<MeScreen> {
               icon: Icons.history,
               color: Colors.orange,
               text: "Lịch sử hát",
-              onTap: () {
-                Navigator.pushNamed(context, '/history');
-              }
-          ),
+              onTap: () => Navigator.pushNamed(context, '/history')),
           const Divider(height: 1),
           _buildMenuItem(
               icon: Icons.favorite,
               color: Colors.red,
               text: "Bài hát yêu thích",
-              onTap: () {
-                Navigator.pushNamed(context, '/favorites');
-              }
-          ),
+              onTap: () => Navigator.pushNamed(context, '/favorites')),
           const Divider(height: 1),
           _buildMenuItem(
               icon: Icons.settings,
               color: Colors.grey,
               text: "Cài đặt ứng dụng",
-              onTap: () {
-                // Mở màn hình cài đặt
-              }
-          ),
+              onTap: () {}),
         ],
       ),
     );
@@ -300,6 +281,143 @@ class _MeScreenState extends State<MeScreen> {
       title: Text(text, style: const TextStyle(fontWeight: FontWeight.w500)),
       trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
       onTap: onTap,
+    );
+  }
+}
+
+// ==========================================
+// WIDGET SKELETON CHO MÀN HÌNH ME (MỚI)
+// ==========================================
+class _MeSkeletonLoading extends StatelessWidget {
+  const _MeSkeletonLoading({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            // 1. Header Skeleton (Avatar + Info)
+            _buildHeaderSkeleton(),
+
+            const SizedBox(height: 32),
+
+            // 2. Menu Skeleton
+            _buildMenuSkeleton(),
+
+            const SizedBox(height: 40),
+
+            // 3. Button Skeleton
+            Container(
+              width: double.infinity,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSkeleton() {
+    return Column(
+      children: [
+        // Avatar tròn giả
+        Container(
+          width: 108, // 50*2 + 4*2 padding
+          height: 108,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Tên user giả
+        Container(
+          width: 150,
+          height: 24,
+          color: Colors.white,
+        ),
+        const SizedBox(height: 6),
+
+        // Role badge giả
+        Container(
+          width: 100,
+          height: 20,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Info text giả
+        Container(
+          width: 120,
+          height: 14,
+          color: Colors.white,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuSkeleton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        children: [
+          _buildMenuItemSkeleton(),
+          const SizedBox(height: 16), // Khoảng cách thay cho Divider
+          _buildMenuItemSkeleton(),
+          const SizedBox(height: 16),
+          _buildMenuItemSkeleton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuItemSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Icon tròn giả
+          Container(
+            width: 36,
+            height: 36,
+            decoration: const BoxDecoration(
+              color: Colors.white, // Do Shimmer base là grey[300] nên white sẽ nổi bật trong effect
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Text giả
+          Container(
+            width: 120,
+            height: 16,
+            color: Colors.white,
+          ),
+          const Spacer(),
+          // Arrow giả
+          Container(
+            width: 14,
+            height: 14,
+            color: Colors.white,
+          ),
+        ],
+      ),
     );
   }
 }

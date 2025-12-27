@@ -7,7 +7,7 @@ import 'ui/screens/login_screen.dart';
 import 'ui/screens/register_screen.dart';
 import 'ui/screens/reset_password_screen.dart';
 import 'ui/screens/navbar_screen.dart';
-// import 'ui/screens/song_detail_screen.dart';
+import 'ui/screens/song_detail_screen.dart';
 
 // Import services & providers
 import 'services/auth_service.dart';
@@ -58,10 +58,6 @@ class MyApp extends StatelessWidget {
 
           '/register': (context) => RegisterScreen(
             onRegisterSuccess: () {
-              // Vì đã tắt confirm email, đăng ký xong là coi như đăng nhập luôn
-              // Ta có thể chuyển thẳng vào Home hoặc về Login tùy ý.
-              // Ở đây cho về Login để người dùng nhập lại cho quen tay,
-              // hoặc sửa thành pushNamedAndRemoveUntil('/home') nếu muốn vào luôn.
               Navigator.of(context).pop();
             },
             onBackClick: () => Navigator.of(context).pop(),
@@ -73,8 +69,18 @@ class MyApp extends StatelessWidget {
 
           '/home': (context) => NavbarScreen(
             onLogout: () => _handleLogout(context),
-            onSongClick: (songId) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Mở bài hát ID: $songId")));
+            onSongClick: (song) { // Biến 'song' là SongModel được truyền vào
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SongDetailScreen(
+                    songId: song.id,
+                    onBack: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+              );
             },
           ),
         },

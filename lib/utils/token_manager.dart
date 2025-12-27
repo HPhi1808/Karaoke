@@ -5,8 +5,6 @@ class TokenManager {
 
   TokenManager._internal();
 
-  // Khởi tạo thư viện bảo mật
-  // Trên Android nó sẽ tự dùng EncryptedSharedPreferences như code cũ của bạn
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(
       encryptedSharedPreferences: true,
@@ -21,7 +19,6 @@ class TokenManager {
   // --- CÁC HÀM LƯU / LẤY / XÓA ---
 
   // 1. Lưu thông tin đăng nhập
-  // Lưu ý: Phải dùng Future<void> vì ghi đĩa là bất đồng bộ
   Future<void> saveAuthInfo(String accessToken, String refreshToken, String role) async {
     await Future.wait([
       _storage.write(key: _keyAccessToken, value: accessToken),
@@ -45,7 +42,7 @@ class TokenManager {
     return await _storage.read(key: _keyUserRole);
   }
 
-  // 5. Xóa hết (Dùng khi Đăng xuất)
+  // 5. Xóa hết
   Future<void> clearAuth() async {
     await _storage.deleteAll();
   }

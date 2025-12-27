@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:karaoke/models/song_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/auth_service.dart';
 import 'home_screen.dart';
 import 'me_screen.dart';
+import 'song_detail_screen.dart';
 
 class NavbarScreen extends StatefulWidget {
   final VoidCallback onLogout;
-  final Function(int) onSongClick;
+  final Function(SongModel) onSongClick;
 
   const NavbarScreen({
     Key? key,
@@ -102,12 +104,26 @@ class _NavbarScreenState extends State<NavbarScreen> {
     switch (_selectedIndex) {
       case 0:
         return HomeScreen(
-          onSongClick: (songId) {
-            widget.onSongClick(songId);
+          onSongClick: (song) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("Đang mở bài hát ID: $songId"),
+                content: Text("Đang mở: ${song.title}"),
                 duration: const Duration(seconds: 1),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+
+            // 2. Chuyển sang màn hình SongDetailScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SongDetailScreen(
+                  songId: song.id,
+                  onBack: () {
+                    Navigator.pop(context);
+                  },
+                ),
               ),
             );
           },

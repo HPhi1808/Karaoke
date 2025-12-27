@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'api_client.dart';
 
 class AuthService {
   static final AuthService instance = AuthService._internal();
@@ -8,10 +9,8 @@ class AuthService {
 
   final SupabaseClient _client = Supabase.instance.client;
 
-  // Nếu chạy máy ảo Android thì dùng 10.0.2.2, máy thật thì dùng IP LAN
-  final String _baseUrl = 'http://10.0.2.2:3000';
-
-  // final String _baseUrl = 'https://karaoke-server-paan.onrender.com';
+  // --- Lấy URL từ ApiClient để đồng bộ với file song_service ---
+  String get _baseUrl => ApiClient.baseUrl;
 
   // ==========================================================
   // PHẦN 1: QUẢN LÝ GUEST
@@ -58,7 +57,6 @@ class AuthService {
 
   Future<void> login({required String identifier, required String password}) async {
     try {
-      // 1. Lưu lại ID Guest cũ để dọn dẹp sau khi login thành công
       String? oldGuestId;
       if (isGuest) {
         oldGuestId = _client.auth.currentUser?.id;
@@ -67,7 +65,6 @@ class AuthService {
       String input = identifier.trim();
       String emailToLogin = "";
 
-      // 2. TRUY VẤN DB ĐỂ LẤY THÔNG TIN
       final response = await _client
           .from('users')
           .select('email, role, username, locked_until')
@@ -83,39 +80,32 @@ class AuthService {
       final String? lockedUntilStr = response['locked_until'];
       emailToLogin = response['email'] as String;
 
-      // 3. CHẶN QUYỀN QUẢN TRỊ (ADMIN/OWN)
       if (role == 'admin' || role == 'own') {
         throw Exception('Ứng dụng chỉ dành cho Thành viên. Quản trị viên vui lòng dùng Web Admin.');
       }
 
-      // 4. CHẶN TÀI KHOẢN CHƯA HOÀN TẤT
       if (dbUsername == null) {
         throw Exception('Tài khoản này chưa hoàn tất thủ tục đăng ký. Vui lòng đăng ký lại.');
       }
 
-      // 5. [MỚI] CHẶN TÀI KHOẢN BỊ KHÓA
       if (lockedUntilStr != null) {
         DateTime lockedTime = DateTime.parse(lockedUntilStr);
-        // Nếu thời gian mở khóa nằm ở tương lai (tức là hiện tại đang bị khóa)
         if (lockedTime.isAfter(DateTime.now())) {
-          throw Exception('Tài khoản của bạn đang bị KHÓA do vi phạm quy định.\nVui lòng liên hệ bộ phận chăm sóc để được hỗ trợ.');
+          throw Exception('Tài khoản của bạn đang bị KHÓA do vi phạm quy định.');
         }
       }
 
-      // 6. TIẾN HÀNH ĐĂNG NHẬP (AUTH)
       await _client.auth.signInWithPassword(
         email: emailToLogin,
         password: password,
       );
 
-      // 7. DỌN DẸP TÀI KHOẢN GUEST CŨ
       if (oldGuestId != null) {
         _cleanupGuestAccount(oldGuestId);
       }
 
     } catch (e) {
       String msg = e.toString();
-      // Xử lý thông báo lỗi từ Supabase cho thân thiện
       if (msg.contains("Invalid login credentials")) {
         throw Exception("Sai mật khẩu hoặc tài khoản!");
       }
@@ -123,7 +113,6 @@ class AuthService {
     }
   }
 
-  // Hàm dọn dẹp Guest (Gọi API Node.js)
   Future<void> _cleanupGuestAccount(String guestId) async {
     try {
       http.post(
@@ -215,7 +204,6 @@ class AuthService {
   // ==========================================================
 
   Future<String> sendRecoveryOtp(String email) async {
-    // 1. KIỂM TRA TÀI KHOẢN TRƯỚC KHI GỬI API
     try {
       final userCheck = await _client
           .from('users')
@@ -223,21 +211,12 @@ class AuthService {
           .eq('email', email)
           .maybeSingle();
 
-      if (userCheck == null) {
-        throw Exception('Email này chưa được đăng ký tài khoản nào.');
-      }
-
-      // Nếu username là null -> Tài khoản rác/chưa hoàn tất -> Không cho reset pass
-      if (userCheck['username'] == null) {
-        throw Exception('Email chưa đăng ký tài khoản!');
-      }
+      if (userCheck == null) throw Exception('Email này chưa được đăng ký tài khoản nào.');
+      if (userCheck['username'] == null) throw Exception('Email chưa đăng ký tài khoản!');
     } catch (e) {
-      if (e.toString().contains('Email này') || e.toString().contains('Tài khoản này')) {
-        rethrow;
-      }
+      if (e.toString().contains('Email này') || e.toString().contains('Tài khoản này')) rethrow;
     }
 
-    // 2. GỌI API NODE.JS ĐỂ GỬI OTP
     final response = await http.post(
       Uri.parse('$_baseUrl/api/auth/forgot-password/send-otp'),
       headers: {'Content-Type': 'application/json'},
@@ -255,11 +234,14 @@ class AuthService {
       body: jsonEncode({'email': email, 'token': otp}),
     );
     final data = jsonDecode(response.body);
-    if (response.statusCode == 200) return data['temp_token'];
+
+    if (response.statusCode == 200) {
+      return data['temp_token'] ?? '';
+    }
     throw Exception(data['message'] ?? 'OTP không đúng');
   }
 
-  Future<void> resetPasswordFinal(String email, String newPassword) async {
+  Future<void> resetPasswordFinal(String email, String newPassword, String tempToken) async {
     if (newPassword.length < 6) throw Exception('Mật khẩu phải có ít nhất 6 ký tự.');
 
     final response = await http.post(
@@ -268,6 +250,7 @@ class AuthService {
       body: jsonEncode({
         'email': email,
         'new_password': newPassword,
+        'token': tempToken,
       }),
     );
     if (response.statusCode != 200) {

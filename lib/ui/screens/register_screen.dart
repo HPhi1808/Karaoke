@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Import để dùng inputFormatters
 import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -26,10 +27,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _obscurePassword = true;
 
   // Dữ liệu cho bước 3
-  String _selectedGender = "Nam"; // Mặc định là Nam
-  String? _selectedRegion;        // Tỉnh thành đã chọn
+  String _selectedGender = "Nam";
+  String? _selectedRegion;
 
-  // Danh sách 34 tỉnh thành chuẩn
   final List<String> _provinces = [
     "TP Hà Nội", "TP Huế", "Quảng Ninh", "Cao Bằng", "Lạng Sơn", "Lai Châu",
     "Điện Biên", "Sơn La", "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Tuyên Quang",
@@ -57,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final String status = await AuthService.instance.sendRegisterOtp(email);
 
       if (status == 'already_verified') {
-        _showToast("Email đã được xác thực trước đó. Vui lòng hoàn tất thông tin!");
+        _showToast("Email đã được xác thực. Vui lòng điền thông tin!");
         setState(() => _currentStep = 2);
       } else {
         _showToast("Mã OTP đã được gửi!");
@@ -73,10 +73,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // --- BƯỚC 2: XÁC THỰC OTP ---
   Future<void> _verifyOtp() async {
     final otp = _otpController.text.trim();
-    if (otp.length < 8) {
-      _showToast("Vui lòng nhập đủ 8 số");
+
+    if (otp.length < 6) {
+      _showToast("Vui lòng nhập đủ mã OTP");
       return;
     }
+
     setState(() => _isLoading = true);
     try {
       await AuthService.instance.verifyRegisterOtp(_emailController.text.trim(), otp);
@@ -96,7 +98,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text;
     final confirmPass = _confirmPasswordController.text;
 
-    // Validation
     if (username.isEmpty || fullName.isEmpty || password.isEmpty) {
       _showToast("Vui lòng điền đủ thông tin");
       return;
@@ -112,14 +113,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Gọi AuthService với đầy đủ thông tin (Thêm gender, region)
       await AuthService.instance.completeRegister(
         email: _emailController.text.trim(),
         username: username,
         fullName: fullName,
         password: password,
-        gender: _selectedGender, // <--- Mới
-        region: _selectedRegion!, // <--- Mới
+        gender: _selectedGender,
+        region: _selectedRegion!,
       );
 
       _showToast("Đăng ký thành công!");
@@ -151,7 +151,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              // Thanh tiến trình
               LinearProgressIndicator(
                 value: (_currentStep + 1) / 3,
                 color: primaryColor,
@@ -160,7 +159,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Nội dung từng bước
               if (_currentStep == 0) _buildStepEmail(),
               if (_currentStep == 1) _buildStepOTP(),
               if (_currentStep == 2) _buildStepForm(),
@@ -207,15 +205,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 16),
         const Text("NHẬP MÃ OTP", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
         const SizedBox(height: 8),
-        Text("Mã xác thực gồm 8 số đã được gửi tới:\n${_emailController.text}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+        Text("Mã xác thực đã được gửi tới:\n${_emailController.text}", textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
         const SizedBox(height: 32),
+
         TextField(
           controller: _otpController,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
+
           maxLength: 8,
+
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+
           style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
-          decoration: const InputDecoration(hintText: "00000000", counterText: "", border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+              hintText: "OTP Code",
+              counterText: "",
+              border: OutlineInputBorder()
+          ),
         ),
         const SizedBox(height: 24),
         _buildButton("XÁC NHẬN MÃ", _verifyOtp),
@@ -224,7 +231,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Widget Bước 3: Thông tin cá nhân (Đã thêm Gender & Region)
+  // Widget Bước 3: Form (Giữ nguyên)
   Widget _buildStepForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,15 +239,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const Center(child: Text("THÔNG TIN TÀI KHOẢN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20))),
         const SizedBox(height: 24),
 
-        // Username
         TextField(controller: _usernameController, decoration: const InputDecoration(labelText: "Tên đăng nhập", prefixIcon: Icon(Icons.person), border: OutlineInputBorder())),
         const SizedBox(height: 16),
 
-        // Fullname
         TextField(controller: _fullNameController, decoration: const InputDecoration(labelText: "Họ và tên", prefixIcon: Icon(Icons.badge), border: OutlineInputBorder())),
         const SizedBox(height: 16),
 
-        // --- MỚI: CHỌN GIỚI TÍNH ---
         const Text("Giới tính:", style: TextStyle(fontWeight: FontWeight.w600)),
         Row(
           mainAxisAlignment: MainAxisAlignment.start,
@@ -252,7 +256,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        // --- MỚI: CHỌN KHU VỰC ---
         DropdownButtonFormField<String>(
           value: _selectedRegion,
           decoration: const InputDecoration(
@@ -268,7 +271,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Password
         TextField(
             controller: _passwordController,
             obscureText: _obscurePassword,
@@ -284,7 +286,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Confirm Password
         TextField(
             controller: _confirmPasswordController,
             obscureText: _obscurePassword,
@@ -297,7 +298,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Helper widget cho Radio Button
   Widget _buildGenderRadio(String val) {
     return Row(
       children: [
