@@ -114,7 +114,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> with TickerProvider
         if (response.statusCode == 200) {
           final lrcContent = utf8.decode(response.bodyBytes);
 
-          // [ĐÃ SỬA] Dùng compute thay vì Future.compute
           final parsedLyrics = await compute(LrcParser.parse, lrcContent);
 
           if (mounted) setState(() => _lyrics = parsedLyrics);

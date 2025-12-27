@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// Import các màn hình
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/register_screen.dart';
 import 'ui/screens/reset_password_screen.dart';
@@ -11,7 +12,7 @@ import 'ui/screens/splash_screen.dart';
 
 // Import services, providers & utils
 import 'services/auth_service.dart';
-import 'providers/home_provider.dart';
+import 'providers/songs_provider.dart';
 import 'utils/token_manager.dart';
 
 void main() async {
@@ -33,7 +34,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => HomeProvider()),
+        ChangeNotifierProvider(create: (_) => SongsProvider()),
       ],
       child: MaterialApp(
         title: 'KARAOKE ENTERTAINMENT PLUS',
@@ -44,7 +45,7 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
 
-        // Màn hình khởi động: Kiểm tra Token & Guest logic
+        // Màn hình khởi động
         home: const SplashScreen(),
 
         // ĐỊNH NGHĨA ROUTES

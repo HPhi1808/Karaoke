@@ -31,3 +31,22 @@ Map<String, dynamic> _$SongModelToJson(SongModel instance) => <String, dynamic>{
       'view_count': instance.viewCount,
       'created_at': instance.createdAt,
     };
+
+SongResponse _$SongResponseFromJson(Map<String, dynamic> json) => SongResponse(
+      newest: (json['newest'] as List<dynamic>)
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      popular: (json['popular'] as List<dynamic>)
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      recommended: (json['recommended'] as List<dynamic>)
+          .map((e) => SongModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+
+Map<String, dynamic> _$SongResponseToJson(SongResponse instance) =>
+    <String, dynamic>{
+      'newest': instance.newest,
+      'popular': instance.popular,
+      'recommended': instance.recommended,
+    };

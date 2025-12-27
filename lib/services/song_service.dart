@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import '../models/home_model.dart';
 import '../models/song_model.dart';
 import 'api_client.dart';
 
@@ -10,10 +9,12 @@ class SongService {
   final Dio _dio = ApiClient.instance.dio;
 
   // --- API METHODS ---
-  Future<HomeResponse> getHomeData() async {
+
+  Future<SongResponse> getSongsOverview() async {
     try {
-      final response = await _dio.get('/api/songs/home');
-      return HomeResponse.fromJson(response.data);
+      final response = await _dio.get('/api/songs/songs');
+
+      return SongResponse.fromJson(response.data);
     } catch (e) {
       throw _handleError(e);
     }
@@ -21,7 +22,7 @@ class SongService {
 
   Future<List<SongModel>> searchSongs(String query) async {
     try {
-      final response = await _dio.get('/api/songs', queryParameters: {'q': query},);
+      final response = await _dio.get('/api/songs', queryParameters: {'q': query});
 
       if (response.data is List) {
         return (response.data as List).map((e) => SongModel.fromJson(e)).toList();
@@ -49,7 +50,7 @@ class SongService {
     }
   }
 
-  // --- HELPER XỬ LÝ LỖI RIÊNG CHO DIO ---
+  // --- HELPER XỬ LÝ LỖI ---
   Exception _handleError(dynamic error) {
     if (error is DioException) {
       if (error.response?.data != null && error.response?.data is Map) {

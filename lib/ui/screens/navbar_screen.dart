@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:karaoke/models/song_model.dart';
+import '../../models/song_model.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../services/auth_service.dart';
 import 'home_screen.dart';
 import 'me_screen.dart';
-import 'song_detail_screen.dart';
+import 'songs_screen.dart';
 
 class NavbarScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -24,8 +24,6 @@ class NavbarScreen extends StatefulWidget {
 
 class _NavbarScreenState extends State<NavbarScreen> {
   int _selectedIndex = 0;
-
-  // Biến quản lý việc lắng nghe Database
   StreamSubscription? _userSubscription;
 
   @override
@@ -40,10 +38,9 @@ class _NavbarScreenState extends State<NavbarScreen> {
     super.dispose();
   }
 
-  // --- LOGIC LẮNG NGHE KHÓA TÀI KHOẢN (REALTIME) ---
+  // --- LOGIC LẮNG NGHE KHÓA TÀI KHOẢN ---
   void _setupAccountListener() {
     final user = Supabase.instance.client.auth.currentUser;
-
     if (user == null || AuthService.instance.isGuest) return;
 
     _userSubscription = Supabase.instance.client
@@ -51,12 +48,9 @@ class _NavbarScreenState extends State<NavbarScreen> {
         .stream(primaryKey: ['id'])
         .eq('id', user.id)
         .listen((List<Map<String, dynamic>> data) {
-
       if (data.isNotEmpty) {
         final userData = data.first;
         final lockedUntilStr = userData['locked_until'];
-
-        // Kiểm tra xem có bị khóa không
         if (lockedUntilStr != null) {
           DateTime lockedTime = DateTime.parse(lockedUntilStr);
           if (lockedTime.isAfter(DateTime.now())) {
@@ -67,31 +61,23 @@ class _NavbarScreenState extends State<NavbarScreen> {
     });
   }
 
-  // Hàm xử lý đăng xuất cưỡng chế
   Future<void> _forceLogout() async {
-    // 1. Ngừng lắng nghe ngay lập tức
     _userSubscription?.cancel();
-
-    // 2. Gọi AuthService đăng xuất
     await AuthService.instance.logout();
-
     if (!mounted) return;
-
-    // 3. Hiện thông báo chặn
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text("Tài khoản bị khóa"),
-        content: const Text("Tài khoản của bạn đã bị Quản trị viên khóa quyền truy cập do vi phạm quy định."),
+        content: const Text("Tài khoản của bạn đã bị khóa do vi phạm quy định."),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-
               widget.onLogout();
             },
-            child: const Text("Đã hiểu", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: const Text("Đã hiểu", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -99,41 +85,24 @@ class _NavbarScreenState extends State<NavbarScreen> {
   }
 
   // --- UI CHÍNH ---
-
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
-        return HomeScreen(
-          onSongClick: (song) {
-            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text("Đang mở: ${song.title}"),
-                duration: const Duration(seconds: 1),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+        return const HomeScreen();
 
-            // 2. Chuyển sang màn hình SongDetailScreen
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SongDetailScreen(
-                  songId: song.id,
-                  onBack: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            );
+      case 1:
+        return const _CenteredText("Khoảnh Khắc (Coming Soon)");
+
+      case 2:
+        return SongsScreen(
+          onSongClick: (song) {
+            widget.onSongClick(song);
           },
         );
-      case 1:
-        return const _CenteredText("Nội dung Khoảnh Khắc");
-      case 2:
-        return const _CenteredText("Màn hình Hát (Karaoke Mode)");
+
       case 3:
-        return const _CenteredText("Màn hình Chat");
+        return const _CenteredText("Tin nhắn (Coming Soon)");
+
       case 4:
         return MeScreen(
           onLogoutClick: widget.onLogout,
@@ -208,10 +177,7 @@ class _CenteredText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 18, color: Colors.grey),
-      ),
+      child: Text(text, style: const TextStyle(fontSize: 18, color: Colors.grey)),
     );
   }
 }

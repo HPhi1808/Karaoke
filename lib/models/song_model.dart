@@ -53,14 +53,33 @@ class SongModel {
 }
 
 // ==========================================
-// 2. MODEL LỜI BÀI HÁT (Dùng để hiển thị Karaoke)
+// 2. MODEL DATA TRANG HÁT
+// ==========================================
+@JsonSerializable()
+class SongResponse {
+  final List<SongModel> newest;
+  final List<SongModel> popular;
+  final List<SongModel> recommended;
+
+  SongResponse({
+    required this.newest,
+    required this.popular,
+    required this.recommended,
+  });
+
+  factory SongResponse.fromJson(Map<String, dynamic> json) => _$SongResponseFromJson(json);
+  Map<String, dynamic> toJson() => _$SongResponseToJson(this);
+}
+
+// ==========================================
+// 3. MODEL LỜI BÀI HÁT
 // ==========================================
 
 class LyricLine {
-  final int startTime; // Thời gian bắt đầu (ms)
-  final int endTime;   // Thời gian kết thúc (ms)
-  final String content; // Nội dung cả dòng
-  final List<LyricWord> words; // Danh sách các từ (để tô màu karaoke)
+  final int startTime;
+  final int endTime;
+  final String content;
+  final List<LyricWord> words;
 
   LyricLine({
     required this.startTime,
