@@ -26,44 +26,49 @@ class _MeScreenState extends State<MeScreen> {
   }
 
   Future<void> _loadUserData() async {
-    // Giả lập delay 1 chút để bạn kịp nhìn thấy hiệu ứng skeleton (nếu mạng quá nhanh)
     // await Future.delayed(const Duration(seconds: 1));
 
-    final isGuest = AuthService.instance.isGuest;
-    if (mounted) setState(() => _isGuest = isGuest);
+    // 1. Lấy trạng thái ban đầu từ local
+    bool currentGuestStatus = AuthService.instance.isGuest;
 
     try {
+      // 2. Thử lấy dữ liệu từ Server
       final profile = await UserService.instance.getUserProfile();
+
       if (mounted) {
         setState(() {
           _userProfile = profile;
+          _isGuest = currentGuestStatus;
           _isLoading = false;
         });
       }
     } catch (e) {
       debugPrint("LỖI LOAD PROFILE: $e");
+      AuthService.instance.logout();
       if (mounted) {
-        if (isGuest) {
-          // Tạo user ảo cho khách
+        setState(() {
+          _isGuest = true;
+
+          // Tạo profile ảo
           _userProfile = UserModel(
             id: 'guest',
             email: '',
             username: 'guest_mode',
             fullName: 'Khách Trải Nghiệm',
             role: 'guest',
-            avatarUrl: '', // Để trống để hiện icon mặc định
+            avatarUrl: '',
             gender: null,
             region: null,
           );
-        }
-        setState(() => _isLoading = false);
+
+          _isLoading = false;
+        });
       }
     }
   }
 
   void _handleMainAction() {
     if (_isGuest) {
-      // Điều hướng đến trang đăng nhập (Cần định nghĩa route '/login' ở main.dart)
       Navigator.pushNamed(context, '/login');
     } else {
       _showLogoutDialog();
@@ -110,11 +115,11 @@ class _MeScreenState extends State<MeScreen> {
           centerTitle: true,
           elevation: 0
       ),
-      // [THAY ĐỔI] Kiểm tra loading để hiện Skeleton
+      // Kiểm tra loading để hiện Skeleton
       body: _isLoading
-          ? const _MeSkeletonLoading() // Widget khung xương mới
+          ? const _MeSkeletonLoading()
           : RefreshIndicator(
-        onRefresh: _loadUserData, // Kéo xuống để tải lại
+        onRefresh: _loadUserData,
         color: primaryColor,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -286,7 +291,7 @@ class _MeScreenState extends State<MeScreen> {
 }
 
 // ==========================================
-// WIDGET SKELETON CHO MÀN HÌNH ME (MỚI)
+// WIDGET SKELETON CHO MÀN HÌNH ME
 // ==========================================
 class _MeSkeletonLoading extends StatelessWidget {
   const _MeSkeletonLoading({Key? key}) : super(key: key);
@@ -331,7 +336,7 @@ class _MeSkeletonLoading extends StatelessWidget {
       children: [
         // Avatar tròn giả
         Container(
-          width: 108, // 50*2 + 4*2 padding
+          width: 108,
           height: 108,
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -379,7 +384,7 @@ class _MeSkeletonLoading extends StatelessWidget {
       child: Column(
         children: [
           _buildMenuItemSkeleton(),
-          const SizedBox(height: 16), // Khoảng cách thay cho Divider
+          const SizedBox(height: 16),
           _buildMenuItemSkeleton(),
           const SizedBox(height: 16),
           _buildMenuItemSkeleton(),
@@ -398,7 +403,7 @@ class _MeSkeletonLoading extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: const BoxDecoration(
-              color: Colors.white, // Do Shimmer base là grey[300] nên white sẽ nổi bật trong effect
+              color: Colors.white,
               shape: BoxShape.circle,
             ),
           ),

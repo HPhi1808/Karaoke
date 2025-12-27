@@ -42,8 +42,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final status = await AuthService.instance.sendRecoveryOtp(email);
-
+      await AuthService.instance.sendRecoveryOtp(email);
       _showToast("Mã OTP đã được gửi!");
       setState(() => _step = 1);
 
@@ -59,7 +58,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final email = _emailController.text.trim();
     final otp = _otpController.text.trim();
 
-    // [CẬP NHẬT] Kiểm tra < 6 để hỗ trợ cả mã 6 số và 8 số
+    // Kiểm tra < 6 để hỗ trợ cả mã 6 số và 8 số
     if (otp.length < 6) {
       _showToast("Vui lòng nhập đủ mã OTP");
       return;
@@ -104,7 +103,6 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
 
     setState(() => _isLoading = true);
     try {
-      // Gọi đúng thứ tự positional arguments: email, pass, token
       await AuthService.instance.resetPasswordFinal(
           email,
           pass,
@@ -196,7 +194,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     );
   }
 
-  // [CẬP NHẬT] UI phần nhập OTP để chặn chữ và giới hạn ký tự
+  // UI phần nhập OTP để chặn chữ và giới hạn ký tự
   Widget _buildStepOTP() {
     return Column(
       children: [
@@ -212,17 +210,17 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         const SizedBox(height: 32),
         TextField(
           controller: _otpController,
-          keyboardType: TextInputType.number, // Bàn phím số
+          keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
 
-          // [MỚI] Giới hạn và chặn nhập chữ
+          // Giới hạn và chặn nhập chữ
           maxLength: 8,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
 
           style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
           decoration: const InputDecoration(
               hintText: "OTP CODE",
-              counterText: "", // Ẩn bộ đếm
+              counterText: "",
               border: OutlineInputBorder()
           ),
         ),

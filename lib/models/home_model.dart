@@ -1,5 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
-import 'song_model.dart'; // Import đúng file song_model.dart
+import 'song_model.dart';
 
 part 'home_model.g.dart';
 

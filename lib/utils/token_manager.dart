@@ -16,7 +16,6 @@ class TokenManager {
   static const String _keyRefreshToken = "refresh_token";
   static const String _keyUserRole = "user_role";
 
-  // --- CÁC HÀM LƯU / LẤY / XÓA ---
 
   // 1. Lưu thông tin đăng nhập
   Future<void> saveAuthInfo(String accessToken, String refreshToken, String role) async {

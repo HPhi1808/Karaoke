@@ -3,14 +3,10 @@ import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(bool) onLoginSuccess;
-  final VoidCallback onNavigateToRegister;
-  final VoidCallback onNavigateToResetPassword;
 
   const LoginScreen({
     Key? key,
     required this.onLoginSuccess,
-    required this.onNavigateToRegister,
-    required this.onNavigateToResetPassword,
   }) : super(key: key);
 
   @override
@@ -51,9 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await AuthService.instance.login(identifier: identifier, password: password);
-
       _showToast("Đăng nhập thành công!");
+
       widget.onLoginSuccess(true);
+
     } catch (e) {
       String msg = e.toString();
       if (msg.contains("Exception:")) msg = msg.replaceAll("Exception:", "").trim();
@@ -77,7 +74,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Text(
-                  "KARAOKE APP",
+                  "KARAOKE ENTERTAINMENT PLUS",
                   style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: primaryColor),
                 ),
                 const SizedBox(height: 40),
@@ -93,11 +90,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
-                // ----------------------------------
-
                 const SizedBox(height: 16),
 
-                // Ô Password giữ nguyên
                 TextField(
                   controller: _passwordController,
                   enabled: !_isLoading,
@@ -118,7 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: widget.onNavigateToResetPassword,
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/reset_password');
+                    },
                     child: const Text("Quên mật khẩu?", style: TextStyle(color: Colors.red)),
                   ),
                 ),
@@ -142,13 +138,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(
                   onPressed: () async {
                     try {
+                      // Login guest và vào thẳng Home
                       await AuthService.instance.loginAsGuest();
-                      Navigator.pushReplacementNamed(context, '/home');
+                      if(mounted) Navigator.pushReplacementNamed(context, '/home');
                     } catch (e) {
-                      // Hiện lỗi
+                      _showToast("Lỗi đăng nhập khách");
                     }
                   },
-                  child: Text("Bỏ qua đăng nhập"),
+                  child: const Text("Bỏ qua đăng nhập"),
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -156,7 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Text("Chưa có tài khoản? "),
                     TextButton(
-                      onPressed: widget.onNavigateToRegister,
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/register');
+                      },
                       child: const Text("Đăng ký ngay", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
                     ),
                   ],

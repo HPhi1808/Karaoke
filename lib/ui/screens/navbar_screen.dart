@@ -187,7 +187,7 @@ class _NavbarScreenState extends State<NavbarScreen> {
             NavigationDestination(
               icon: Icon(Icons.chat_bubble_outline),
               selectedIcon: Icon(Icons.chat_bubble, color: primaryColor),
-              label: 'Trò chuyện',
+              label: 'Tin nhắn',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Import để dùng inputFormatters
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -231,7 +231,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // Widget Bước 3: Form (Giữ nguyên)
+  // Widget Bước 3: Form
   Widget _buildStepForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

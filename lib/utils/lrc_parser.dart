@@ -1,4 +1,4 @@
-import '../models/song_model.dart'; // <--- 1. Import model từ file chung
+import '../models/song_model.dart';
 
 class LrcParser {
   // Regex cho Enhanced LRC (Karaoke từng chữ): <00:00.00>
@@ -30,7 +30,7 @@ class LrcParser {
     return lines;
   }
 
-  // --- LOGIC XỬ LÝ ENHANCED LRC (Code cũ của bạn, đã tinh chỉnh) ---
+  // --- LOGIC XỬ LÝ ENHANCED LRC  ---
   static LyricLine _parseEnhancedLine(String line) {
     Iterable<RegExpMatch> matches = _enhancedRegex.allMatches(line);
     List<_TempWord> tempWords = [];
@@ -67,7 +67,7 @@ class LrcParser {
 
       int nextStartTime = (i < tempWords.length - 1)
           ? tempWords[i + 1].timestamp
-          : current.timestamp + 1000; // Mặc định từ cuối dài 1s
+          : current.timestamp + 1000;
 
       finalWords.add(LyricWord(
         text: current.text,
@@ -89,7 +89,7 @@ class LrcParser {
     );
   }
 
-  // --- LOGIC XỬ LÝ STANDARD LRC (Logic tôi đã đưa ở bước trước) ---
+  // --- LOGIC XỬ LÝ STANDARD LRC ---
   static LyricLine _parseStandardLine(String line, int index, List<String> allLines) {
     final match = _standardRegex.firstMatch(line)!;
 
@@ -105,7 +105,7 @@ class LrcParser {
       }
     }
 
-    // Giả lập Words (Chia đều thời gian để có hiệu ứng chạy chữ)
+    // Giả lập Words
     List<String> rawWords = content.split(' ');
     List<LyricWord> words = [];
     if (content.isNotEmpty) {
@@ -133,7 +133,6 @@ class LrcParser {
   static int _timeToMs(String? minStr, String? secStr, String? msStr) {
     int min = int.parse(minStr ?? "0");
     int sec = int.parse(secStr ?? "0");
-    // Xử lý ms: nếu 2 số (.15) -> 150ms, nếu 3 số (.150) -> 150ms
     int ms = 0;
     if (msStr != null) {
       ms = (msStr.length == 2) ? int.parse(msStr) * 10 : int.parse(msStr);
@@ -142,7 +141,6 @@ class LrcParser {
   }
 }
 
-// Class nội bộ dùng tạm cho Logic Enhanced
 class _TempWord {
   int timestamp;
   String text;

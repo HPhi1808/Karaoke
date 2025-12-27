@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Import các màn hình
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/register_screen.dart';
 import 'ui/screens/reset_password_screen.dart';
 import 'ui/screens/navbar_screen.dart';
 import 'ui/screens/song_detail_screen.dart';
+import 'ui/screens/splash_screen.dart';
 
-// Import services & providers
+// Import services, providers & utils
 import 'services/auth_service.dart';
 import 'providers/home_provider.dart';
+import 'utils/token_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +36,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => HomeProvider()),
       ],
       child: MaterialApp(
-        title: 'Karaoke App',
+        title: 'KARAOKE ENTERTAINMENT PLUS',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primaryColor: const Color(0xFFFF00CC),
@@ -43,17 +44,17 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
 
-        // Màn hình khởi động: Kiểm tra Session đơn giản
-        home: const AuthWrapper(),
+        // Màn hình khởi động: Kiểm tra Token & Guest logic
+        home: const SplashScreen(),
 
         // ĐỊNH NGHĨA ROUTES
         routes: {
           '/login': (context) => LoginScreen(
             onLoginSuccess: (isSuccess) {
-              Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+              if (isSuccess) {
+                Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+              }
             },
-            onNavigateToRegister: () => Navigator.of(context).pushNamed('/register'),
-            onNavigateToResetPassword: () => Navigator.of(context).pushNamed('/reset_password'),
           ),
 
           '/register': (context) => RegisterScreen(
@@ -69,7 +70,7 @@ class MyApp extends StatelessWidget {
 
           '/home': (context) => NavbarScreen(
             onLogout: () => _handleLogout(context),
-            onSongClick: (song) { // Biến 'song' là SongModel được truyền vào
+            onSongClick: (song) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -91,56 +92,18 @@ class MyApp extends StatelessWidget {
   // --- HÀM XỬ LÝ ĐĂNG XUẤT ---
   void _handleLogout(BuildContext context) async {
     try {
+      // 1. Đăng xuất khỏi Supabase
       await AuthService.instance.logout();
+
+      // 2. Xóa sạch Token trong bộ nhớ máy
+      await TokenManager.instance.clearAuth();
+
       if (context.mounted) {
+        // 3. Quay về màn hình Login và xóa hết lịch sử
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       }
     } catch (e) {
-      print("Lỗi đăng xuất: $e");
+      debugPrint("Lỗi đăng xuất: $e");
     }
-  }
-}
-
-// --- WIDGET AUTH WRAPPER (ĐƠN GIẢN HÓA) ---
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
-}
-
-class _AuthWrapperState extends State<AuthWrapper> {
-  @override
-  void initState() {
-    super.initState();
-    _checkSession();
-  }
-
-  Future<void> _checkSession() async {
-    // Delay nhẹ để tạo hiệu ứng Splash
-    await Future.delayed(const Duration(seconds: 1));
-
-    // CHỈ KIỂM TRA: Có Session hay chưa? (Không quan tâm email confirm)
-    final session = Supabase.instance.client.auth.currentSession;
-
-    if (!mounted) return;
-
-    if (session != null) {
-      // Đã có token -> Vào Home luôn
-      Navigator.of(context).pushReplacementNamed('/home');
-    } else {
-      // Chưa có token -> Về Login
-      Navigator.of(context).pushReplacementNamed('/login');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: CircularProgressIndicator(color: Color(0xFFFF00CC)),
-      ),
-    );
   }
 }
