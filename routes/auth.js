@@ -78,12 +78,11 @@ router.post('/register/send-otp', async (req, res) => {
         }
 
         // 5. KHỞI TẠO BẢNG VERIFICATION
-        // Reset lại token và expires_at về null để bắt đầu quy trình mới
         await supabase.from('email_verifications').upsert({
             email: email,
             is_verified: false,
-            token: null,       // Xóa token cũ
-            expires_at: null   // Xóa hạn cũ
+            token: null,
+            expires_at: null
         }, { onConflict: 'email' });
 
         res.json({ status: 'success', message: 'Mã OTP đã được gửi vào Email.' });
@@ -98,7 +97,7 @@ router.post('/register/send-otp', async (req, res) => {
 // BƯỚC 2: XÁC THỰC MÃ OTP
 // ============================================================
 router.post('/register/verify-otp', async (req, res) => {
-    const { email, token } = req.body; // Client gửi mã OTP lên
+    const { email, token } = req.body;
     try {
         // 1. Xác thực với Supabase Auth
         const { error } = await supabase.auth.verifyOtp({
@@ -110,11 +109,9 @@ router.post('/register/verify-otp', async (req, res) => {
         if (error) throw error;
 
         // 2. Cập nhật bảng email_verifications
-        // [QUAN TRỌNG] Lưu mã OTP vào cột token để đối chiếu sau này
-        // Trigger DB sẽ tự động set expires_at khi is_verified chuyển thành true
         await supabase.from('email_verifications').upsert({ 
             email, 
-            token: token,      // Lưu mã OTP làm bằng chứng
+            token: token,
             is_verified: true
         }, { onConflict: 'email' }); 
 
@@ -266,17 +263,15 @@ router.post('/forgot-password/verify-otp', async (req, res) => {
         const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
         if (error) throw error;
 
-        // [QUAN TRỌNG] Lưu token (OTP) vào DB để dùng cho bước reset
         // Trigger DB sẽ tự động set expires_at
         await supabase.from('email_verifications').upsert({ 
             email, 
-            token: token,     // Lưu lại OTP
+            token: token,
             is_verified: true
         }, { onConflict: 'email' });
 
         res.json({ 
             status: 'success', 
-            // Vẫn trả về token này, nhưng logic server sẽ kiểm tra token trong DB
             temp_token: data.session.access_token 
         });
     } catch (err) {
@@ -294,7 +289,7 @@ router.post('/forgot-password/reset', async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Thiếu token xác thực.' });
         }
 
-        // 2. [SỬA]: Truy vấn token trong DB và kiểm tra expires_at
+        // 2. Truy vấn token trong DB và kiểm tra expires_at
         const { data: verifyData } = await supabaseAdmin
             .from('email_verifications')
             .select('*')
@@ -428,7 +423,7 @@ router.post('/logout', async (req, res) => {
     if (!userId) return res.status(400).json({ status: 'error', message: 'Thiếu userId' });
 
     try {
-        const { error } = await supabaseAdmin.rpc('force_revoke_user', { 
+        const { error } = await supabaseAdmin.rpc('force_revoke_user', {
             target_user_id: userId 
         });
 

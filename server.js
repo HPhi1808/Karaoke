@@ -7,7 +7,6 @@ const { verifyToken, requireAdmin } = require('./middlewares/auth');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware chống Cache cho các trang HTML quan trọng
 const noCache = (req, res, next) => {
     res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
     res.header('Expires', '-1');
@@ -20,18 +19,17 @@ app.use(express.json());
 
 // --- CẤU HÌNH TĨNH (STATIC FILES) ---
 
-// 1. Phục vụ toàn bộ thư mục public (để lấy css, js, ảnh chung)
+// 1. Phục vụ toàn bộ thư mục public
 app.use(express.static(path.join(__dirname, 'public'), {
     setHeaders: function (res, path) {
         if (path.endsWith('.html')) {
-            // Chống cache cho file HTML để update code mới user thấy ngay
             res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
             res.header('Expires', '-1');
         }
     }
 }));
 
-// 2. Phục vụ riêng thư mục admin (để truy cập /admin/base.html, /admin/users.html...)
+// 2. Phục vụ riêng thư mục admin
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
 
 
@@ -52,7 +50,7 @@ app.get('/policy', noCache, (req, res) => {
 
 
 
-// 2. Trang Admin (Gõ /admin) -> Login Admin
+// 2. Trang Admin
 app.get('/admin', noCache, (req, res) => {
     res.sendFile(path.join(__dirname, 'public/admin/login.html'));
 });

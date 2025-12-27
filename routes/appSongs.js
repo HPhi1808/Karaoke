@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 
 // --- 1. LẤY DỮ LIỆU HOME ---
-router.get('/home', async (req, res) => {
+router.get('/songs', async (req, res) => {
     try {
         const limit = 10;
         // Sử dụng Promise.all để chạy 3 câu lệnh song song
@@ -30,7 +30,7 @@ router.get('/home', async (req, res) => {
             recommended: recommended.rows 
         });
     } catch (err) {
-        console.error("Lỗi API /home:", err);
+        console.error("Lỗi API /songs:", err);
         res.status(500).json({ error: 'Lỗi tải trang chủ' });
     }
 });
@@ -99,6 +99,44 @@ router.get('/', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+
+// --- 4. LẤY CHI TIẾT BÀI HÁT ---
+router.get('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const query = `
+            SELECT 
+                song_id,
+                title,
+                artist_name,
+                genre,
+                image_url,
+                beat_url,
+                lyric_url,
+                vocal_url,
+                view_count,
+                created_at 
+            FROM songs
+            WHERE song_id = $1
+        `;
+        
+        const result = await pool.query(query, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy bài hát" });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("Lỗi lấy chi tiết bài hát:", err);
+        if (err.code === '22P02') {
+             return res.status(400).json({ error: "ID bài hát không hợp lệ" });
+        }
+        res.status(500).json({ error: "Lỗi Server khi lấy chi tiết bài hát" });
     }
 });
 
