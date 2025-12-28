@@ -23,6 +23,7 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
+        // 1. Xác thực Token với Supabase Auth
         const { data: { user }, error } = await supabase.auth.getUser(token);
 
         if (error || !user) {
@@ -32,37 +33,39 @@ const verifyToken = async (req, res, next) => {
             });
         }
 
+        // 2. Kiểm tra thông tin bổ sung trong Database (Role, Lock status)
         const { data: publicUser, error: dbError } = await supabase
             .from('users')
             .select('locked_until, role')
             .eq('id', user.id)
             .single();
 
+        // Nếu user tồn tại trong bảng public users (Guest có thể chưa có trong này, không sao)
         if (!dbError && publicUser) {
             if (publicUser.locked_until && new Date(publicUser.locked_until) > new Date()) {
-                
                 const unlockTime = new Date(publicUser.locked_until).toLocaleString('vi-VN');
-                
                 return res.status(403).json({
                     status: 'locked',
-                    message: `Tài khoản của bạn đang bị tạm khoá đến: ${unlockTime}. Vui lòng liên hệ Quản trị viên.`
+                    message: `Tài khoản tạm khoá đến: ${unlockTime}. Liên hệ Admin.`
                 });
             }
         }
-        // ==================================================================
 
+        // 3. Xác định Role cuối cùng
         const finalRole = publicUser?.role || user.user_metadata?.role || 'user';
 
+        // 4. Gắn thông tin vào Request
         req.user = {
             user_id: user.id,
-            email: user.email,
-            role: finalRole
+            email: user.email || (user.is_anonymous ? 'guest' : null),
+            role: finalRole,
+            is_guest: user.is_anonymous || false
         };
 
         next();
 
     } catch (err) {
-        console.error("Auth Middleware Error:", err);
+        console.error("Auth Middleware Error:", err.message);
         return res.status(500).json({
             status: 'error',
             message: 'Lỗi xác thực hệ thống'
@@ -73,15 +76,14 @@ const verifyToken = async (req, res, next) => {
 const requireAdmin = (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Chưa xác thực' });
     
-    if (req.user.role === 'own') return next(); 
-
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ 
-            status: 'error', 
-            message: 'Truy cập bị từ chối. Cần quyền Admin.' 
-        });
+    if (req.user.role === 'own' || req.user.role === 'admin') {
+        return next();
     }
-    next();
+
+    return res.status(403).json({ 
+        status: 'error', 
+        message: 'Truy cập bị từ chối. Cần quyền Admin.' 
+    });
 };
 
 const requireOwn = (req, res, next) => {

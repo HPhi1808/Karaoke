@@ -1,12 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+// [MỚI] Import middleware xác thực
+const { verifyToken } = require('../middleware/auth'); 
+
+// [MỚI] Áp dụng middleware cho TOÀN BỘ các routes bên dưới
+// Bất kỳ request nào vào đây đều phải có Token hợp lệ (Guest hoặc User)
+router.use(verifyToken);
 
 // --- 1. LẤY DỮ LIỆU HOME ---
+// Lưu ý: Nếu app.js mount là '/api/songs', thì đường dẫn thực tế là '/api/songs/songs'
 router.get('/songs', async (req, res) => {
     try {
         const limit = 10;
-        // Sử dụng Promise.all để chạy 3 câu lệnh song song
+        
+        // Bạn có thể dùng req.user.user_id ở đây nếu muốn gợi ý nhạc theo cá nhân hóa sau này
+        
         const [newest, popular, recommended] = await Promise.all([
             // Bài hát mới nhất
             pool.query(`
@@ -35,29 +44,34 @@ router.get('/songs', async (req, res) => {
     }
 });
 
-// --- 2. TÍNH VIEW ---
+// --- 2. TÍNH VIEW (ĐÃ BẢO MẬT USER ID) ---
 router.post('/:id/view', async (req, res) => {
     const { id: songId } = req.params;
     
-    // Lấy chuỗi IP từ header
+    // Xử lý IP (Logic cũ của bạn đã chuẩn)
     let rawIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-    
-    // Nếu ip là mảng (một số server cấu hình lạ), chuyển thành string
     if (Array.isArray(rawIp)) {
         rawIp = rawIp[0];
     }
-
-    // Tách chuỗi bằng dấu phẩy và lấy phần tử đầu tiên -> ĐÂY LÀ IP THỰC CỦA KHÁCH
     const ip = typeof rawIp === 'string' ? rawIp.split(',')[0].trim() : rawIp;
 
-    const userId = req.body.user_id || null;
+    // [THAY ĐỔI QUAN TRỌNG]
+    // Không lấy userId từ body nữa (req.body.user_id -> KHÔNG AN TOÀN)
+    // Lấy userId từ Token đã xác thực (AN TOÀN TUYỆT ĐỐI)
+    // Vì middleware verifyToken đã chạy, req.user chắc chắn tồn tại.
+    // Nếu là Guest, đây là ID ẩn danh. Nếu là User, đây là ID chính chủ.
+    const userId = req.user.user_id; 
 
     try {
         // A. LOGIC KIỂM TRA CHẶT CHẼ
         let checkQuery, checkParams;
 
-        if (userId) {
-            // Nếu là User đã đăng nhập: Kiểm tra cả ID lẫn IP
+        // Nếu là Guest thì userId vẫn có giá trị (UUID từ Supabase), nên ta có thể check cả 2
+        // Tuy nhiên để logic giống cũ, ta check cờ is_guest từ middleware gán vào
+        
+        if (!req.user.is_guest) {
+            // === TRƯỜNG HỢP: USER ĐÃ ĐĂNG KÝ ===
+            // Kiểm tra xem User này (ID) HOẶC IP này đã xem chưa
             checkQuery = `
                 SELECT created_at FROM song_views 
                 WHERE song_id = $1 AND (ip_address = $2 OR user_id = $3)
@@ -65,7 +79,8 @@ router.post('/:id/view', async (req, res) => {
             `;
             checkParams = [songId, ip, userId];
         } else {
-            // Nếu là Guest: Chỉ kiểm tra IP chuẩn vừa lọc được
+            // === TRƯỜNG HỢP: GUEST (KHÁCH) ===
+            // Chỉ kiểm tra theo IP (vì Guest ID có thể thay đổi mỗi lần cài lại app)
             checkQuery = `
                 SELECT created_at FROM song_views 
                 WHERE song_id = $1 AND ip_address = $2
@@ -82,11 +97,13 @@ router.post('/:id/view', async (req, res) => {
             const diffMinutes = (now - lastViewTime) / (1000 * 60);
 
             if (diffMinutes < 60) {
-                console.log(`[View Spam Blocked] Song: ${songId} | IP: ${ip}`);
+                console.log(`[View Spam Blocked] Song: ${songId} | IP: ${ip} | User: ${userId}`);
                 return res.json({ status: 'ignored', message: 'View already counted recently' });
             }
         }
 
+        // B. Ghi log (Lưu userId vào DB để tracking)
+        // Lưu ý: userId ở đây là UUID chuẩn của Supabase (dù là Guest hay User)
         await pool.query(`
             INSERT INTO song_views (song_id, ip_address, user_id) VALUES ($1, $2, $3)
         `, [songId, ip, userId]);
