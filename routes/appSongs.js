@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
-// [MỚI] Import middleware xác thực
-const { verifyToken } = require('../middleware/auth'); 
+const { verifyToken } = require('../middlewares/auth'); 
 
 // [MỚI] Áp dụng middleware cho TOÀN BỘ các routes bên dưới
 // Bất kỳ request nào vào đây đều phải có Token hợp lệ (Guest hoặc User)
