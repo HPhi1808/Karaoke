@@ -1,8 +1,8 @@
-// services/uploadService.js
 require('dotenv').config();
 const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
 const multer = require('multer');
+const path = require('path');
 
 // 1. Khởi tạo kết nối với Cloudflare R2
 const r2Client = new S3Client({
@@ -23,24 +23,55 @@ const upload = multer({
 });
 
 // Hàm hỗ trợ: Chuyển tiếng Việt có dấu thành không dấu và slugify
-// Ví dụ: "Sơn Tùng M-TP.mp3" -> "son-tung-m-tp.mp3"
 const slugify = (text) => {
+    if (!text) return '';
     return text.toString().toLowerCase()
-        .normalize('NFD') // Tách dấu ra khỏi ký tự
-        .replace(/[\u0300-\u036f]/g, '') // Xóa các dấu
-        .replace(/\s+/g, '-') // Thay khoảng trắng bằng dấu gạch ngang
-        .replace(/[^\w\-.]+/g, '') // Xóa các ký tự đặc biệt (giữ lại dấu chấm và gạch ngang)
-        .replace(/\-\-+/g, '-') // Thay thế nhiều dấu gạch ngang bằng 1 cái
-        .replace(/^-+/, '') // Xóa gạch ngang đầu
-        .replace(/-+$/, ''); // Xóa gạch ngang cuối
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[^\w\-]+/g, '')
+        .replace(/\-\-+/g, '-')
+        .replace(/^-+/, '')
+        .replace(/-+$/, '');
 };
 
-// 3. Hàm upload file lên R2
-async function uploadToR2(file, folderName) {
+/**
+ * 3. Hàm upload file lên R2 
+ * * @param {Object} file - File object từ multer
+ * @param {String} folderName - Tên thư mục trên R2 (beats, images, lyrics...)
+ * @param {Object} metadata - Thông tin bổ sung { songTitle, artistName, fileType }
+ * - fileType: 'vocal', 'beat', 'image', 'lyric'
+ */
+async function uploadToR2(file, folderName, { songTitle, artistName, fileType } = {}) {
     if (!file) return null;
 
-    const originalNameSanitized = slugify(file.originalname);
-    const fileName = `${folderName}/${Date.now()}-${originalNameSanitized}`;
+    let fileName;
+
+    // Lấy đuôi file gốc (ví dụ: .mp3, .jpg, .lrc)
+    const fileExt = path.extname(file.originalname).toLowerCase();
+
+    // LOGIC ĐẶT TÊN MỚI
+    if (songTitle && artistName) {
+        const cleanTitle = slugify(songTitle);
+        const cleanArtist = slugify(artistName);
+
+        // Tạo phần cơ bản: ten-bai-hat_ten-ca-si
+        let baseName = `${cleanTitle}_${cleanArtist}`;
+
+        // Thêm hậu tố tùy vào loại file
+        if (fileType === 'vocal') {
+            baseName += '[vocal]';
+        } else if (fileType === 'beat') {
+            baseName += '[beat]';
+        }
+
+        // Ghép thành tên đầy đủ: ten-bai-hat_ten-ca-si[vocal].mp3
+        fileName = `${folderName}/${baseName}${fileExt}`;
+    } else {
+        // Nếu không truyền tên bài hát/ca sĩ, dùng cách đặt tên cũ (timestamp)
+        const originalNameSanitized = slugify(path.basename(file.originalname, fileExt));
+        fileName = `${folderName}/${Date.now()}-${originalNameSanitized}${fileExt}`;
+    }
 
     try {
         const uploadParallel = new Upload({
@@ -50,7 +81,6 @@ async function uploadToR2(file, folderName) {
                 Key: fileName,
                 Body: file.buffer,
                 ContentType: file.mimetype,
-                // ACL: 'public-read', // R2 thường set public ở level bucket, dòng này có thể bỏ nếu lỗi
             },
         });
 
@@ -70,17 +100,9 @@ async function deleteFromR2(fullUrl) {
     if (!fullUrl) return;
 
     try {
-        // [NÂNG CẤP] Logic lấy Key an toàn hơn
-        // Ví dụ URL: https://pub-xxx.r2.dev/beats/123-bai-hat.mp3
-        // Key cần lấy: beats/123-bai-hat.mp3
-        
-        // Cách 1: Dùng replace
         const domain = process.env.R2_PUBLIC_DOMAIN.replace(/\/$/, ""); 
-        const key = fullUrl.replace(`${domain}/`, "");
-
-        // Cách 2 (An toàn hơn nếu URL chuẩn): 
-        // const urlObj = new URL(fullUrl);
-        // const key = urlObj.pathname.substring(1); // Bỏ dấu / đầu tiên
+        // Lấy Key bằng cách loại bỏ domain
+        const key = decodeURI(fullUrl.replace(`${domain}/`, ""));
 
         const command = new DeleteObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
@@ -91,7 +113,6 @@ async function deleteFromR2(fullUrl) {
         console.log("Đã xóa file cũ trên R2:", key);
     } catch (error) {
         console.error("Lỗi xóa file R2:", error);
-        // Không throw lỗi để luồng chính tiếp tục chạy
     }
 }
 

@@ -38,9 +38,9 @@ const verifyToken = async (req, res, next) => {
             .from('users')
             .select('locked_until, role')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
 
-        // Nếu user tồn tại trong bảng public users (Guest có thể chưa có trong này, không sao)
+        // 3. Kiểm tra khóa tài khoản
         if (!dbError && publicUser) {
             if (publicUser.locked_until && new Date(publicUser.locked_until) > new Date()) {
                 const unlockTime = new Date(publicUser.locked_until).toLocaleString('vi-VN');
@@ -51,10 +51,23 @@ const verifyToken = async (req, res, next) => {
             }
         }
 
-        // 3. Xác định Role cuối cùng
-        const finalRole = publicUser?.role || user.user_metadata?.role || 'user';
+        // 4. Xác định Role cuối cùng
+        // Ưu tiên 1: Lấy từ bảng users
+        // Ưu tiên 2: Lấy từ app_metadata
+        // Ưu tiên 3: Nếu là guest anonymous thì role là guest
+        // Mặc định: user
+        
+        let finalRole = 'user';
+        
+        if (publicUser?.role) {
+            finalRole = publicUser.role;
+        } else if (user.app_metadata?.role) {
+            finalRole = user.app_metadata.role;
+        } else if (user.is_anonymous) {
+            finalRole = 'guest';
+        }
 
-        // 4. Gắn thông tin vào Request
+        // 5. Gắn thông tin vào Request
         req.user = {
             user_id: user.id,
             email: user.email || (user.is_anonymous ? 'guest' : null),
@@ -76,6 +89,7 @@ const verifyToken = async (req, res, next) => {
 const requireAdmin = (req, res, next) => {
     if (!req.user) return res.status(401).json({ message: 'Chưa xác thực' });
     
+    // Chấp nhận cả admin và owner
     if (req.user.role === 'own' || req.user.role === 'admin') {
         return next();
     }

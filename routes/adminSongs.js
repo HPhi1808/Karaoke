@@ -31,12 +31,28 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
         const { title, artist, genre } = req.body;
         const files = req.files || {};
 
-        // Upload song song lên R2
+        // [SỬA ĐỔI] Truyền thêm metadata (title, artist, fileType) vào hàm uploadToR2
         const [beatUrl, lyricUrl, vocalUrl, imageUrl] = await Promise.all([
-            uploadToR2(files['beat']?.[0], 'beats'),
-            uploadToR2(files['lyric']?.[0], 'lyrics'),
-            uploadToR2(files['vocal']?.[0], 'vocals'),
-            uploadToR2(files['image']?.[0], 'images')
+            uploadToR2(files['beat']?.[0], 'beats', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'beat' 
+            }),
+            uploadToR2(files['lyric']?.[0], 'lyrics', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'lyric' 
+            }),
+            uploadToR2(files['vocal']?.[0], 'vocals', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'vocal' 
+            }),
+            uploadToR2(files['image']?.[0], 'images', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'image' 
+            })
         ]);
 
         const query = `
@@ -70,22 +86,42 @@ router.put('/:id', verifyToken, requireAdmin, songUploads, async (req, res) => {
         let newVocalUrl = currentSong.vocal_url;
         let newImageUrl = currentSong.image_url;
 
-        // Nếu có file mới thì xóa cũ up mới
+        // [SỬA ĐỔI] Truyền metadata khi upload file mới trong quá trình update
+        
         if (files['beat']?.[0]) { 
             await deleteFromR2(currentSong.beat_url); 
-            newBeatUrl = await uploadToR2(files['beat'][0], 'beats'); 
+            newBeatUrl = await uploadToR2(files['beat'][0], 'beats', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'beat' 
+            }); 
         }
+
         if (files['lyric']?.[0]) { 
             await deleteFromR2(currentSong.lyric_url); 
-            newLyricUrl = await uploadToR2(files['lyric'][0], 'lyrics'); 
+            newLyricUrl = await uploadToR2(files['lyric'][0], 'lyrics', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'lyric' 
+            }); 
         }
+
         if (files['vocal']?.[0]) { 
             await deleteFromR2(currentSong.vocal_url); 
-            newVocalUrl = await uploadToR2(files['vocal'][0], 'vocals'); 
+            newVocalUrl = await uploadToR2(files['vocal'][0], 'vocals', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'vocal' 
+            }); 
         }
+
         if (files['image']?.[0]) { 
             await deleteFromR2(currentSong.image_url); 
-            newImageUrl = await uploadToR2(files['image'][0], 'images'); 
+            newImageUrl = await uploadToR2(files['image'][0], 'images', { 
+                songTitle: title, 
+                artistName: artist, 
+                fileType: 'image' 
+            }); 
         }
 
         const query = `
