@@ -12,14 +12,26 @@ const supabaseAdmin = createClient(
     { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// --- 1. LẤY DANH SÁCH USER ---
+// --- 1. LẤY DANH SÁCH USER  ---
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
     try {
-        const { rows } = await pool.query(`
+        // Lấy role của người đang thực hiện request
+        const requesterRole = req.user.role; 
+
+        // Câu truy vấn cơ bản: User phải có username
+        let sql = `
             SELECT id, username, email, full_name, role, avatar_url, bio, created_at, locked_until
             FROM users 
-            ORDER BY created_at DESC
-        `);
+            WHERE username IS NOT NULL AND username != ''
+        `;
+
+        if (requesterRole !== 'own') {
+            sql += ` AND role != 'own'`;
+        }
+
+        sql += ` ORDER BY created_at DESC`;
+
+        const { rows } = await pool.query(sql);
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -32,13 +44,16 @@ router.patch('/:id/role', verifyToken, requireOwn, async (req, res) => {
     const { role } = req.body;
 
     try {
+        // Kiểm tra user có username không trước khi thao tác
+        const userCheck = await pool.query('SELECT username FROM users WHERE id = $1', [id]);
+        if (userCheck.rows.length === 0) return res.status(404).json({ message: 'User không tồn tại' });
+        if (!userCheck.rows[0].username) return res.status(400).json({ message: 'Không thể thao tác với tài khoản chưa hoàn tất đăng ký' });
+
         // 1. Cập nhật trong Database
         const { rows } = await pool.query(
             'UPDATE users SET role = $1 WHERE id = $2 RETURNING *', 
             [role, id]
         );
-
-        if (rows.length === 0) return res.status(404).json({ message: 'User không tồn tại' });
 
         // 2. Cập nhật trong Supabase Auth
         await supabaseAdmin.auth.admin.updateUserById(id, { 
@@ -60,9 +75,11 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
 
     try {
         // Kiểm tra user mục tiêu
-        const targetUser = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+        const targetUser = await pool.query('SELECT role, username FROM users WHERE id = $1', [id]);
         if (targetUser.rows.length === 0) return res.status(404).json({ message: 'User không tồn tại' });
         
+        if (!targetUser.rows[0].username) return res.status(400).json({ message: 'Không thể thao tác với tài khoản chưa hoàn tất đăng ký' });
+
         const targetRole = targetUser.rows[0].role;
 
         // Logic bảo vệ
@@ -88,9 +105,14 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
 // --- 4. KHÓA / MỞ KHÓA TÀI KHOẢN ---
 router.post('/:id/lock', verifyToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
-    const { duration } = req.body; // '1h', '24h', 'unlock', 'forever'
+    const { duration } = req.body; 
     
     try {
+        // Kiểm tra user có username không
+        const userCheck = await pool.query('SELECT username FROM users WHERE id = $1', [id]);
+        if (userCheck.rows.length === 0) return res.status(404).json({ message: 'User không tồn tại' });
+        if (!userCheck.rows[0].username) return res.status(400).json({ message: 'Không thể thao tác với tài khoản chưa hoàn tất đăng ký' });
+
         let sql = '';
         
         if (duration === 'unlock') {
@@ -101,7 +123,6 @@ router.post('/:id/lock', verifyToken, requireAdmin, async (req, res) => {
             const dbInterval = intervalMap[duration] || '1 hour';
             
             sql = `UPDATE users SET locked_until = (NOW() + interval '${dbInterval}') WHERE id = $1`;
-            
             
             try {
                 await supabaseAdmin.auth.admin.signOut(id, 'global');
@@ -125,19 +146,21 @@ router.post('/:id/message', verifyToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { title, message, type } = req.body;
 
-    // Validate dữ liệu đầu vào
     if (!title || !message) {
         return res.status(400).json({ status: 'error', message: 'Vui lòng nhập tiêu đề và nội dung tin nhắn.' });
     }
 
     try {
-        // 1. Kiểm tra xem User có tồn tại không
-        const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [id]);
+        // 1. Kiểm tra User tồn tại và có username
+        const userCheck = await pool.query('SELECT id, username FROM users WHERE id = $1', [id]);
         if (userCheck.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Người dùng không tồn tại.' });
         }
+        if (!userCheck.rows[0].username) {
+            return res.status(400).json({ status: 'error', message: 'Không thể gửi tin nhắn cho tài khoản chưa hoàn tất đăng ký' });
+        }
 
-        // 2. Chèn tin nhắn vào bảng notifications
+        // 2. Chèn tin nhắn
         const query = `
             INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
             VALUES ($1, $2, $3, $4, false, NOW())
@@ -145,7 +168,6 @@ router.post('/:id/message', verifyToken, requireAdmin, async (req, res) => {
         `;
         
         const values = [id, title, message, type || 'system'];
-        
         const { rows } = await pool.query(query, values);
 
         res.json({ 
