@@ -1,11 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const fs = require('fs');
+const path = require('path');
 
 const { verifyToken, requireAdmin } = require('../middlewares/auth');
 
 // Service upload Cloudflare R2
 const { upload, uploadToR2, deleteFromR2 } = require('../services/uploadService');
+
+// [MỚI] Import service nén âm thanh
+const { compressAudio } = require('../services/audioProcessor');
 
 // Cấu hình nhận 4 file
 const songUploads = upload.fields([
@@ -15,7 +20,56 @@ const songUploads = upload.fields([
     { name: 'image', maxCount: 1 }
 ]);
 
-// --- 1. LẤY DANH SÁCH BÀI HÁT  ---
+// --- HÀM TIỆN ÍCH: XỬ LÝ VÀ UPLOAD FILE ---
+const processAndUpload = async (file, folder, metadata) => {
+    if (!file) return null;
+
+    let fileToUpload = file;
+    let compressedPath = null;
+
+    // Chỉ nén nếu là file beat hoặc vocal
+    if (metadata.fileType === 'beat' || metadata.fileType === 'vocal') {
+        try {
+            // Tạo đường dẫn file tạm cho file nén
+            const tempDir = file.destination || 'uploads/temp/'; 
+            const originalName = file.filename || Date.now().toString();
+            compressedPath = path.join(tempDir, `compressed_${originalName}.mp3`);
+
+            console.log(`⏳ Đang nén file ${metadata.fileType}: ${file.path}`);
+            
+            // Nén file
+            await compressAudio(file.path, compressedPath);
+            
+            // Cập nhật object file để trỏ tới file đã nén
+            fileToUpload = {
+                ...file,
+                path: compressedPath,
+                mimetype: 'audio/mpeg',
+                size: fs.statSync(compressedPath).size
+            };
+             console.log(`✅ Nén thành công ${metadata.fileType}`);
+
+        } catch (error) {
+            console.error(`❌ Lỗi nén ${metadata.fileType}, sẽ upload file gốc:`, error);
+        }
+    }
+
+    // Upload lên R2
+    const url = await uploadToR2(fileToUpload, folder, metadata);
+
+    if (compressedPath && fs.existsSync(compressedPath)) {
+        try {
+            fs.unlinkSync(compressedPath);
+        } catch (e) {
+            console.error("Lỗi xóa file nén tạm:", e);
+        }
+    }
+
+    return url;
+};
+
+
+// --- 1. LẤY DANH SÁCH BÀI HÁT ---
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM songs ORDER BY created_at DESC');
@@ -31,24 +85,24 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
         const { title, artist, genre } = req.body;
         const files = req.files || {};
 
-        // [SỬA ĐỔI] Truyền thêm metadata (title, artist, fileType) vào hàm uploadToR2
+        // Sử dụng hàm processAndUpload thay vì uploadToR2 trực tiếp cho beat và vocal
         const [beatUrl, lyricUrl, vocalUrl, imageUrl] = await Promise.all([
-            uploadToR2(files['beat']?.[0], 'beats', { 
+            processAndUpload(files['beat']?.[0], 'beats', { 
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'beat' 
             }),
-            uploadToR2(files['lyric']?.[0], 'lyrics', { 
+            uploadToR2(files['lyric']?.[0], 'lyrics', {
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'lyric' 
             }),
-            uploadToR2(files['vocal']?.[0], 'vocals', { 
+            processAndUpload(files['vocal']?.[0], 'vocals', { 
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'vocal' 
             }),
-            uploadToR2(files['image']?.[0], 'images', { 
+            uploadToR2(files['image']?.[0], 'images', {
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'image' 
@@ -86,11 +140,11 @@ router.put('/:id', verifyToken, requireAdmin, songUploads, async (req, res) => {
         let newVocalUrl = currentSong.vocal_url;
         let newImageUrl = currentSong.image_url;
 
-        // [SỬA ĐỔI] Truyền metadata khi upload file mới trong quá trình update
+        //Dùng processAndUpload cho beat/vocal khi update
         
         if (files['beat']?.[0]) { 
             await deleteFromR2(currentSong.beat_url); 
-            newBeatUrl = await uploadToR2(files['beat'][0], 'beats', { 
+            newBeatUrl = await processAndUpload(files['beat'][0], 'beats', { 
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'beat' 
@@ -108,7 +162,7 @@ router.put('/:id', verifyToken, requireAdmin, songUploads, async (req, res) => {
 
         if (files['vocal']?.[0]) { 
             await deleteFromR2(currentSong.vocal_url); 
-            newVocalUrl = await uploadToR2(files['vocal'][0], 'vocals', { 
+            newVocalUrl = await processAndUpload(files['vocal'][0], 'vocals', { 
                 songTitle: title, 
                 artistName: artist, 
                 fileType: 'vocal' 
