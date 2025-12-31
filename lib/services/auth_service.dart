@@ -13,66 +13,58 @@ class AuthService {
 
   String get _baseUrl => ApiClient.baseUrl;
 
+  // Hàm khôi phục session
+  Future<bool> recoverSession() async {
+    try {
+      // 1. Lấy Refresh Token từ bộ nhớ
+      final refreshToken = await TokenManager.instance.getRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) return false;
+
+      // 2. Yêu cầu Supabase cấp session mới
+      final response = await _client.auth.setSession(refreshToken);
+
+      if (response.session != null) {
+        // 3. Lưu lại token mới nhất vào máy
+        String role = await getCurrentRole();
+        await TokenManager.instance.saveAuthInfo(
+            response.session!.accessToken,
+            response.session!.refreshToken ?? '',
+            role
+        );
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("⚠️ Lỗi khôi phục session: $e");
+      return false;
+    }
+  }
+
   // ==========================================================
   // PHẦN 1: QUẢN LÝ GUEST (KHÁCH)
   // ==========================================================
 
   Future<void> loginAsGuest() async {
-    // 1. Dọn dẹp session cũ nếu có
-    if (isLoggedIn && !isGuest) {
-      await logout();
-    }
-
+    // 1. Nếu đang có session trong RAM
     final currentSession = _client.auth.currentSession;
-    if (currentSession != null && !currentSession.isExpired && currentSession.user.isAnonymous) {
-      try {
-        await _client.auth.getUser();
-        print("✅ Session RAM hợp lệ & User tồn tại.");
-        return;
-      } catch (_) {
-        print("⚠️ Session RAM có, nhưng User đã bị xóa trên server.");
-      }
+    if (currentSession != null && !currentSession.isExpired) {
+      print("✅ Session RAM còn ngon, không cần login lại.");
+      return;
     }
 
-    // 2. THỬ KHÔI PHỤC TỪ LOCAL STORAGE
-    bool isRecovered = false;
+    // 2. Nếu không có RAM, thử khôi phục từ Disk (Refresh Token)
+    bool isRecovered = await recoverSession();
 
-    try {
-      final savedRefreshToken = await TokenManager.instance.getRefreshToken();
-
-      if (savedRefreshToken != null && savedRefreshToken.isNotEmpty) {
-        print("🔄 Đang thử khôi phục User cũ...");
-
-        // Set Session
-        final res = await _client.auth.setSession(savedRefreshToken);
-
-        // Gọi lên Server kiểm tra xem User còn sống không?
-        final userCheck = await _client.auth.getUser();
-
-        if (res.session != null && userCheck.user != null) {
-          print("✅ Khôi phục thành công. User ID: ${userCheck.user!.id}");
-
-          await TokenManager.instance.saveAuthInfo(
-              res.session!.accessToken,
-              res.session!.refreshToken ?? '',
-              'guest'
-          );
-
-          isRecovered = true;
-        }
-      }
-    } catch (e) {
-      print("⚠️ Token rác hoặc User đã bị xóa: $e");
-      await TokenManager.instance.clearAuth();
-      try { await _client.auth.signOut(); } catch (_) {}
+    if (isRecovered) {
+      print("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
+      return;
     }
 
-    if (isRecovered) return;
+    // 3. Nếu không khôi phục được -> BẮT BUỘC TẠO MỚI (User mới)
+    await logout();
 
-    // 3. TẠO MỚI
     try {
-      print("🚀 Đang tạo Guest User mới (Real)...");
-
+      print("🚀 Tạo Guest User mới...");
       final res = await _client.auth.signInAnonymously();
 
       if (res.session != null) {
@@ -81,7 +73,6 @@ class AuthService {
             res.session!.refreshToken ?? '',
             'guest'
         );
-        print("✅ Tạo Guest mới thành công.");
       } else {
         throw Exception("Supabase không trả về Session.");
       }

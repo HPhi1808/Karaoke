@@ -35,41 +35,51 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAppState() async {
-    // 1. Lấy token từ bộ nhớ máy
     final accessToken = await TokenManager.instance.getAccessToken();
     final hasToken = accessToken != null && accessToken.isNotEmpty;
 
     await Future.delayed(const Duration(seconds: 1));
 
-    // === TRƯỜNG HỢP 1: KHÔNG CÓ TOKEN ===
+    // === TRƯỜNG HỢP 1 ===
     if (!hasToken) {
-      debugPrint("SPLASH: Không tìm thấy token -> Chuyển sang màn hình Đăng nhập");
+      debugPrint("SPLASH: Không có token -> Login");
       _navigateToLogin();
       return;
     }
 
-    // === TRƯỜNG HỢP 2: CÓ TOKEN (Cần kiểm tra xem còn hạn không) ===
+    // === TRƯỜNG HỢP 2 ===
     try {
-      debugPrint("SPLASH: Tìm thấy token -> Đang kiểm tra với Server...");
+      debugPrint("SPLASH: Có token -> Đang kiểm tra profile...");
+
+      // Thử lấy profile user
       await UserService.instance.getUserProfile();
-      debugPrint("SPLASH: Token hợp lệ -> Vào Home (User)");
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
-      }
+
+      // Nếu không lỗi -> Vào Home
+      debugPrint("SPLASH: Token OK -> Home");
+      if (mounted) Navigator.pushReplacementNamed(context, '/home');
+
     } catch (e) {
-      // === TRƯỜNG HỢP 3: TOKEN HẾT HẠN HOẶC KHÔNG HỢP LỆ ===
-      debugPrint("SPLASH: Token lỗi hoặc hết hạn: $e");
+      debugPrint("SPLASH: Lỗi lấy profile (có thể hết hạn): $e");
+
+      try {
+        debugPrint("SPLASH: Đang thử làm mới phiên đăng nhập (Refresh Token)...");
+
+        // Gọi hàm phục hồi session
+        final bool recovered = await AuthService.instance.recoverSession();
+
+        if (recovered) {
+          debugPrint("SPLASH: Refresh thành công -> Vào Home");
+          if (mounted) Navigator.pushReplacementNamed(context, '/home');
+          return;
+        }
+      } catch (refreshError) {
+        debugPrint("SPLASH: Refresh thất bại: $refreshError");
+      }
+
+      // === TRƯỜNG HỢP 3 ===
+      debugPrint("SPLASH: Token chết hẳn -> Logout và về Login");
       await AuthService.instance.logout();
       _navigateToLogin();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Phiên đăng nhập hết hạn, vui lòng đăng nhập lại."),
-            backgroundColor: Colors.redAccent,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
