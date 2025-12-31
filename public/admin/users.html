@@ -25,13 +25,12 @@
                                     <span id="roleFilterLabel">Vai trò</span>
                                 </button>
                                 <ul class="dropdown-menu shadow" aria-labelledby="roleFilterDropdown">
-                                    <li><a class="dropdown-item" href="#"
-                                            onclick="window.filterRole('all', this)">Tất cả</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('all', this)">Tất cả (All)</a></li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="#"
-                                            onclick="window.filterRole('admin', this)">Admin</a></li>
-                                    <li><a class="dropdown-item" href="#"
-                                            onclick="window.filterRole('user', this)">User</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('admin', this)">Admin (Hoạt động)</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('user', this)">User (Hoạt động)</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="window.filterRole('locked', this)"><i class="bi bi-lock-fill"></i> Đã khoá (Banned)</a></li>
                                 </ul>
                             </div>
                         </th>
@@ -139,9 +138,8 @@
         let currentSearchTerm = '';
         let hasLoadedData = false;
 
-        // --- 2. HÀM SINH HTML CHO 1 DÒNG (Dùng chung) ---
+        // --- 2. HÀM SINH HTML CHO 1 DÒNG ---
         function generateRowHtml(u, currentUserId, currentUserRole) {
-            // [BẢO VỆ] Không render nếu không có username (phòng hờ)
             if (!u.username) return '';
 
             const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
@@ -151,25 +149,30 @@
             
             // Logic hiển thị nút
             if (u.id !== currentUserId) {
-                const canEdit = currentUserRole === 'own' || (currentUserRole === 'admin' && u.role === 'user');
-                
-                if (canEdit) {
-                    if (u.role !== 'own') {
-                        const btnClass = u.role === 'admin' ? 'btn-secondary' : 'btn-warning';
-                        const btnText = u.role === 'admin' ? 'Hạ User' : 'Lên Admin';
-                        actionButtons += `<button class="btn btn-sm ${btnClass} me-1" onclick="window.toggleRole('${u.id}','${u.role}')" title="Đổi quyền">${btnText}</button>`;
-                    }
+                if (u.role === 'guest' || !u.role) {
+                     actionButtons = '<span class="text-muted small fst-italic">Guest</span>';
+                }
+                else {
+                    const canEdit = currentUserRole === 'own' || (currentUserRole === 'admin' && u.role === 'user');
+                    
+                    if (canEdit) {
+                        if (u.role !== 'own') {
+                            const btnClass = u.role === 'admin' ? 'btn-secondary' : 'btn-warning';
+                            const btnText = u.role === 'admin' ? 'Hạ User' : 'Lên Admin';
+                            actionButtons += `<button class="btn btn-sm ${btnClass} me-1" onclick="window.toggleRole('${u.id}','${u.role}')" title="Đổi quyền">${btnText}</button>`;
+                        }
 
-                    const lockIcon = isLocked ? '<i class="bi bi-unlock-fill"></i>' : '<i class="bi bi-lock-fill"></i>';
-                    const lockClass = isLocked ? 'btn-success' : 'btn-dark';
-                    const lockTitle = isLocked ? 'Mở khoá' : 'Khoá tài khoản';
-                    actionButtons += `<button class="btn btn-sm ${lockClass} me-1" onclick="window.openLockModal('${u.id}', '${safeName}')" title="${lockTitle}">${lockIcon}</button>`;
+                        const lockIcon = isLocked ? '<i class="bi bi-unlock-fill"></i>' : '<i class="bi bi-lock-fill"></i>';
+                        const lockClass = isLocked ? 'btn-success' : 'btn-dark';
+                        const lockTitle = isLocked ? 'Mở khoá' : 'Khoá tài khoản';
+                        actionButtons += `<button class="btn btn-sm ${lockClass} me-1" onclick="window.openLockModal('${u.id}', '${safeName}')" title="${lockTitle}">${lockIcon}</button>`;
 
-                    actionButtons += `<button class="btn btn-sm btn-danger me-1" onclick="window.deleteUser('${u.id}')" title="Xóa"><i class="bi bi-trash"></i></button>`;
-                    actionButtons += `<button class="btn btn-sm btn-info text-white" onclick="window.openMsgModal('${u.id}', '${safeName}')" title="Gửi tin"><i class="bi bi-envelope"></i></button>`;
-                } else {
-                    if (currentUserRole === 'admin' && (u.role === 'admin' || u.role === 'own')) {
-                        actionButtons = '<span class="text-muted small fst-italic">Không đủ quyền</span>';
+
+                        actionButtons += `<button class="btn btn-sm btn-info text-white" onclick="window.openMsgModal('${u.id}', '${safeName}')" title="Gửi tin"><i class="bi bi-envelope"></i></button>`;
+                    } else {
+                        if (currentUserRole === 'admin' && (u.role === 'admin' || u.role === 'own')) {
+                            actionButtons = '<span class="text-muted small fst-italic">Không đủ quyền</span>';
+                        }
                     }
                 }
             } else {
@@ -179,7 +182,6 @@
             const statusBadge = isLocked ? '<span class="badge bg-danger ms-2"><i class="bi bi-lock-fill"></i> Locked</span>' : '';
             const rowClass = isLocked ? 'table-secondary' : '';
 
-            // QUAN TRỌNG: Thêm id="user-row-${u.id}" để dễ tìm và replace
             return `
                 <tr id="user-row-${u.id}" class="${rowClass}">
                     <td class="text-center">
@@ -199,19 +201,14 @@
             `;
         }
 
-        // --- 3. HÀM CẬP NHẬT 1 DÒNG (Không load lại trang) ---
+        // --- 3. HÀM CẬP NHẬT 1 DÒNG CỤC BỘ ---
         function updateLocalRow(userId, newData) {
-            // 1. Cập nhật dữ liệu trong mảng bộ nhớ
             const index = allUsersData.findIndex(u => u.id === userId);
             if (index !== -1) {
-                // Merge dữ liệu cũ với dữ liệu mới
                 allUsersData[index] = { ...allUsersData[index], ...newData };
                 const updatedUser = allUsersData[index];
-
-                // [BẢO VỆ] Check username
                 if (!updatedUser.username) return;
 
-                // 2. Lấy thông tin người đang đăng nhập để vẽ lại nút bấm cho đúng quyền
                 let currentUserId = null; 
                 let currentUserRole = '';
                 try {
@@ -220,31 +217,25 @@
                     currentUserRole = adminInfo?.role;
                 } catch(e) {}
 
-                // 3. Tìm dòng cũ trong DOM và thay thế bằng HTML mới
                 const oldRow = document.getElementById(`user-row-${userId}`);
                 if (oldRow) {
-                    // Tạo một thẻ template tạm để chứa HTML mới
                     const temp = document.createElement('tbody');
                     const html = generateRowHtml(updatedUser, currentUserId, currentUserRole);
                     if (html) {
                         temp.innerHTML = html;
-                        // Thay thế dòng cũ
                         oldRow.replaceWith(temp.firstElementChild);
                     }
                 }
+                
+                renderTable(); 
             }
         }
 
-        // --- 4. CÁC HÀM HÀNH ĐỘNG (Đã sửa để dùng updateLocalRow) ---
+        // --- 4. CÁC HÀM HÀNH ĐỘNG ---
         
-        // ĐỔI ROLE
         window.toggleRole = async function (id, currentRole) {
-            // [BẢO VỆ]
             const user = allUsersData.find(u => u.id === id);
-            if (!user || !user.username) {
-                alert('Tài khoản chưa hoàn tất đăng ký không thể thao tác.');
-                return;
-            }
+            if (!user) return;
 
             const newRole = currentRole === 'admin' ? 'user' : 'admin';
             if (!confirm(`Bạn muốn đổi quyền user này thành ${newRole.toUpperCase()}?`)) return;
@@ -255,24 +246,14 @@
             });
 
             if (res && res.status === 'success') {
-                // ✅ Thay vì loadDataFromServer(), ta cập nhật cục bộ
                 updateLocalRow(id, { role: newRole });
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không thể đổi quyền'));
             }
         };
 
-        // KHOÁ TÀI KHOẢN
         window.submitLock = async function () {
             const userId = document.getElementById('lockUserId').value;
-            
-            // [BẢO VỆ]
-            const user = allUsersData.find(u => u.id === userId);
-            if (!user || !user.username) {
-                alert('Tài khoản chưa hoàn tất đăng ký không thể thao tác.');
-                return;
-            }
-
             const duration = document.querySelector('input[name="lockDuration"]:checked').value;
             
             const btn = document.querySelector('#lockModal .btn-danger');
@@ -291,7 +272,6 @@
             if (res && res.status === 'success') {
                 bootstrap.Modal.getInstance(document.getElementById('lockModal')).hide();
                 
-                // ✅ Tính toán thời gian khoá giả lập để cập nhật UI ngay lập tức
                 let newLockedUntil = null;
                 if (duration !== 'unlock') {
                     const now = new Date();
@@ -303,44 +283,12 @@
                 }
 
                 updateLocalRow(userId, { locked_until: newLockedUntil });
-                
             } else {
                 alert('Lỗi: ' + (res?.message || 'Thất bại'));
             }
         }
 
-        // XÓA USER (Xóa luôn dòng)
-        window.deleteUser = async function (id) {
-            // [BẢO VỆ]
-            const user = allUsersData.find(u => u.id === id);
-            if (!user || !user.username) {
-                alert('Tài khoản chưa hoàn tất đăng ký không thể thao tác.');
-                return;
-            }
-
-            if (!confirm('Hành động này không thể hoàn tác. XÓA người dùng này?')) return;
-            const res = await window.api(`/api/admin/users/${id}`, { method: 'DELETE' });
-            
-            if (res && res.status === 'success') {
-                // Xóa khỏi mảng dữ liệu
-                allUsersData = allUsersData.filter(u => u.id !== id);
-                // Xóa dòng khỏi bảng (Hiệu ứng biến mất)
-                const row = document.getElementById(`user-row-${id}`);
-                if (row) row.remove();
-            } else {
-                alert('Lỗi: ' + (res?.message || 'Không xóa được'));
-            }
-        };
-
-        // --- CÁC HÀM KHÁC (GIỮ NGUYÊN) ---
         window.openMsgModal = function (userId, userName) {
-            // [BẢO VỆ]
-            const user = allUsersData.find(u => u.id === userId);
-            if (!user || !user.username) {
-                alert('Không thể gửi tin nhắn cho tài khoản chưa hoàn tất đăng ký.');
-                return;
-            }
-
             document.getElementById('msgUserId').value = userId;
             document.getElementById('msgUserName').value = userName;
             document.getElementById('msgTitle').value = '';
@@ -374,13 +322,6 @@
         };
 
         window.openLockModal = function (id, name) {
-            // [BẢO VỆ]
-            const user = allUsersData.find(u => u.id === id);
-            if (!user || !user.username) {
-                alert('Tài khoản chưa hoàn tất đăng ký không thể thao tác.');
-                return;
-            }
-
             document.getElementById('lockUserId').value = id;
             document.getElementById('lockUserName').innerText = name;
             document.querySelector('input[name="lockDuration"][value="24h"]').checked = true;
@@ -392,7 +333,13 @@
             currentRoleFilter = role;
             document.querySelectorAll('.dropdown-item').forEach(el => el.classList.remove('active'));
             if (element) element.classList.add('active');
-            const labelMap = { 'all': 'Tất cả', 'admin': 'Admin', 'user': 'User' };
+            
+            const labelMap = { 
+                'all': 'Tất cả', 
+                'admin': 'Admin', 
+                'user': 'User', 
+                'locked': 'Đã khoá'
+            };
             document.getElementById('roleFilterLabel').innerText = labelMap[role] || 'Vai trò';
 
             if (!hasLoadedData) await loadDataFromServer();
@@ -419,7 +366,6 @@
             if (!tbody) return;
             tbody.innerHTML = '';
 
-            // 1. Lấy info người đang đăng nhập TRƯỚC TIÊN
             let currentUserId = null; 
             let currentUserRole = '';
             try {
@@ -436,15 +382,38 @@
             const filteredUsers = allUsersData.filter(u => {
                 if (!u.username) return false;
 
+                // 1. LOẠI BỎ GUEST (Chỉ hiện ở trang thống kê riêng)
+                if (u.role === 'guest' || !u.role) return false;
+
+                // 2. LOGIC LOCKED
+                const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+
+                // Nếu chọn lọc "Đã khoá": Chỉ hiện user bị khoá (bất kể role admin/user)
+                if (currentRoleFilter === 'locked') {
+                    if (!isLocked) return false;
+                }
+                // Nếu chọn Admin hoặc User: Mặc định chỉ hiện user KHÔNG BỊ KHOÁ (Active)
+                else if (currentRoleFilter === 'user') {
+                    if (u.role !== 'user' || isLocked) return false;
+                }
+                else if (currentRoleFilter === 'admin') {
+                    if (u.role !== 'admin' || isLocked) return false;
+                }
+                // Nếu chọn "Tất cả": Hiện hết (trừ Guest) để nhìn tổng quan
+                else if (currentRoleFilter === 'all') {
+                    // Không làm gì, cho qua hết
+                }
+
+                // 3. Admin không thấy Own
                 if (currentUserRole === 'admin' && u.role === 'own') {
                     return false; 
                 }
 
-                const matchRole = currentRoleFilter === 'all' || u.role === currentRoleFilter;
+                // 4. Tìm kiếm
                 const term = currentSearchTerm;
                 const matchSearch = (u.full_name || '').toLowerCase().includes(term) || (u.username || '').toLowerCase().includes(term) || (u.email || '').toLowerCase().includes(term);
                 
-                return matchRole && matchSearch;
+                return matchSearch;
             });
 
             if (filteredUsers.length === 0) {
@@ -452,7 +421,6 @@
                 return;
             }
 
-            // Dùng join('') để tối ưu performance khi nối chuỗi HTML
             tbody.innerHTML = filteredUsers.map(u => generateRowHtml(u, currentUserId, currentUserRole)).join('');
         }
 
@@ -471,7 +439,6 @@
             }
 
             const rawData = Array.isArray(data) ? data : (data.users || []);
-            // [LOC DU LIEU] Lọc ngay từ khi nhận data từ server
             allUsersData = rawData.filter(u => u.username && u.username.trim() !== '');
             
             hasLoadedData = true;

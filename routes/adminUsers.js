@@ -15,14 +15,14 @@ const supabaseAdmin = createClient(
 // --- 1. LẤY DANH SÁCH USER  ---
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
     try {
-        // Lấy role của người đang thực hiện request
         const requesterRole = req.user.role; 
 
-        // Câu truy vấn cơ bản: User phải có username
         let sql = `
             SELECT id, username, email, full_name, role, avatar_url, bio, created_at, locked_until
             FROM users 
-            WHERE username IS NOT NULL AND username != ''
+            WHERE username IS NOT NULL 
+              AND username != ''
+              AND role != 'guest'
         `;
 
         if (requesterRole !== 'own') {

@@ -331,7 +331,7 @@ router.post('/forgot-password/reset', async (req, res) => {
     }
 });
 
-// --- LUỒNG ĐĂNG NHẬP (LOGIN) - KHÔNG ĐỔI ---
+// --- LUỒNG ĐĂNG NHẬP (LOGIN) ---
 router.post('/login', async (req, res) => {
     const { identifier, password } = req.body;
 
