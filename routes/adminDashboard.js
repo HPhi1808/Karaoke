@@ -41,6 +41,24 @@ router.get('/stats/online', verifyToken, requireAdmin, async (req, res) => {
     }
 });
 
+
+router.get('/active-history', verifyToken, requireAdmin, async (req, res) => {
+    try {
+        const queryText = `
+            SELECT recorded_at, active_count
+            FROM active_users_history
+            WHERE recorded_at >= (NOW() - INTERVAL '24 hours')
+            ORDER BY recorded_at ASC
+        `;
+
+        const { rows } = await pool.query(queryText);
+
+        res.json(rows);
+    } catch (err) {
+        console.error("Lỗi lấy lịch sử hoạt động:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
 // --- 3. LẤY DANH SÁCH GUEST KHÔNG HOẠT ĐỘNG (Inactive Guests) ---
 router.get('/guests/inactive', verifyToken, requireAdmin, async (req, res) => {
     try {

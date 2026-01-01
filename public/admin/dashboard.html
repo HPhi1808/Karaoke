@@ -1,9 +1,10 @@
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <div class="container-fluid p-0">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="text-gray-800 fw-bold"><i class="bi bi-speedometer2"></i> Tổng Quan Hệ Thống</h4>
         <div>
-            <span class="text-muted small me-2">Cập nhật realtime: <span
-                    class="badge bg-success pulse-animation">Bật</span></span>
+            <span class="text-muted small me-2">Cập nhật realtime: <span class="badge bg-success pulse-animation">Bật</span></span>
         </div>
     </div>
 
@@ -13,15 +14,12 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Đang hoạt động (Live)</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Đang hoạt động (Live)</div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800 d-flex align-items-center" style="height: 1.2em; overflow: hidden;" id="statOnline">
                                 <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
                             </div>
                         </div>
-                        <div class="col-auto">
-                            <i class="bi bi-broadcast text-success fs-2"></i>
-                        </div>
+                        <div class="col-auto"><i class="bi bi-broadcast text-success fs-2"></i></div>
                     </div>
                 </div>
             </div>
@@ -32,13 +30,10 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Tổng Người Dùng</div>
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tổng Người Dùng</div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statUsers">...</div>
                         </div>
-                        <div class="col-auto">
-                            <i class="bi bi-people-fill text-primary fs-2"></i>
-                        </div>
+                        <div class="col-auto"><i class="bi bi-people-fill text-primary fs-2"></i></div>
                     </div>
                 </div>
             </div>
@@ -49,13 +44,27 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Tài khoản Khách</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Tài khoản Khách</div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statGuests">...</div>
                         </div>
-                        <div class="col-auto">
-                            <i class="bi bi-person-badge text-info fs-2"></i>
-                        </div>
+                        <div class="col-auto"><i class="bi bi-person-badge text-info fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-12 col-lg-12">
+            <div class="card shadow mb-4 border-0">
+                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between bg-white border-bottom-0">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="bi bi-graph-up"></i> Biến động User Online (24h qua)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="activeHistoryChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -90,54 +99,50 @@
 
 <script>
     {
-        // Biến lưu interval để clear khi chuyển trang
+        // --- KHAI BÁO BIẾN ---
         let onlineInterval;
+        let historyChart = null;
 
-        // --- 1. HÀM HELPER: TẠO HIỆU ỨNG ODOMETER ---
+        // --- 1. HÀM TỰ ĐỘNG TẢI THƯ VIỆN CHART.JS  ---
+        async function ensureChartJsLoaded() {
+            if (typeof Chart !== 'undefined') return;
+
+            console.log("Đang tải thư viện Chart.js...");
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                script.onload = () => {
+                    console.log("Chart.js đã tải xong!");
+                    resolve();
+                };
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // --- 2. HÀM HELPER: ODOMETER ---
         function updateOdometer(elementId, value) {
             const el = document.getElementById(elementId);
             if (!el) return;
-
             const valStr = value.toString();
-            
             if (!el.classList.contains('odometer-initialized')) {
-                el.classList.add('odometer-initialized');
-                el.innerHTML = ''; 
-                valStr.split('').forEach(digit => {
-                    el.appendChild(createDigitColumn(digit));
-                });
+                el.classList.add('odometer-initialized'); el.innerHTML = ''; 
+                valStr.split('').forEach(d => el.appendChild(createDigitColumn(d)));
             } else {
-                if (el.children.length !== valStr.length) {
-                    el.innerHTML = '';
-                    valStr.split('').forEach(digit => {
-                        el.appendChild(createDigitColumn(digit));
-                    });
-                } else {
-                    Array.from(el.children).forEach((col, i) => {
-                        const digit = valStr[i];
-                        const strip = col.querySelector('.digit-strip');
-                        strip.style.transform = `translateY(-${parseInt(digit) * 10}%)`;
-                    });
-                }
+                if (el.children.length !== valStr.length) { el.innerHTML = ''; valStr.split('').forEach(d => el.appendChild(createDigitColumn(d))); }
+                else { Array.from(el.children).forEach((col, i) => { 
+                    col.querySelector('.digit-strip').style.transform = `translateY(-${parseInt(valStr[i]) * 10}%)`; 
+                }); }
             }
         }
-
-        function createDigitColumn(initialDigit) {
-            const container = document.createElement('div');
-            container.className = 'digit-container';
-            const strip = document.createElement('div');
-            strip.className = 'digit-strip';
-            for (let i = 0; i <= 9; i++) {
-                const num = document.createElement('span');
-                num.innerText = i;
-                strip.appendChild(num);
-            }
-            strip.style.transform = `translateY(-${parseInt(initialDigit) * 10}%)`;
-            container.appendChild(strip);
-            return container;
+        function createDigitColumn(d) { 
+            const c=document.createElement('div'); c.className='digit-container'; 
+            const s=document.createElement('div'); s.className='digit-strip'; 
+            for(let i=0;i<=9;i++){const n=document.createElement('span');n.innerText=i;s.appendChild(n);} 
+            s.style.transform=`translateY(-${parseInt(d)*10}%)`; c.appendChild(s); return c; 
         }
 
-        // --- 2. HÀM LẤY SỐ LIỆU TĨNH ---
+        // --- 3. CÁC HÀM GỌI API ---
         window.fetchGeneralStats = async function () {
             const res = await window.api('/api/admin/dashboard/stats/general');
             if (res && res.status === 'success') {
@@ -146,20 +151,101 @@
             }
         }
 
-        // --- 3. HÀM LẤY ONLINE ---
         window.fetchOnlineStats = async function () {
             const el = document.getElementById('statOnline');
             if (!el) return; 
-
             const res = await window.api('/api/admin/dashboard/stats/online');
-            if (res && res.status === 'success') {
-                updateOdometer('statOnline', res.online);
+            if (res && res.status === 'success') updateOdometer('statOnline', res.online);
+        }
+
+        // --- 4. HÀM VẼ BIỂU ĐỒ ---
+        window.fetchActiveHistory = async function() {
+            try {
+                // Bước 1: Đảm bảo thư viện Chart.js đã có mặt
+                await ensureChartJsLoaded(); 
+
+                // Bước 2: Gọi API lấy dữ liệu
+                const data = await window.api('/api/admin/dashboard/active-history');
+                if (!Array.isArray(data)) return; 
+
+                // Bước 3: Chuẩn bị dữ liệu
+                const labels = data.map(d => {
+                    const date = new Date(d.recorded_at);
+                    return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+                });
+                const values = data.map(d => d.active_count);
+
+                // Bước 4: Vẽ
+                const canvas = document.getElementById('activeHistoryChart');
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                // Màu gradient
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, 'rgba(78, 115, 223, 0.5)'); 
+                gradient.addColorStop(1, 'rgba(78, 115, 223, 0.0)'); 
+
+                if (historyChart) historyChart.destroy();
+
+                historyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'User Online',
+                            data: values,
+                            backgroundColor: gradient,
+                            borderColor: '#4e73df',
+                            pointBackgroundColor: '#4e73df',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: '#4e73df',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 6,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#fff', bodyColor: '#858796', titleColor: '#6e707e',
+                                borderColor: '#dddfeb', borderWidth: 1, padding: 10, displayColors: false,
+                                callbacks: { label: (c) => 'Online: ' + c.parsed.y }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                offset: true, 
+                                grid: { display: false }, 
+                                ticks: { maxTicksLimit: 12 } 
+                            },
+                            y: { 
+                                beginAtZero: true, 
+                                ticks: { 
+                                    stepSize: 1,
+                                    precision: 0,
+                                    maxTicksLimit: 5 
+                                }, 
+                                grid: { borderDash: [2], drawBorder: false } 
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Lỗi vẽ biểu đồ:", e);
             }
         }
 
         // --- KHỞI CHẠY ---
         window.fetchGeneralStats();
         window.fetchOnlineStats();
+        window.fetchActiveHistory(); // Hàm này giờ đã an toàn, tự tải thư viện nếu thiếu
 
         if (onlineInterval) clearInterval(onlineInterval);
         onlineInterval = setInterval(() => {
