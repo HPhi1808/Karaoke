@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Karaoke Plus - Thỏa Đam Mê Ca Hát</title>
+    <title>Karaoke Plus</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
         :root {
@@ -104,11 +105,34 @@
             font-size: 0.95rem;
             line-height: 1.7;
             color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 35px;
+            margin-bottom: 20px;
             max-width: 550px;
             margin-left: auto;
             margin-right: auto;
         }
+
+        /* --- STYLES MỚI CHO QR CODE --- */
+        .qr-box {
+            background: white;
+            padding: 15px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(255, 0, 204, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .qr-box:hover {
+            transform: scale(1.05);
+        }
+        
+        .note-text {
+            font-size: 0.8rem;
+            color: #ff6b6b;
+            font-style: italic;
+            margin-bottom: 25px;
+        }
+        /* --------------------------- */
 
         .btn {
             display: inline-block;
@@ -175,12 +199,6 @@
             padding-top: 25px;
         }
 
-        footer a {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 600;
-        }
-
         /* Animations */
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
@@ -200,6 +218,7 @@
                 border-radius: 30px;
             }
             .logo { width: 110px; }
+            .qr-box { padding: 10px; } /* QR nhỏ hơn chút trên mobile */
             .secondary-nav { flex-direction: column; align-items: center; }
             .nav-link { width: 100%; justify-content: center; }
         }
@@ -219,12 +238,21 @@
         
         <article>
             <p>
-                Trải nghiệm ca hát đỉnh cao với kho nhạc khổng lồ, âm thanh studio chuyên nghiệp 
-                và tính năng thu âm thế hệ mới ngay trên thiết bị của bạn.
+                Quét mã QR bên dưới hoặc nhấn nút Tải Về để cài đặt ứng dụng trên thiết bị Android của bạn.
+            </p>
+
+            <div id="qrcode" class="qr-box"></div>
+            
+            <br>
+
+            <a href="#" id="downloadLink" class="btn">
+                <i class="fas fa-download"></i> Tải file APK ngay
+            </a>
+            
+            <p class="note-text" style="margin-top: 15px;">
+                *Lưu ý: Bạn cần cấp quyền "Cài đặt từ nguồn không xác định" nếu được hỏi.
             </p>
         </article>
-
-        <a href="#" class="btn">Sắp có mặt trên Android & iOS</a>
 
         <nav class="secondary-nav">
             <a href="/support" class="nav-link">
@@ -236,9 +264,26 @@
         </nav>
 
         <footer>
-            <p>&copy; 2025 Karaoke Plus. All rights reserved.<br>
+            <p>&copy; 2025 Karaoke Plus. All rights reserved.</p>
         </footer>
     </main>
 
+    <script>
+        // Cấu hình đường dẫn file APK
+        const APK_URL = "https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/app-release.apk";
+
+        // 1. Gán link cho nút bấm
+        document.getElementById('downloadLink').href = APK_URL;
+
+        // 2. Tạo mã QR
+        new QRCode(document.getElementById("qrcode"), {
+            text: APK_URL,
+            width: 160,
+            height: 160,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.M
+        });
+    </script>
 </body>
 </html>
