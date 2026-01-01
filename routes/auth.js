@@ -136,6 +136,21 @@ router.post('/register/complete', async (req, res) => {
              return res.status(400).json({ status: 'error', message: 'Khu vực không hợp lệ.' });
         }
 
+        const usernameRegex = /^[a-zA-Z0-9]+$/;
+        if (!usernameRegex.test(username)) {
+             return res.status(400).json({ status: 'error', message: 'Tên đăng nhập chỉ được chứa chữ cái và số.' });
+        }
+
+        const { data: duplicateUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+
+        if (duplicateUser) {
+            return res.status(400).json({ status: 'error', message: 'Tên đăng nhập đã được sử dụng. Vui lòng chọn tên khác.' });
+        }
+
         // 2. KIỂM TRA QUYỀN VÀ THỜI HẠN
         const { data: verifyData } = await supabase
             .from('email_verifications')
@@ -147,7 +162,7 @@ router.post('/register/complete', async (req, res) => {
             return res.status(400).json({ status: 'error', message: "Vui lòng xác thực OTP trước." });
         }
         
-        // [MỚI] Kiểm tra bằng cột expires_at
+        // Kiểm tra bằng cột expires_at
         if (!verifyData.expires_at || new Date() > new Date(verifyData.expires_at)) {
             return res.status(400).json({ status: 'error', message: "Phiên xác thực đã hết hạn. Vui lòng gửi lại OTP." });
         }
