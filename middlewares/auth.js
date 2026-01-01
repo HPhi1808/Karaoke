@@ -11,7 +11,6 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Hàm giải mã Token nhanh để lấy thông tin user_id
 const decodeTokenPayload = (token) => {
     try {
         const base64Url = token.split('.')[1];
@@ -38,84 +37,94 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
-        // 1. Xác thực Token với Supabase Auth
-        // Nếu session đã bị xóa (do đăng nhập nơi khác), hàm này sẽ trả về error hoặc user null
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-
-        if (error || !user) {
-            throw new Error('AuthFailed');
+        // ============================================================
+        // BƯỚC 1: XÁC THỰC VỚI SUPABASE
+        // ============================================================
+        let userAuth;
+        try {
+            const { data, error } = await supabase.auth.getUser(token);
+            if (error) throw error;
+            userAuth = data.user;
+        } catch (networkOrAuthError) {
+            if (networkOrAuthError.message.includes('fetch failed') || 
+                networkOrAuthError.code === 'ECONNRESET') {
+                console.error("🔥 Lỗi kết nối Supabase:", networkOrAuthError.message);
+                return res.status(503).json({ 
+                    status: 'error', 
+                    message: 'Lỗi kết nối đến server xác thực. Vui lòng thử lại sau.' 
+                });
+            }
+            // Nếu là lỗi Auth (hết hạn, sai token) thì ném xuống catch dưới
+            throw networkOrAuthError;
         }
 
-        // 2. Kiểm tra thông tin bổ sung trong Database (Role, Lock status)
+        if (!userAuth) throw new Error('AuthFailed');
+
+        // ============================================================
+        // BƯỚC 2: LẤY THÔNG TIN DB & SESSION ID
+        // ============================================================
+        
+        // Lấy thêm cột current_session_id để so sánh
         const userQuery = await pool.query(
-            'SELECT role, locked_until FROM users WHERE id = $1',
-            [user.id]
+            'SELECT role, locked_until, current_session_id FROM users WHERE id = $1',
+            [userAuth.id]
         );
         
-        const publicUser = userQuery.rows[0];
+        const dbUser = userQuery.rows[0];
 
-        // 3. Kiểm tra khóa tài khoản
-        if (publicUser) {
-            if (publicUser.locked_until && new Date(publicUser.locked_until) > new Date()) {
-                const unlockTime = new Date(publicUser.locked_until).toLocaleString('vi-VN');
-                return res.status(403).json({
-                    status: 'locked',
-                    message: `Tài khoản tạm khoá đến: ${unlockTime}. Liên hệ Admin.`
+        // 2.1. Kiểm tra tài khoản bị xóa
+        if (!dbUser && !userAuth.is_anonymous) {
+             return res.status(401).json({ status: 'error', message: 'Tài khoản không tồn tại trong hệ thống.' });
+        }
+
+        // 2.2. Kiểm tra khóa tài khoản
+        if (dbUser && dbUser.locked_until && new Date(dbUser.locked_until) > new Date()) {
+            const unlockTime = new Date(dbUser.locked_until).toLocaleString('vi-VN');
+            return res.status(403).json({
+                status: 'locked',
+                message: `Tài khoản tạm khoá đến: ${unlockTime}. Liên hệ Admin.`
+            });
+        }
+
+        // 2.3. KIỂM TRA SESSION MATCHING
+        if (dbUser && dbUser.current_session_id) {
+            // Giải mã token để lấy session_id bên trong nó
+            const payload = decodeTokenPayload(token);
+            const tokenSessionId = payload?.session_id;
+
+            // Nếu DB có session ID mà khác với Session ID trong Token -> ĐÁ
+            if (tokenSessionId && dbUser.current_session_id !== tokenSessionId) {
+                return res.status(401).json({
+                    status: 'error',
+                    message: 'Phiên đăng nhập hết hạn hoặc không hợp lệ (Logged in elsewhere)'
                 });
             }
         }
 
-        // 4. Xác định Role cuối cùng
+        // ============================================================
+        // BƯỚC 3: XÁC ĐỊNH ROLE & GẮN VÀO REQ
+        // ============================================================
         let finalRole = 'user';
         
-        if (publicUser?.role) {
-            finalRole = publicUser.role;
-        } else if (user.app_metadata?.role) {
-            finalRole = user.app_metadata.role; 
-        } else if (user.is_anonymous) {
+        if (dbUser?.role) {
+            finalRole = dbUser.role;
+        } else if (userAuth.app_metadata?.role) {
+            finalRole = userAuth.app_metadata.role; 
+        } else if (userAuth.is_anonymous) {
             finalRole = 'guest';
         }
 
-        // 5. Gắn thông tin vào Request
         req.user = {
-            user_id: user.id,
-            email: user.email || (user.is_anonymous ? 'guest' : null),
+            user_id: userAuth.id,
+            email: userAuth.email || (userAuth.is_anonymous ? 'guest' : null),
             role: finalRole,
-            is_guest: user.is_anonymous || false
+            is_guest: userAuth.is_anonymous || false
         };
 
         next();
 
     } catch (err) {
-        // === LOGIC TẠI SAO TOKEN CHẾT? ===
-        
-        // Cố gắng giải mã token chết để lấy user_id
-        const payload = decodeTokenPayload(token);
-        
-        if (payload && payload.sub) {
-            const userId = payload.sub;
-
-            // Kiểm tra xem User này có đang Online bằng session KHÁC không?
-            try {
-                // Nếu tìm thấy session -> User đã đăng nhập thành công ở nơi khác
-                const activeSession = await pool.query(
-                    "SELECT id FROM auth.sessions WHERE user_id = $1 LIMIT 1",
-                    [userId]
-                );
-
-                if (activeSession.rows.length > 0) {
-                    return res.status(409).json({ 
-                        status: 'conflict',
-                        message: 'Tài khoản đang đăng nhập ở nơi khác' 
-                    });
-                }
-            } catch (dbErr) {
-                console.error("Lỗi truy xuất:", dbErr.message);
-            }
-        }
-
-        // Nếu không có session nào khác -> Hết hạn thật sự hoặc token rác
-        console.error("Auth Middleware Error:", err.message);
+        // console.error("Auth Middleware Verify Error:", err.message);
         return res.status(401).json({
             status: 'error',
             message: 'Phiên đăng nhập hết hạn hoặc không hợp lệ'
@@ -151,9 +160,14 @@ const updateActivityMiddleware = async (req, res, next) => {
     if (req.user && req.user.user_id) {
         const userId = req.user.user_id;
         
-        // Fire and Forget
+        // Fire and Forget (Chạy ngầm không chờ)
         pool.query("UPDATE users SET last_active_at = NOW() WHERE id = $1", [userId])
-            .catch(err => console.error("Update Active Error:", err.message));
+            .catch(err => {
+                // Không log lỗi connection reset để tránh rác log
+                if (err.code !== 'ECONNRESET') {
+                    console.error("Update Active Error:", err.message);
+                }
+            });
     }
     next();
 };

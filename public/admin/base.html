@@ -242,19 +242,13 @@
 
         // === BẮT LỖI CHÍNH XÁC ===
 
-        // 1. Lỗi 409: Tài khoản đăng nhập nơi khác (Logic thám tử Backend trả về)
-        if (res.status === 409) {
-             handleLogout("Tài khoản của bạn đang được đăng nhập ở một thiết bị khác!");
-             return null;
-        }
-
-        // 2. Lỗi 401: Hết hạn thường
+        // 1. Lỗi 401: Hết hạn thường
         if (res.status === 401) {
              handleLogout("Phiên đăng nhập đã hết hạn.");
              return null;
         }
 
-        // 3. Lỗi 403: Bị khóa hoặc không đủ quyền
+        // 2. Lỗi 403: Bị khóa hoặc không đủ quyền
         if (res.status === 403) {
              const errData = await res.clone().json().catch(() => ({}));
              if (errData.status === 'locked') {
@@ -347,7 +341,7 @@
                          return;
                     }
 
-                    // 2. Kiểm tra ĐĂNG NHẬP NƠI KHÁC (Realtime Mới)
+                    // 2. Kiểm tra ĐĂNG NHẬP NƠI KHÁC
                     if (newData.last_sign_in_at) {
                         const lastSignInTime = new Date(newData.last_sign_in_at).getTime();
                         

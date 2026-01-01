@@ -33,7 +33,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Tổng Thành Viên</div>
+                                Tổng Người Dùng</div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statUsers">...</div>
                         </div>
                         <div class="col-auto">
@@ -61,44 +61,6 @@
             </div>
         </div>
     </div>
-
-    <div class="row">
-        <div class="col-lg-12 mb-4">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold text-warning">
-                        <i class="bi bi-hourglass-bottom"></i> Guest không hoạt động (>30 ngày)
-                    </h6>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="window.fetchInactiveGuests()">
-                        <i class="bi bi-arrow-clockwise"></i> Tải lại danh sách
-                    </button>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="bg-light sticky-top">
-                                <tr>
-                                    <th class="ps-4">Username/ID</th>
-                                    <th>Ngày tạo</th>
-                                    <th>Hoạt động cuối</th>
-                                    <th class="text-center">Số ngày vắng</th>
-                                    <th class="text-center">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody id="guestTrashTable">
-                                <tr>
-                                    <td colspan="5" class="text-center py-3">Đang kiểm tra dữ liệu...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer bg-white small text-muted">
-                    * Danh sách chỉ hiển thị tối đa 100 tài khoản lâu nhất để tối ưu hiệu năng.
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <style>
@@ -106,7 +68,7 @@
     .digit-container {
         display: inline-block;
         overflow: hidden;
-        height: 1.2em; /* Chiều cao bằng đúng 1 dòng chữ */
+        height: 1.2em;
         line-height: 1.2em;
         position: relative;
     }
@@ -114,7 +76,7 @@
     .digit-strip {
         display: flex;
         flex-direction: column;
-        transition: transform 0.8s cubic-bezier(0.1, 0.7, 0.1, 1); /* Hiệu ứng trượt mượt mà */
+        transition: transform 0.8s cubic-bezier(0.1, 0.7, 0.1, 1);
         will-change: transform;
     }
 
@@ -138,57 +100,42 @@
 
             const valStr = value.toString();
             
-            // Nếu chưa có cấu trúc odometer (lần đầu chạy), ta tạo khung
             if (!el.classList.contains('odometer-initialized')) {
                 el.classList.add('odometer-initialized');
-                el.innerHTML = ''; // Xóa spinner
-                
-                // Tạo các cột số cho từng chữ số
+                el.innerHTML = ''; 
                 valStr.split('').forEach(digit => {
                     el.appendChild(createDigitColumn(digit));
                 });
             } else {
-                // Nếu số lượng chữ số thay đổi (ví dụ 99 -> 100), rebuild lại
                 if (el.children.length !== valStr.length) {
                     el.innerHTML = '';
                     valStr.split('').forEach(digit => {
                         el.appendChild(createDigitColumn(digit));
                     });
                 } else {
-                    // Cập nhật vị trí cho từng cột
                     Array.from(el.children).forEach((col, i) => {
                         const digit = valStr[i];
                         const strip = col.querySelector('.digit-strip');
-                        // Di chuyển dải số đến vị trí của số mới
-                        // Số 0 ở vị trí 0%, số 9 ở vị trí -90%
                         strip.style.transform = `translateY(-${parseInt(digit) * 10}%)`;
                     });
                 }
             }
         }
 
-        // Tạo 1 cột chứa dải số từ 0 đến 9
         function createDigitColumn(initialDigit) {
             const container = document.createElement('div');
             container.className = 'digit-container';
-            
             const strip = document.createElement('div');
             strip.className = 'digit-strip';
-            
-            // Tạo dải số 0-9
             for (let i = 0; i <= 9; i++) {
                 const num = document.createElement('span');
                 num.innerText = i;
                 strip.appendChild(num);
             }
-            
-            // Set vị trí ban đầu
             strip.style.transform = `translateY(-${parseInt(initialDigit) * 10}%)`;
-            
             container.appendChild(strip);
             return container;
         }
-
 
         // --- 2. HÀM LẤY SỐ LIỆU TĨNH ---
         window.fetchGeneralStats = async function () {
@@ -199,84 +146,25 @@
             }
         }
 
-        // --- 3. HÀM LẤY ONLINE (Cập nhật dùng Odometer) ---
-        window.fetchOnlineStats = async function (isFirstRun = false) {
+        // --- 3. HÀM LẤY ONLINE ---
+        window.fetchOnlineStats = async function () {
             const el = document.getElementById('statOnline');
             if (!el) return; 
 
             const res = await window.api('/api/admin/dashboard/stats/online');
-
             if (res && res.status === 'success') {
-                const newValue = res.online;
-                
-                // Gọi hàm Odometer thay vì gán text thông thường
-                updateOdometer('statOnline', newValue);
-            }
-        }
-
-        // --- 4. HÀM LẤY DANH SÁCH GUEST RÁC (Giữ nguyên) ---
-        window.fetchInactiveGuests = async function () {
-            const tbody = document.getElementById('guestTrashTable');
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-warning"></div> Đang tải...</td></tr>';
-
-            const res = await window.api('/api/admin/dashboard/guests/inactive');
-
-            if (res && res.status === 'success') {
-                const guests = res.data;
-                if (guests.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-success"><i class="bi bi-check-circle fs-4"></i><br>Hệ thống sạch sẽ! Không có guest nào vắng > 30 ngày.</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = guests.map(g => `
-                    <tr id="guest-row-${g.id}">
-                        <td class="ps-4">
-                            <div class="fw-bold text-dark">${g.username || 'No Name'}</div>
-                            <div class="small text-muted text-truncate" style="max-width: 150px;">${g.id}</div>
-                        </td>
-                        <td class="small">${new Date(g.created_at).toLocaleDateString('vi-VN')}</td>
-                        <td class="small">${new Date(g.last_active_at).toLocaleDateString('vi-VN')}</td>
-                        <td class="text-center">
-                            <span class="badge bg-danger rounded-pill">${g.days_inactive} ngày</span>
-                        </td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-danger" onclick="window.deleteSingleGuest('${g.id}')" title="Xóa vĩnh viễn">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
-            } else {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Lỗi: ${res?.message}</td></tr>`;
-            }
-        }
-
-        // --- 5. HÀM XÓA 1 GUEST (Giữ nguyên) ---
-        window.deleteSingleGuest = async function (id) {
-            if (!confirm('Bạn chắc chắn muốn xóa vĩnh viễn Guest này?')) return;
-            const row = document.getElementById(`guest-row-${id}`);
-            if (row) row.style.opacity = '0.5';
-            const res = await window.api(`/api/admin/dashboard/guests/${id}`, { method: 'DELETE' });
-            if (res && res.status === 'success') {
-                if (row) row.remove();
-                const tbody = document.getElementById('guestTrashTable');
-                if (tbody.children.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-success">Đã dọn sạch!</td></tr>';
-                }
-            } else {
-                alert('Lỗi: ' + (res?.message || 'Không xóa được'));
-                if (row) row.style.opacity = '1';
+                updateOdometer('statOnline', res.online);
             }
         }
 
         // --- KHỞI CHẠY ---
         window.fetchGeneralStats();
-        window.fetchInactiveGuests();
-        window.fetchOnlineStats(true);
+        window.fetchOnlineStats();
 
         if (onlineInterval) clearInterval(onlineInterval);
         onlineInterval = setInterval(() => {
             if (document.getElementById('statOnline')) {
-                window.fetchOnlineStats(false);
+                window.fetchOnlineStats();
             } else {
                 clearInterval(onlineInterval);
             }

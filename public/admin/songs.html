@@ -60,6 +60,7 @@
                         <th>Tên bài hát</th>
                         <th>Ca sĩ</th>
                         <th>Thể loại</th>
+                        <th class="text-center">Lượt hát</th>
                         <th>Nghe thử (Beat)</th>
                         <th class="text-center">Hành động</th>
                     </tr>
@@ -187,7 +188,7 @@
 <script>
     {
         const SONG_API_URL = '/api/admin/songs';
-        let allSongsData = []; // Cache dữ liệu
+        let allSongsData = [];
 
         // --- 1. HÀM SINH HTML CHO 1 DÒNG) ---
         function generateSongRow(song) {
@@ -203,6 +204,14 @@
                     <td class="fw-bold text-dark">${song.title}</td>
                     <td class="text-secondary">${song.artist_name}</td>
                     <td><span class="badge bg-light text-dark border">${song.genre || 'N/A'}</span></td>
+                    
+                    <td class="text-center">
+                        <span class="badge bg-white text-secondary border">
+                            <i class="bi bi-eye-fill me-1"></i>
+                            ${(song.view_count || 0).toLocaleString('vi-VN')}
+                        </span>
+                    </td>
+
                     <td>
                         ${song.beat_url 
                             ? `<audio controls src="${song.beat_url}" class="audio-preview" preload="none"></audio>` 
@@ -229,13 +238,13 @@
         // --- 2. HÀM TẢI DỮ LIỆU ---
         window.fetchSongs = async function() {
             const tbody = document.getElementById('songTableBody');
-            if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2 text-muted">Đang tải danh sách bài hát...</div></td></tr>';
+            if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2 text-muted">Đang tải danh sách bài hát...</div></td></tr>';
 
             try {
                 let response = await window.api(SONG_API_URL);
 
                 if (!response) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Không thể kết nối Server!</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Không thể kết nối Server!</td></tr>';
                     return;
                 }
 
@@ -246,7 +255,7 @@
                     songs = Object.values(response).filter(item => item && typeof item === 'object' && item.song_id);
                 }
 
-                // Sắp xếp bài mới nhất lên đầu (nếu API chưa sắp xếp)
+                // Sắp xếp bài mới nhất lên đầu
                 songs.sort((a, b) => b.song_id - a.song_id);
 
                 allSongsData = songs;
@@ -254,7 +263,7 @@
 
             } catch (error) {
                 console.error('Lỗi tải danh sách:', error);
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Lỗi: ${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${error.message}</td></tr>`;
             }
         }
 
@@ -274,7 +283,7 @@
             });
 
             if (filteredSongs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="bi bi-inbox display-4"></i><p class="mt-2">Không tìm thấy bài hát nào.</p></td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-inbox display-4"></i><p class="mt-2">Không tìm thấy bài hát nào.</p></td></tr>';
                 return;
             }
 

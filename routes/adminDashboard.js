@@ -8,7 +8,7 @@ const pool = require('../config/db');
 router.get('/stats/general', verifyToken, requireAdmin, async (req, res) => {
     try {
         const [usersRes, guestsRes] = await Promise.all([
-            pool.query("SELECT COUNT(*) FROM users WHERE role != 'guest'"),
+            pool.query("SELECT COUNT(*) FROM users WHERE role NOT IN ('guest', 'admin', 'own')"),
             pool.query("SELECT COUNT(*) FROM users WHERE role = 'guest'")
         ]);
 
