@@ -73,7 +73,6 @@ class SongCard extends StatelessWidget {
                                 color: Colors.white, size: 12),
                             const SizedBox(width: 2),
                             Text(
-                              // Giả sử model có trường viewCount, mặc định là 0
                               _formatViewCount(song.viewCount ?? 0),
                               style: const TextStyle(
                                 color: Colors.white,

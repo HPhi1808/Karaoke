@@ -27,7 +27,7 @@ dependencies:
 
   # Audio
   just_audio: ^0.10.5
-  audio_session: ^0.1.18
+  audio_session: ^0.2.2
 
   # Storage
   flutter_secure_storage: ^9.0.0
@@ -40,6 +40,10 @@ dependencies:
   shimmer: ^3.0.0
   wakelock_plus: ^1.2.8
   jwt_decoder: ^2.0.1
+
+  record: ^6.1.2
+  record_linux: ^1.2.0
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:

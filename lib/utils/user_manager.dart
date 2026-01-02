@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:jwt_decoder/jwt_decoder.dart'; // Bắt buộc import cái này
+import 'package:jwt_decoder/jwt_decoder.dart';
 import '../services/auth_service.dart';
 import '../main.dart';
 
@@ -11,14 +11,19 @@ class UserManager {
   UserManager._internal();
 
   // --- VARIABLES ---
-  Timer? _idleTimer;
-  StreamSubscription? _userDbSubscription;
+  StreamSubscription<List<Map<String, dynamic>>>? _userDbSubscription;
   StreamSubscription<AuthState>? _authSubscription;
 
-  // Thời gian chờ cho phép (5 phút) trước khi gửi heartbeat
-  final Duration _idleThreshold = const Duration(minutes: 5);
+  Timer? _keepAliveTimer;
+  DateTime? _lastDbUpdate;
+  bool _isUpdating = false;
 
-  // Key lưu Session ID của máy này
+  // Cấu hình Heartbeat
+  // Throttle: Tần suất update tối đa khi user đang thao tác liên tục (tránh spam server)
+  final Duration _throttleDuration = const Duration(minutes: 5);
+  // Idle: Sau bao lâu không thao tác thì tự động bắn heartbeat duy trì
+  final Duration _idleThreshold = const Duration(minutes: 6);
+
   static const String _kSessionIdKey = 'my_current_session_id';
 
   // Biến Cache ID trong RAM để so sánh nhanh hơn
@@ -28,24 +33,30 @@ class UserManager {
   // PHẦN 1: INIT & DISPOSE
   // ============================================================
   Future<void> init() async {
-    await Future.delayed(const Duration(seconds: 5));
-
-    // 2. Tự động đồng bộ Session ID từ Token hiện tại
+    // 1. Kiểm tra user hiện tại
     final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
+    if (session == null) {
+      print("🛡️ User Manager: Không có user, bỏ qua init.");
+      return;
+    }
+
+    // 2. Đồng bộ Session ID ngay lập tức
+    // Ưu tiên lấy từ RAM/Disk trước nếu có, nếu không thì lấy từ Token mới
+    await _getLocalSessionId();
+    if (_cachedLocalSessionId == null) {
       await syncSessionFromToken(session.accessToken);
     }
 
     print("🛡️ User Manager: Đã khởi động (Heartbeat + Session ID Guard)");
 
     // 3. Bắt đầu các logic bảo vệ
-    notifyApiActivity();
-    _setupAuthListener();
-    _setupAccountListener();
+    notifyApiActivity(); // Bắn phát đầu tiên
+    _setupAuthListener(); // Lắng nghe đăng xuất
+    _setupAccountListener(); // Lắng nghe đá thiết bị
   }
 
   void dispose() {
-    _idleTimer?.cancel();
+    _keepAliveTimer?.cancel();
     _userDbSubscription?.cancel();
     _authSubscription?.cancel();
     _cachedLocalSessionId = null;
@@ -56,12 +67,20 @@ class UserManager {
   // PHẦN 2: HELPER (Đồng bộ ID từ Token)
   // ============================================================
 
-  // GỌI HÀM NÀY NGAY KHI LOGIN THÀNH CÔNG
   Future<String> syncSessionFromToken(String accessToken) async {
     try {
-      // Giải mã Token để lấy session_id gốc của Supabase
+      String sessionId = "";
+
+      // Cách 1: Decode từ JWT (như yêu cầu của bạn)
       Map<String, dynamic> decodedToken = JwtDecoder.decode(accessToken);
-      String sessionId = decodedToken['session_id'];
+      if (decodedToken.containsKey('session_id')) {
+        sessionId = decodedToken['session_id'];
+      }
+
+      // Cách 2: Fallback nếu JWT không có (An toàn hơn)
+      if (sessionId.isEmpty) {
+        sessionId = accessToken.hashCode.toString();
+      }
 
       // Lưu vào RAM và Disk
       _cachedLocalSessionId = sessionId;
@@ -103,7 +122,8 @@ class UserManager {
         .maybeSingle();
 
     if (data == null) {
-      throw "Tài khoản không tồn tại!";
+      // Có thể user chưa được tạo trong bảng users, bỏ qua hoặc throw tùy logic app
+      return;
     }
 
     // 1. Check bị khóa
@@ -130,28 +150,44 @@ class UserManager {
   // ============================================================
 
   void notifyApiActivity() {
-    _idleTimer?.cancel();
-    _idleTimer = Timer(_idleThreshold, () {
+    final now = DateTime.now();
+
+    // 1. LOGIC THROTTLE
+    // Nếu chưa từng update HOẶC đã quá thời gian throttle -> Update ngay
+    if (_lastDbUpdate == null || now.difference(_lastDbUpdate!) > _throttleDuration) {
       _sendKeepAliveHeartbeat();
+    }
+
+    // 2. LOGIC DEBOUNCE (Reset timer idle)
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = Timer(_idleThreshold, () {
+      _sendKeepAliveHeartbeat();
+      notifyApiActivity();
     });
   }
 
   Future<void> _sendKeepAliveHeartbeat() async {
+    if (_isUpdating) return;
+
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
-    try {
-      print("💓 Heartbeat: Update last_active_at");
-      await Supabase.instance.client
-          .from('users')
-          .update({
-        'last_active_at': DateTime.now().toUtc().toIso8601String(),
-      })
-          .eq('id', user.id);
+    _isUpdating = true;
 
-      notifyApiActivity();
+    try {
+      print("💓 Heartbeat: Updating last_active_at...");
+      _lastDbUpdate = DateTime.now(); // Cập nhật local trước để chặn throttle ngay lập tức
+
+      await Supabase.instance.client.from('users').update({
+        'last_active_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', user.id);
+
+      print("✅ Heartbeat Success");
     } catch (e) {
       print("💓 Heartbeat Error: $e");
+      _lastDbUpdate = null; // Reset nếu lỗi để lần sau thử lại ngay
+    } finally {
+      _isUpdating = false;
     }
   }
 
@@ -163,15 +199,8 @@ class UserManager {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null || AuthService.instance.isGuest) return;
 
-    // Đảm bảo đã có Local ID trước khi nghe
-    String? localId = await _getLocalSessionId();
-    if (localId == null) {
-      // Cố gắng lấy lại từ session hiện tại nếu biến null
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session != null) {
-        localId = await syncSessionFromToken(session.accessToken);
-      }
-    }
+    // Hủy subscription cũ nếu có để tránh trùng lặp
+    _userDbSubscription?.cancel();
 
     print("🛡️ Realtime: Bắt đầu lắng nghe thay đổi của User...");
 
@@ -179,35 +208,13 @@ class UserManager {
         .from('users')
         .stream(primaryKey: ['id'])
         .eq('id', user.id)
-        .handleError((err) {
-      print("🔥 Realtime Error: $err");
-    })
         .listen((List<Map<String, dynamic>> data) async {
 
-      if (data.isEmpty) {
-        _showForceLogoutDialog("Tài khoản lỗi", "Dữ liệu người dùng không tồn tại.");
-        return;
-      }
+      if (data.isEmpty) return;
 
       final userData = data.first;
-      final serverSessionId = userData['current_session_id'] as String?;
 
-      // Lấy lại localId mới nhất
-      localId = await _getLocalSessionId();
-
-      // CASE A: KIỂM TRA SESSION ID
-      if (localId != null && serverSessionId != null) {
-        if (localId != serverSessionId) {
-          print("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
-          _showForceLogoutDialog(
-              "Kết thúc phiên",
-              "Tài khoản đã được đăng nhập trên thiết bị khác!"
-          );
-          return;
-        }
-      }
-
-      // CASE B: KIỂM TRA BỊ KHÓA
+      // 1. Check khóa tài khoản (Ưu tiên cao nhất)
       final lockedUntilStr = userData['locked_until'];
       if (lockedUntilStr != null) {
         DateTime lockedTime = DateTime.parse(lockedUntilStr).toLocal();
@@ -216,8 +223,26 @@ class UserManager {
               "Tài khoản bị khóa",
               "Tài khoản bị khóa đến ${lockedTime.toString()}"
           );
+          return;
         }
       }
+
+      // 2. Check Session ID
+      final serverSessionId = userData['current_session_id'] as String?;
+      String? localId = await _getLocalSessionId();
+
+      // Chỉ check nếu cả 2 đều có giá trị
+      if (localId != null && serverSessionId != null && localId.isNotEmpty) {
+        if (localId != serverSessionId) {
+          print("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
+          _showForceLogoutDialog(
+              "Kết thúc phiên",
+              "Tài khoản đã được đăng nhập trên thiết bị khác!"
+          );
+        }
+      }
+    }, onError: (err) {
+      print("🔥 Realtime Error: $err");
     });
   }
 
@@ -226,6 +251,7 @@ class UserManager {
   // ============================================================
 
   void _setupAuthListener() {
+    _authSubscription?.cancel();
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.signedOut) {
         dispose();
@@ -234,14 +260,15 @@ class UserManager {
   }
 
   Future<void> _showForceLogoutDialog(String title, String message) async {
+    // Ngắt kết nối ngay lập tức
     dispose();
 
-    // Xóa Local Session ID
+    // Xóa Session ID
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kSessionIdKey);
     _cachedLocalSessionId = null;
 
-    // Logout Supabase
+    // Đăng xuất khỏi Supabase
     try { await AuthService.instance.logout(); } catch (_) {}
 
     final context = navigatorKey.currentContext;
@@ -258,8 +285,9 @@ class UserManager {
             actions: [
               TextButton(
                 onPressed: () {
+                  // Đóng dialog
                   Navigator.of(ctx).pop();
-                  // Chuyển về màn Login
+                  // Chuyển về màn Login và xóa sạch stack
                   navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
                 },
                 child: const Text("Đồng ý", style: TextStyle(color: Colors.red)),

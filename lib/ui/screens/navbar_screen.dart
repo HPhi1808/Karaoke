@@ -27,20 +27,15 @@ class _NavbarScreenState extends State<NavbarScreen> {
   @override
   void initState() {
     super.initState();
-    // Kích hoạt Manager khi vào màn hình chính
-    // Nó sẽ tự lắng nghe Realtime, Heartbeat, Session
     UserManager.instance.init();
   }
 
   @override
   void dispose() {
-    // Khi thoát hẳn Navbar (User logout), hủy manager
     UserManager.instance.dispose();
     super.dispose();
   }
 
-  // ... (Giữ nguyên phần UI _buildBody và build widget không thay đổi)
-  // Chỉ copy phần UI từ code cũ của bạn vào đây
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0: return const HomeScreen();

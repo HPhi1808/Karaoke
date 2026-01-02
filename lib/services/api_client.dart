@@ -13,8 +13,8 @@ class ApiClient {
   ApiClient._internal() {
     BaseOptions options = BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 20),
-      receiveTimeout: const Duration(seconds: 20),
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(seconds: 60),
       contentType: Headers.jsonContentType,
       responseType: ResponseType.json,
     );
