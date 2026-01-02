@@ -4,11 +4,10 @@ const { verifyToken, requireAdmin } = require('../middlewares/auth');
 const pool = require('../config/db');
 
 // --- 1. LẤY SỐ LIỆU TỔNG QUAN (Chạy 1 lần lúc load trang) ---
-// API này nặng (count toàn bộ), chỉ nên gọi khi mới vào dashboard
 router.get('/stats/general', verifyToken, requireAdmin, async (req, res) => {
     try {
         const [usersRes, guestsRes] = await Promise.all([
-            pool.query("SELECT COUNT(*) FROM users WHERE role NOT IN ('guest', 'admin', 'own')"),
+            pool.query("SELECT COUNT(*) FROM users WHERE role = 'user' AND username IS NOT NULL"),
             pool.query("SELECT COUNT(*) FROM users WHERE role = 'guest'")
         ]);
 
@@ -25,19 +24,25 @@ router.get('/stats/general', verifyToken, requireAdmin, async (req, res) => {
 });
 
 // --- 2. LẤY SỐ NGƯỜI ONLINE (Realtime - Gọi mỗi 30s) ---
-// API này nhẹ, chỉ count trong khoảng thời gian ngắn
 router.get('/stats/online', verifyToken, requireAdmin, async (req, res) => {
     try {
-        // Đếm user có hoạt động trong 5 phút qua
-        const result = await pool.query("SELECT COUNT(*) FROM users WHERE last_active_at > (NOW() - INTERVAL '5 minutes')");
+        const query = `
+            SELECT id, username, role, last_active_at 
+            FROM users 
+            WHERE last_active_at > (NOW() - INTERVAL '7 minutes')
+            ORDER BY last_active_at DESC
+        `;
+        
+        const result = await pool.query(query);
         
         res.json({
             status: 'success',
-            online: parseInt(result.rows[0].count)
+            online: result.rows.length,
+            users: result.rows
         });
     } catch (err) {
-        console.error(err); // Log lỗi nhưng không cần gửi 500 để tránh spam client
-        res.json({ status: 'error', online: 0 }); 
+        console.error(err);
+        res.json({ status: 'error', online: 0, users: [] });
     }
 });
 

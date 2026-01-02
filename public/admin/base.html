@@ -10,18 +10,36 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
   <style>
+    /* 1. Cố định body không cho cuộn cả trang */
     body {
       background: #f0f2f5;
       font-family: 'Segoe UI', sans-serif;
+      height: 100vh; /* Chiều cao bằng màn hình */
+      overflow: hidden; /* Ẩn thanh cuộn của body */
+      display: flex;
+      flex-direction: column; /* Xếp dọc: Navbar ở trên, phần dưới ở dưới */
     }
 
     .navbar {
       background: linear-gradient(45deg, #667eea, #764ba2);
+      flex-shrink: 0; /* Navbar không được co lại */
+      z-index: 1030;
     }
 
+    /* 2. Container bao quanh Sidebar và Content */
+    .main-container {
+      flex: 1; /* Chiếm toàn bộ không gian còn lại bên dưới Navbar */
+      display: flex;
+      overflow: hidden; /* Ẩn cuộn thừa của container cha */
+    }
+
+    /* 3. Sidebar: Cuộn độc lập */
     .sidebar {
-      min-height: 100vh;
+      width: 260px;
+      height: 100%; /* Chiều cao bằng container cha */
       background: #343a40;
+      overflow-y: auto; /* Cho phép cuộn dọc */
+      flex-shrink: 0;
     }
 
     .sidebar .nav-link {
@@ -37,11 +55,30 @@
       color: white;
     }
 
+    /* 4. Content Area: Cuộn độc lập */
     .content-area {
-      min-height: 100vh;
+      flex-grow: 1;
+      height: 100%; /* Chiều cao bằng container cha */
       background: #f8f9fa;
+      overflow-y: auto; /* Cho phép cuộn dọc */
+      padding: 1.5rem; /* Đưa padding vào đây để nội dung không sát lề khi cuộn */
     }
-  </style>
+
+    /* Tùy chỉnh thanh cuộn cho đẹp (Webkit browsers: Chrome, Edge, Safari) */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+</style>
 </head>
 
 <body>
@@ -60,7 +97,7 @@
     </div>
   </nav>
 
-  <div class="d-flex">
+  <div class="d-flex main-container">
     <div class="sidebar p-3 d-none d-md-block" style="width: 260px;">
       <ul class="nav flex-column">
         <li class="nav-item">

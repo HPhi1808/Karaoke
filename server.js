@@ -62,7 +62,8 @@ const adminUsersRouter = require('./routes/adminUsers');
 const adminSongsRouter = require('./routes/adminSongs');
 const appUsersRoutes = require('./routes/appUsers');
 const appSongsRouter = require('./routes/appSongs');
-const adminDashboardRoute = require('./routes/adminDashboard');
+const adminDashboardRouter = require('./routes/adminDashboard');
+const adminGuestsRouter = require('./routes/adminGuests');
 
 // const appRoomsRouter = require('./routes/appRooms');
 // const appMomentsRouter = require('./routes/appMoments');
@@ -74,7 +75,9 @@ app.use('/api/auth', authRouter);
 // API Admin (Cần Token + Quyền Admin)
 app.use('/api/admin/users', verifyToken, requireAdmin, adminUsersRouter);
 app.use('/api/admin/songs', verifyToken, requireAdmin, adminSongsRouter);
-app.use('/api/admin/dashboard', verifyToken, requireAdmin, adminDashboardRoute);
+app.use('/api/admin/dashboard', verifyToken, requireAdmin, adminDashboardRouter);
+app.use('/api/admin/guests', verifyToken, requireAdmin, adminGuestsRouter);
+
 
 // API App (User thường)
 app.use('/api/user', verifyToken, appUsersRoutes);

@@ -19,22 +19,55 @@
                         <table class="table table-hover align-middle mb-0">
                             <thead class="bg-light">
                                 <tr>
-                                    <th class="ps-4">Username</th> <th>Ngày tạo</th>
+                                    <th class="ps-4">Username</th>
+                                    <th>Ngày tạo</th>
                                     <th>Hoạt động cuối</th>
-                                    <th class="text-center">Số ngày vắng</th>
+                                    <th class="text-center">Thời gian online</th>
                                     <th class="text-center">Hành động</th>
                                 </tr>
                             </thead>
                             <tbody id="guestTrashTable">
-                                <tr>
-                                    <td colspan="5" class="text-center py-3">Đang tải dữ liệu...</td>
-                                </tr>
+                                <tr><td colspan="5" class="text-center py-3">Đang tải dữ liệu...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-                <div class="card-footer bg-white small text-muted">
-                    * Danh sách hiển thị tối đa 100 tài khoản khách lâu nhất để tối ưu hiệu năng.
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-12 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="bi bi-people"></i> Danh sách tất cả Guest
+                    </h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-primary" id="btnPrevPage" onclick="window.changePage(-1)" disabled>
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                        <span class="small fw-bold" id="pageInfo">Trang 1</span>
+                        <button class="btn btn-sm btn-outline-primary" id="btnNextPage" onclick="window.changePage(1)" disabled>
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Username</th>
+                                    <th>Ngày tạo</th>
+                                    <th>Hoạt động cuối</th>
+                                </tr>
+                            </thead>
+                            <tbody id="allGuestsTable">
+                                <tr><td colspan="3" class="text-center py-3">Đang tải dữ liệu...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -43,12 +76,17 @@
 
 <script>
     {
-        // --- 1. HÀM LẤY DANH SÁCH GUEST RÁC ---
+        // --- CẤU HÌNH ---
+        let currentPage = 1;
+        const limit = 20; // Số lượng hiển thị mỗi trang
+
+        // --- 1. HÀM LẤY DANH SÁCH GUEST RÁC (INACTIVE) ---
         window.fetchInactiveGuests = async function () {
             const tbody = document.getElementById('guestTrashTable');
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-warning"></div> Đang tải...</td></tr>';
 
-            const res = await window.api('/api/admin/dashboard/guests/inactive');
+            // Cập nhật đường dẫn đúng: /api/admin/guests/inactive
+            const res = await window.api('/api/admin/guests/inactive');
 
             if (res && res.status === 'success') {
                 const guests = res.data;
@@ -58,14 +96,10 @@
                 }
                 tbody.innerHTML = guests.map(g => `
                     <tr id="guest-row-${g.id}">
-                        <td class="ps-4">
-                            <div class="fw-bold text-dark">${g.username || 'No Name'}</div>
-                            </td>
+                        <td class="ps-4"><div class="fw-bold text-dark">${g.username || 'No Name'}</div></td>
                         <td class="small">${new Date(g.created_at).toLocaleDateString('vi-VN')}</td>
                         <td class="small">${new Date(g.last_active_at).toLocaleDateString('vi-VN')}</td>
-                        <td class="text-center">
-                            <span class="badge bg-danger rounded-pill">${g.days_inactive} ngày</span>
-                        </td>
+                        <td class="text-center"><span class="badge bg-danger rounded-pill">${g.days_inactive} ngày trước</span></td>
                         <td class="text-center">
                             <button class="btn btn-sm btn-outline-danger" onclick="window.deleteSingleGuest('${g.id}')" title="Xóa vĩnh viễn">
                                 <i class="bi bi-trash"></i>
@@ -81,26 +115,68 @@
         // --- 2. HÀM XÓA 1 GUEST ---
         window.deleteSingleGuest = async function (id) {
             if (!confirm('Bạn chắc chắn muốn xóa vĩnh viễn Guest này?')) return;
-            
             const row = document.getElementById(`guest-row-${id}`);
             if (row) row.style.opacity = '0.5';
             
-            const res = await window.api(`/api/admin/dashboard/guests/${id}`, { method: 'DELETE' });
+            // Cập nhật đường dẫn đúng: /api/admin/guests/${id}
+            const res = await window.api(`/api/admin/guests/${id}`, { method: 'DELETE' });
             
             if (res && res.status === 'success') {
                 if (row) row.remove();
-                // Check nếu xóa hết thì hiện thông báo
+                // Refresh luôn bảng bên dưới để đồng bộ dữ liệu
+                window.fetchAllGuests();
+                
                 const tbody = document.getElementById('guestTrashTable');
-                if (tbody.children.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-success">Đã dọn sạch!</td></tr>';
-                }
+                if (tbody.children.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-success">Đã dọn sạch!</td></tr>';
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không xóa được'));
                 if (row) row.style.opacity = '1';
             }
         }
 
-        // Tự động chạy khi load trang guests.html
+        // --- 3. HÀM LẤY TẤT CẢ GUEST (MỚI THÊM) ---
+        window.fetchAllGuests = async function () {
+            const tbody = document.getElementById('allGuestsTable');
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải danh sách...</td></tr>';
+
+            // Gọi API: /api/admin/guests?page=1&limit=20
+            const res = await window.api(`/api/admin/guests?page=${currentPage}&limit=${limit}`);
+
+            if (res && res.status === 'success') {
+                const guests = res.data;
+                const pagination = res.pagination;
+
+                // Cập nhật nút phân trang
+                document.getElementById('pageInfo').innerText = `Trang ${pagination.current_page} / ${pagination.total_pages}`;
+                document.getElementById('btnPrevPage').disabled = pagination.current_page <= 1;
+                document.getElementById('btnNextPage').disabled = pagination.current_page >= pagination.total_pages;
+
+                if (guests.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted">Chưa có tài khoản khách nào.</td></tr>';
+                    return;
+                }
+
+                // Render danh sách (Không có nút hành động)
+                tbody.innerHTML = guests.map(g => `
+                    <tr>
+                        <td class="ps-4"><span class="fw-bold text-secondary">${g.username || 'No Name'}</span></td>
+                        <td class="small">${new Date(g.created_at).toLocaleDateString('vi-VN')}</td>
+                        <td class="small text-muted">${g.last_active_at ? new Date(g.last_active_at).toLocaleDateString('vi-VN') : 'Chưa hoạt động'}</td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Lỗi tải dữ liệu: ${res?.message}</td></tr>`;
+            }
+        }
+
+        // --- 4. HÀM CHUYỂN TRANG ---
+        window.changePage = function(direction) {
+            currentPage += direction;
+            window.fetchAllGuests();
+        }
+
+        // --- KHỞI CHẠY ---
         window.fetchInactiveGuests();
+        window.fetchAllGuests();
     }
 </script>
