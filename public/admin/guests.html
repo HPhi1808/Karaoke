@@ -85,7 +85,6 @@
             const tbody = document.getElementById('guestTrashTable');
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-warning"></div> Đang tải...</td></tr>';
 
-            // Cập nhật đường dẫn đúng: /api/admin/guests/inactive
             const res = await window.api('/api/admin/guests/inactive');
 
             if (res && res.status === 'success') {

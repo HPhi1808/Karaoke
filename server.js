@@ -60,13 +60,10 @@ app.get('/admin', noCache, (req, res) => {
 const authRouter = require('./routes/auth');
 const adminUsersRouter = require('./routes/adminUsers');
 const adminSongsRouter = require('./routes/adminSongs');
-const appUsersRoutes = require('./routes/appUsers');
 const adminDashboardRouter = require('./routes/adminDashboard');
 const adminGuestsRouter = require('./routes/adminGuests');
+const adminNotificationsRouter = require('./routes/adminNotifications');
 
-// const appRoomsRouter = require('./routes/appRooms');
-// const appMomentsRouter = require('./routes/appMoments');
-// const appChatRouter = require('./routes/appChat');
 
 // --- CẤU HÌNH API ENDPOINTS ---
 app.use('/api/auth', authRouter);
@@ -76,18 +73,11 @@ app.use('/api/admin/users', verifyToken, requireAdmin, adminUsersRouter);
 app.use('/api/admin/songs', verifyToken, requireAdmin, adminSongsRouter);
 app.use('/api/admin/dashboard', verifyToken, requireAdmin, adminDashboardRouter);
 app.use('/api/admin/guests', verifyToken, requireAdmin, adminGuestsRouter);
+app.use('/api/admin/notifications', verifyToken, requireAdmin, adminNotificationsRouter);
 
-
-// API App (User thường)
-app.use('/api/user', verifyToken, appUsersRoutes);
-
-// app.use('/api/rooms', appRoomsRouter);
-// app.use('/api/moments', appMomentsRouter);
-// app.use('/api/chat', verifyToken, appChatRouter);
 
 // --- KHỞI CHẠY SERVER ---
 app.listen(port, () => {
-    console.log(`Server đang chạy tại: http://localhost:${port}`);
     console.log(`- Trang User: http://localhost:${port}/`);
     console.log(`- Trang Admin: http://localhost:${port}/admin`);
 });
