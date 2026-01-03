@@ -53,26 +53,21 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
 
     } catch (e) {
-      // 1. Token hết hạn / Lỗi Server 500 / Tài khoản bị khóa...
-      // 2. HOẶC User đã bấm nút "Hủy" trên hộp thoại lỗi mạng.
       String errorMsg = e.toString();
       debugPrint("SPLASH: Lỗi check app state: $errorMsg");
 
-      // A. Nếu lỗi nghiệp vụ nghiêm trọng -> Logout ngay
       if (errorMsg.contains("đăng nhập trên thiết bị khác") || errorMsg.contains("bị khóa")) {
         await AuthService.instance.logout();
         _navigateToLogin(message: errorMsg);
         return;
       }
 
-      // B. Thử cứu vãn bằng Refresh Token
       try {
         debugPrint("SPLASH: Token lỗi -> Thử Refresh...");
 
         final recovered = await AuthService.instance.recoverSession();
 
         if (recovered) {
-          // Refresh thành công thì check lại session lần nữa
           await UserManager.instance.checkSessionValidity();
           if (mounted) Navigator.pushReplacementNamed(context, '/home');
           return;

@@ -16,36 +16,14 @@ class SongsScreen extends StatefulWidget {
 }
 
 class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClientMixin {
-  late SongsProvider _songsProvider;
-
-  static SongsProvider? _cachedProvider;
-  static double _cachedScrollPosition = 0.0;
-
-  late ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
-
-    // 1. Khôi phục Provider
-    if (_cachedProvider == null) {
-      _cachedProvider = SongsProvider();
+    final provider = context.read<SongsProvider>();
+    if (provider.data == null) {
+      Future.microtask(() => provider.fetchSongsData());
     }
-    _songsProvider = _cachedProvider!;
-
-    // 2. Khôi phục vị trí cuộn
-    _scrollController = ScrollController(initialScrollOffset: _cachedScrollPosition);
-
-    // 3. Lắng nghe cuộn để lưu vị trí mới
-    _scrollController.addListener(() {
-      _cachedScrollPosition = _scrollController.offset;
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
   }
 
   @override
@@ -55,16 +33,17 @@ class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClient
   Widget build(BuildContext context) {
     super.build(context);
 
-    return ChangeNotifierProvider.value(
-      value: _songsProvider,
+    return DefaultTabController(
+      length: 3,
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F5F5),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-          // Đổi tiêu đề
-          title: const Text("Kho nhạc",
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
+          title: const Text(
+            "Kho nhạc",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.search, color: Colors.black),
@@ -73,95 +52,161 @@ class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClient
               },
             ),
           ],
+          bottom: const TabBar(
+            labelColor: Color(0xFFFF00CC),
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Color(0xFFFF00CC),
+            indicatorWeight: 3,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            tabs: [
+              Tab(text: "Gợi ý"),
+              Tab(text: "Thịnh hành"),
+              Tab(text: "Mới nhất"),
+            ],
+          ),
         ),
-        // Consumer lắng nghe SongsProvider
+
         body: Consumer<SongsProvider>(
           builder: (context, provider, child) {
-            // Skeleton Loading
+            // 1. Loading
             if (provider.isLoading) {
               return const _SongsSkeletonLoading();
             }
 
-            // Error View
+            // 2. Error
             if (provider.errorMessage != null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text(provider.errorMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red)),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      //Gọi hàm fetchSongsData
-                      onPressed: () => provider.fetchSongsData(),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text("Thử lại"),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF00CC)),
-                    )
-                  ],
-                ),
-              );
+              return _buildErrorView(provider);
             }
 
-            // Lấy dữ liệu từ getter
             final data = provider.data;
             if (data == null) return const SizedBox();
 
-            // Main Content
-            return RefreshIndicator(
-              color: const Color(0xFFFF00CC),
-              //Gọi hàm fetchSongsData khi kéo xuống
-              onRefresh: () async {
-                await provider.fetchSongsData();
-              },
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionTitle(title: "🔥 Thịnh hành nhất"),
-                    _SongHorizontalList(
-                      songs: data.popular,
-                      onSongTap: (song) {
-                        provider.onSongSelected(song.id);
-                        widget.onSongClick(song);
-                      },
-                    ),
-                    const _SectionTitle(title: "✨ Bài hát mới"),
-                    _SongHorizontalList(
-                      songs: data.newest,
-                      onSongTap: (song) {
-                        provider.onSongSelected(song.id);
-                        widget.onSongClick(song);
-                      },
-                    ),
-                    const _SectionTitle(title: "🎧 Gợi ý cho bạn"),
-                    _SongHorizontalList(
-                      songs: data.recommended,
-                      onSongTap: (song) {
-                        provider.onSongSelected(song.id);
-                        widget.onSongClick(song);
-                      },
-                    ),
-                  ],
+            // 3. TabBarView
+            return TabBarView(
+              children: [
+                _SongTabContent(
+                  listKey: "recommended_list",
+                  songs: data.recommended,
+                  onRefresh: provider.fetchSongsData,
+                  onSongTap: (song) {
+                    provider.onSongSelected(song.id);
+                    widget.onSongClick(song);
+                  },
                 ),
-              ),
+
+                _SongTabContent(
+                  listKey: "popular_list",
+                  songs: data.popular,
+                  onRefresh: provider.fetchSongsData,
+                  onSongTap: (song) {
+                    provider.onSongSelected(song.id);
+                    widget.onSongClick(song);
+                  },
+                ),
+
+                _SongTabContent(
+                  listKey: "newest_list",
+                  songs: data.newest,
+                  onRefresh: provider.fetchSongsData,
+                  onSongTap: (song) {
+                    provider.onSongSelected(song.id);
+                    widget.onSongClick(song);
+                  },
+                ),
+              ],
             );
           },
         ),
       ),
     );
   }
+
+  Widget _buildErrorView(SongsProvider provider) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(provider.errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => provider.fetchSongsData(),
+            icon: const Icon(Icons.refresh),
+            label: const Text("Thử lại"),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF00CC)),
+          )
+        ],
+      ),
+    );
+  }
 }
 
 // ==========================================
-// 3. WIDGET SKELETON LOADING
+// WIDGET HIỂN THỊ DANH SÁCH DỌC (Cho từng Tab)
+// ==========================================
+class _SongTabContent extends StatelessWidget {
+  final List<SongModel> songs;
+  final Future<void> Function() onRefresh;
+  final Function(SongModel) onSongTap;
+  final String listKey;
+
+  const _SongTabContent({
+    Key? key,
+    required this.songs,
+    required this.onRefresh,
+    required this.onSongTap,
+    this.listKey = "default_list",
+  }): super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    if (songs.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 100),
+            Center(child: Text("Chưa có dữ liệu", style: TextStyle(color: Colors.grey))),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: const Color(0xFFFF00CC),
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        key: PageStorageKey(listKey),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: songs.length,
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          return Consumer<SongsProvider>(
+            builder: (context, provider, child) {
+              final isLiked = provider.isSongLiked(song.id);
+              return SongCard(
+                song: song,
+                isLiked: isLiked,
+                onLike: () {
+                  provider.toggleLike(song.id);
+                },
+                onTap: () => onSongTap(song),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// SKELETON LOADING
 // ==========================================
 class _SongsSkeletonLoading extends StatelessWidget {
   const _SongsSkeletonLoading({Key? key}) : super(key: key);
@@ -171,46 +216,11 @@ class _SongsSkeletonLoading extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.grey[100]!,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSkeletonSection(),
-            _buildSkeletonSection(),
-            _buildSkeletonSection(),
-          ],
-        ),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        itemCount: 6, // Giả lập 6 item
+        itemBuilder: (context, index) => const _SkeletonCardItem(),
       ),
-    );
-  }
-
-  Widget _buildSkeletonSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, top: 24, bottom: 8),
-          child: Container(
-            width: 150,
-            height: 24,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 240,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: 3,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) => const _SkeletonCardItem(),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -221,101 +231,46 @@ class _SkeletonCardItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 160,
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
+          // Avatar giả
           Container(
-            height: 120,
-            width: double.infinity,
-            decoration: const BoxDecoration(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius: BorderRadius.circular(10),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          const SizedBox(width: 12),
+          // Info giả
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(width: 100, height: 14, color: Colors.white),
+                Container(width: 120, height: 16, color: Colors.white),
                 const SizedBox(height: 8),
                 Container(width: 80, height: 12, color: Colors.white),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                )
+                const SizedBox(height: 8),
+                Container(width: 60, height: 10, color: Colors.white),
               ],
             ),
           ),
+          // Nút giả
+          Column(
+            children: [
+              Container(width: 20, height: 20, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+              const SizedBox(height: 10),
+              Container(width: 40, height: 20, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10))),
+            ],
+          )
         ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// CÁC WIDGET PHỤ
-// ==========================================
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  const _SectionTitle({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, top: 24, bottom: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-            fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-      ),
-    );
-  }
-}
-
-class _SongHorizontalList extends StatelessWidget {
-  final List<SongModel> songs;
-  final Function(SongModel) onSongTap;
-
-  const _SongHorizontalList({
-    required this.songs,
-    required this.onSongTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (songs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Text("Chưa có dữ liệu", style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    return SizedBox(
-      height: 240,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: songs.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          return SongCard(
-            song: songs[index],
-            onTap: () => onSongTap(songs[index]),
-          );
-        },
       ),
     );
   }

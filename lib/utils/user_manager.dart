@@ -19,9 +19,7 @@ class UserManager {
   bool _isUpdating = false;
 
   // Cấu hình Heartbeat
-  // Throttle: Tần suất update tối đa khi user đang thao tác liên tục (tránh spam server)
   final Duration _throttleDuration = const Duration(minutes: 5);
-  // Idle: Sau bao lâu không thao tác thì tự động bắn heartbeat duy trì
   final Duration _idleThreshold = const Duration(minutes: 6);
 
   static const String _kSessionIdKey = 'my_current_session_id';
@@ -29,9 +27,9 @@ class UserManager {
   // Biến Cache ID trong RAM để so sánh nhanh hơn
   String? _cachedLocalSessionId;
 
-  // ============================================================
+  // =============================
   // PHẦN 1: INIT & DISPOSE
-  // ============================================================
+  // =============================
   Future<void> init() async {
     // 1. Kiểm tra user hiện tại
     final session = Supabase.instance.client.auth.currentSession;
@@ -41,18 +39,17 @@ class UserManager {
     }
 
     // 2. Đồng bộ Session ID ngay lập tức
-    // Ưu tiên lấy từ RAM/Disk trước nếu có, nếu không thì lấy từ Token mới
     await _getLocalSessionId();
     if (_cachedLocalSessionId == null) {
       await syncSessionFromToken(session.accessToken);
     }
 
-    print("🛡️ User Manager: Đã khởi động (Heartbeat + Session ID Guard)");
+    debugPrint("🛡️ User Manager: Đã khởi động (Heartbeat + Session ID Guard)");
 
     // 3. Bắt đầu các logic bảo vệ
-    notifyApiActivity(); // Bắn phát đầu tiên
-    _setupAuthListener(); // Lắng nghe đăng xuất
-    _setupAccountListener(); // Lắng nghe đá thiết bị
+    notifyApiActivity();
+    _setupAuthListener();
+    _setupAccountListener();
   }
 
   void dispose() {
@@ -60,24 +57,24 @@ class UserManager {
     _userDbSubscription?.cancel();
     _authSubscription?.cancel();
     _cachedLocalSessionId = null;
-    print("🛡️ User Manager: Đã dừng.");
+    debugPrint("🛡️ User Manager: Đã dừng.");
   }
 
-  // ============================================================
+  // ==========================================
   // PHẦN 2: HELPER (Đồng bộ ID từ Token)
-  // ============================================================
+  // ==========================================
 
   Future<String> syncSessionFromToken(String accessToken) async {
     try {
       String sessionId = "";
 
-      // Cách 1: Decode từ JWT (như yêu cầu của bạn)
+      // Cách 1: Decode từ JWT
       Map<String, dynamic> decodedToken = JwtDecoder.decode(accessToken);
       if (decodedToken.containsKey('session_id')) {
         sessionId = decodedToken['session_id'];
       }
 
-      // Cách 2: Fallback nếu JWT không có (An toàn hơn)
+      // Cách 2: Fallback nếu JWT không có
       if (sessionId.isEmpty) {
         sessionId = accessToken.hashCode.toString();
       }
@@ -87,10 +84,10 @@ class UserManager {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kSessionIdKey, sessionId);
 
-      print("✅ Local Session Synced: $sessionId");
+      debugPrint("✅ Local Session Synced: $sessionId");
       return sessionId;
     } catch (e) {
-      print("❌ Lỗi decode token: $e");
+      debugPrint("❌ Lỗi decode token: $e");
       return "";
     }
   }
@@ -102,9 +99,9 @@ class UserManager {
     return _cachedLocalSessionId;
   }
 
-  // ============================================================
+  // ==========================================
   // PHẦN 3: LOGIC CHECK TỪ SPLASH SCREEN
-  // ============================================================
+  // ==========================================
 
   Future<void> checkSessionValidity() async {
     if (AuthService.instance.isGuest) return;
@@ -114,7 +111,6 @@ class UserManager {
 
     final localId = await _getLocalSessionId();
 
-    // Lấy thông tin mới nhất từ Server
     final data = await Supabase.instance.client
         .from('users')
         .select('current_session_id, locked_until')
@@ -122,7 +118,6 @@ class UserManager {
         .maybeSingle();
 
     if (data == null) {
-      // Có thể user chưa được tạo trong bảng users, bỏ qua hoặc throw tùy logic app
       return;
     }
 
@@ -145,15 +140,14 @@ class UserManager {
     }
   }
 
-  // ============================================================
+  // ======================================
   // PHẦN 4: HEARTBEAT (Giữ kết nối)
-  // ============================================================
+  // ======================================
 
   void notifyApiActivity() {
     final now = DateTime.now();
 
     // 1. LOGIC THROTTLE
-    // Nếu chưa từng update HOẶC đã quá thời gian throttle -> Update ngay
     if (_lastDbUpdate == null || now.difference(_lastDbUpdate!) > _throttleDuration) {
       _sendKeepAliveHeartbeat();
     }
@@ -175,34 +169,33 @@ class UserManager {
     _isUpdating = true;
 
     try {
-      print("💓 Heartbeat: Updating last_active_at...");
-      _lastDbUpdate = DateTime.now(); // Cập nhật local trước để chặn throttle ngay lập tức
+      debugPrint("💓 Heartbeat: Updating last_active_at...");
+      _lastDbUpdate = DateTime.now();
 
       await Supabase.instance.client.from('users').update({
         'last_active_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('id', user.id);
 
-      print("✅ Heartbeat Success");
+      debugPrint("✅ Heartbeat Success");
     } catch (e) {
-      print("💓 Heartbeat Error: $e");
-      _lastDbUpdate = null; // Reset nếu lỗi để lần sau thử lại ngay
+      debugPrint("💓 Heartbeat Error: $e");
+      _lastDbUpdate = null;
     } finally {
       _isUpdating = false;
     }
   }
 
-  // ============================================================
+  // ===============================
   // PHẦN 5: REALTIME LISTENER
-  // ============================================================
+  // ===============================
 
   void _setupAccountListener() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null || AuthService.instance.isGuest) return;
 
-    // Hủy subscription cũ nếu có để tránh trùng lặp
     _userDbSubscription?.cancel();
 
-    print("🛡️ Realtime: Bắt đầu lắng nghe thay đổi của User...");
+    debugPrint("🛡️ Realtime: Bắt đầu lắng nghe thay đổi của User...");
 
     _userDbSubscription = Supabase.instance.client
         .from('users')
@@ -234,7 +227,7 @@ class UserManager {
       // Chỉ check nếu cả 2 đều có giá trị
       if (localId != null && serverSessionId != null && localId.isNotEmpty) {
         if (localId != serverSessionId) {
-          print("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
+          debugPrint("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
           _showForceLogoutDialog(
               "Kết thúc phiên",
               "Tài khoản đã được đăng nhập trên thiết bị khác!"
@@ -242,13 +235,13 @@ class UserManager {
         }
       }
     }, onError: (err) {
-      print("🔥 Realtime Error: $err");
+      debugPrint("🔥 Realtime Error: $err");
     });
   }
 
-  // ============================================================
+  // =========================================
   // PHẦN 6: AUTH LISTENER & UI HANDLING
-  // ============================================================
+  // =========================================
 
   void _setupAuthListener() {
     _authSubscription?.cancel();
@@ -260,15 +253,12 @@ class UserManager {
   }
 
   Future<void> _showForceLogoutDialog(String title, String message) async {
-    // Ngắt kết nối ngay lập tức
     dispose();
 
-    // Xóa Session ID
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kSessionIdKey);
     _cachedLocalSessionId = null;
 
-    // Đăng xuất khỏi Supabase
     try { await AuthService.instance.logout(); } catch (_) {}
 
     final context = navigatorKey.currentContext;
@@ -285,9 +275,7 @@ class UserManager {
             actions: [
               TextButton(
                 onPressed: () {
-                  // Đóng dialog
                   Navigator.of(ctx).pop();
-                  // Chuyển về màn Login và xóa sạch stack
                   navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
                 },
                 child: const Text("Đồng ý", style: TextStyle(color: Colors.red)),

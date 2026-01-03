@@ -73,7 +73,7 @@ class _NavbarScreenState extends State<NavbarScreen> {
           },
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: primaryColor), label: 'Trang chủ'),
-            NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time_filled, color: primaryColor), label: 'Khoảnh khắc'),
+            NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time_filled, color: primaryColor), label: 'Khám phá'),
             NavigationDestination(icon: Icon(Icons.mic_none), selectedIcon: Icon(Icons.mic, color: primaryColor), label: 'Hát'),
             NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble, color: primaryColor), label: 'Tin nhắn'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: primaryColor), label: 'Tôi'),

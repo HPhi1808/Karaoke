@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:provider/provider.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:http/http.dart' as http;
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -17,6 +18,7 @@ import 'package:audio_session/audio_session.dart';
 import '../../../models/song_model.dart';
 import '../../../services/song_service.dart';
 import '../../../utils/lrc_parser.dart';
+import '../../../providers/songs_provider.dart';
 
 // --- MODEL SECTIONS ---
 class SongSection {
@@ -37,10 +39,10 @@ class SongDetailScreen extends StatefulWidget {
   final VoidCallback onBack;
 
   const SongDetailScreen({
-    Key? key,
+    super.key,
     required this.songId,
     required this.onBack,
-  }) : super(key: key);
+  });
 
   @override
   State<SongDetailScreen> createState() => _SongDetailScreenState();
@@ -53,7 +55,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   List<SongSection> _sections = [];
   bool _isLoading = true;
   bool _isLyricsLoaded = false; // Kiểm soát việc hiện nút/lời
-  bool _isFavorite = false;
   String? _errorMessage;
   Timer? _bufferingWatchdog;
   bool _isHandlingCompletion = false;
@@ -1022,17 +1023,17 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
   }
 
-  void _resetUIState() {
-    _lastAutoScrollIndex = -1;
-    setState(() {
-      _selectedSectionIndex = -1;
-      _isUserScrolling = false;
-      _isSessionStarted = false;
-    });
-    if (_scrollController.hasClients && _lyrics.isNotEmpty) {
-      _scrollController.scrollToIndex(0, preferPosition: AutoScrollPosition.middle);
-    }
-  }
+  // void _resetUIState() {
+  //   _lastAutoScrollIndex = -1;
+  //   setState(() {
+  //     _selectedSectionIndex = -1;
+  //     _isUserScrolling = false;
+  //     _isSessionStarted = false;
+  //   });
+  //   if (_scrollController.hasClients && _lyrics.isNotEmpty) {
+  //     _scrollController.scrollToIndex(0, preferPosition: AutoScrollPosition.middle);
+  //   }
+  // }
 
   // =======================
   // DIALOGS & POPUPS
@@ -1460,7 +1461,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     }
 
     final topPadding = MediaQuery.of(context).padding.top;
-    final appBarHeight = kToolbarHeight;
+    const appBarHeight = kToolbarHeight;
 
     return Scaffold(
       appBar: AppBar(
@@ -1487,17 +1488,39 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
           onPressed: _onBackPressed,
         ),
         actions: [
-          IconButton(
-            onPressed: () {
-              setState(() => _isFavorite = !_isFavorite);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(_isFavorite ? "Đã thêm vào yêu thích ❤️" : "Đã bỏ yêu thích"), duration: const Duration(seconds: 1)),
+          Consumer<SongsProvider>(
+            builder: (context, provider, child) {
+              if (_song == null) return const SizedBox();
+
+              final isLiked = provider.isSongLiked(_song!.id);
+
+              return IconButton(
+                onPressed: () {
+                  provider.toggleLike(_song!.id);
+
+                  // 2. Hiện thông báo (UX)
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        !isLiked ? "Đã thêm vào yêu thích ❤️" : "Đã bỏ yêu thích 💔",
+                        textAlign: TextAlign.center,
+                      ),
+                      duration: const Duration(seconds: 1),
+                      backgroundColor: !isLiked ? Colors.green : Colors.grey,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      margin: const EdgeInsets.all(50),
+                    ),
+                  );
+                },
+                icon: Icon(
+                  isLiked ? Icons.favorite : Icons.favorite_outline,
+                  color: isLiked ? Colors.red : Colors.white,
+                  size: 28,
+                ),
               );
             },
-            icon: Icon(
-              _isFavorite ? Icons.favorite : Icons.favorite_outline,
-              color: _isFavorite ? Colors.red : Colors.white,
-            ),
           ),
           const SizedBox(width: 8),
         ],

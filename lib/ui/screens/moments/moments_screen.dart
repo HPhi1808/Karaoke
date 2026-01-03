@@ -7,7 +7,7 @@ class MomentsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Khoảnh khắc", style: TextStyle(color: Colors.black)),
+        title: const Text("Khám phá", style: TextStyle(color: Colors.black)),
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,

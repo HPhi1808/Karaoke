@@ -41,29 +41,22 @@ class ApiClient {
     // 2. Interceptor Xử lý lỗi mạng & Retry
     dio.interceptors.add(InterceptorsWrapper(
       onError: (DioException e, handler) async {
-        // Kiểm tra xem có phải lỗi mạng không
         if (_isNetworkError(e)) {
           print("🔴 Mất kết nối mạng: ${e.message}");
 
-          // Hiện Dialog và chờ người dùng chọn
           bool shouldRetry = await _showRetryDialog();
 
           if (shouldRetry) {
             try {
-              // Gửi lại chính request vừa bị lỗi
-              // e.requestOptions chứa đầy đủ thông tin của request cũ (url, data, header...)
               final response = await dio.fetch(e.requestOptions);
 
-              // Nếu gửi lại thành công -> Trả về kết quả như chưa từng có cuộc chia ly
               return handler.resolve(response);
             } catch (retryError) {
-              // Nếu thử lại mà vẫn lỗi -> Trả về lỗi mới (để vòng lặp sau bắt tiếp hoặc văng ra ngoài)
               return handler.next(retryError as DioException);
             }
           }
         }
 
-        // Nếu không phải lỗi mạng hoặc người dùng chọn "Hủy" -> Ném lỗi ra ngoài
         print("🔴 API Error: ${e.response?.statusCode} - ${e.requestOptions.path}");
         return handler.next(e);
       },

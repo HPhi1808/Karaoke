@@ -2,9 +2,9 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'song_model.g.dart';
 
-// ==========================================
+// =========================================
 // 1. MODEL BÀI HÁT (Map từ API JSON)
-// ==========================================
+// =========================================
 @JsonSerializable()
 class SongModel {
   @JsonKey(name: 'song_id')
@@ -52,9 +52,9 @@ class SongModel {
   Map<String, dynamic> toJson() => _$SongModelToJson(this);
 }
 
-// ==========================================
+// ===========================
 // 2. MODEL DATA TRANG HÁT
-// ==========================================
+// ===========================
 @JsonSerializable()
 class SongResponse {
   final List<SongModel> newest;
@@ -71,9 +71,9 @@ class SongResponse {
   Map<String, dynamic> toJson() => _$SongResponseToJson(this);
 }
 
-// ==========================================
+// ===========================
 // 3. MODEL LỜI BÀI HÁT
-// ==========================================
+// ===========================
 
 class LyricLine {
   final int startTime;

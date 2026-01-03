@@ -9,6 +9,8 @@ import 'ui/screens/auth/reset_password_screen.dart';
 import 'ui/screens/navbar_screen.dart';
 import 'ui/screens/songs/song_detail_screen.dart';
 import 'ui/screens/splash_screen.dart';
+import 'ui/screens/me/me_recordings_screen.dart';
+import 'ui/screens/me/favorites_screen.dart';
 
 // Import services, providers & utils
 import 'services/auth_service.dart';
@@ -26,7 +28,14 @@ void main() async {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2bXVsbnV5cHNvdmx2bG5teHhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzMjAwNjAsImV4cCI6MjA4MDg5NjA2MH0.viLyy9wbJiQhfyJb-HNocsgZ1aMIsKGe4y4PJsg907U',
   );
 
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => SongsProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -87,6 +96,8 @@ class MyApp extends StatelessWidget {
               );
             },
           ),
+          '/recordings': (context) => const MeRecordingsScreen(),
+          '/favorites': (context) => const FavoritesScreen(),
         },
       ),
     );
@@ -95,14 +106,9 @@ class MyApp extends StatelessWidget {
   // --- HÀM XỬ LÝ ĐĂNG XUẤT ---
   void _handleLogout(BuildContext context) async {
     try {
-      // 1. Đăng xuất khỏi Supabase
       await AuthService.instance.logout();
-
-      // 2. Xóa sạch Token trong bộ nhớ máy
       await TokenManager.instance.clearAuth();
-
       if (context.mounted) {
-        // 3. Quay về màn hình Login và xóa hết lịch sử
         Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
       }
     } catch (e) {

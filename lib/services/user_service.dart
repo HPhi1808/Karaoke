@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import 'base_service.dart';
@@ -23,7 +24,7 @@ class UserService extends BaseService{
 
         return UserModel.fromJson(data);
       } catch (e) {
-        print("❌ Lỗi lấy profile từ Supabase: $e");
+        debugPrint("❌ Lỗi lấy profile từ Supabase: $e");
         if (e.toString().contains("PGRST116") ||
             e.toString().contains("Row not found")) {
           throw Exception(

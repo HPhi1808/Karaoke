@@ -1,77 +1,193 @@
-import 'package:dio/dio.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/song_model.dart';
-import 'api_client.dart';
+import 'base_service.dart';
 
-class SongService {
+class SongService extends BaseService {
   static final SongService instance = SongService._internal();
   SongService._internal();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  static const Duration _timeOutDuration = Duration(seconds: 15);
+  String? _cachedDeviceId;
 
-  final Dio _dio = ApiClient.instance.dio;
-
-  // --- API METHODS ---
+  // ===========================
+  // 1. CÁC HÀM LẤY DỮ LIỆU
+  // ===========================
 
   Future<SongResponse> getSongsOverview() async {
-    try {
-      final response = await _dio.get('/api/songs/songs');
+    return await safeExecution(() async {
+      final results = await Future.wait([
+        _getNewestSongs(10),
+        _getPopularSongs(10),
+        _getRandomSongs(10),
+      ]);
 
-      return SongResponse.fromJson(response.data);
-    } catch (e) {
-      throw _handleError(e);
-    }
+      return SongResponse(
+        newest: results[0],
+        popular: results[1],
+        recommended: results[2],
+      );
+    });
   }
 
   Future<List<SongModel>> searchSongs(String query) async {
-    try {
-      final response = await _dio.get('/api/songs', queryParameters: {'q': query});
+    return await safeExecution(() async {
+      final response = await _supabase
+          .from('songs')
+          .select()
+          .ilike('title', '%$query%')
+          .timeout(_timeOutDuration);
 
-      if (response.data is List) {
-        return (response.data as List).map((e) => SongModel.fromJson(e)).toList();
-      }
-      return [];
-    } catch (e) {
-      throw _handleError(e);
-    }
+      return (response as List).map((e) => SongModel.fromJson(e)).toList();
+    });
   }
 
   Future<SongModel> getSongDetail(int id) async {
-    try {
-      final response = await _dio.get('/api/songs/$id');
-      return SongModel.fromJson(response.data);
-    } catch (e) {
-      throw _handleError(e);
+    return await safeExecution(() async {
+      final response = await _supabase
+          .from('songs')
+          .select()
+          .eq('song_id', id)
+          .single()
+          .timeout(_timeOutDuration);
+
+      return SongModel.fromJson(response);
+    });
+  }
+
+  Future<String> _getDeviceId() async {
+    if (_cachedDeviceId != null) return _cachedDeviceId!;
+
+    final prefs = await SharedPreferences.getInstance();
+    String? id = prefs.getString('device_uuid');
+
+    if (id == null) {
+      id = const Uuid().v4();
+      await prefs.setString('device_uuid', id);
     }
+
+    _cachedDeviceId = id;
+    return id;
   }
 
   Future<void> incrementView(int id) async {
     try {
-      await _dio.post('/api/songs/$id/view');
+      final deviceId = await _getDeviceId();
+      await _supabase
+          .rpc('increment_view', params: {
+        'row_id': id,
+        'device_id': deviceId
+      })
+          .timeout(const Duration(seconds: 5));
+
     } catch (e) {
-      print("Error increment view: $e");
+      debugPrint("Lỗi tăng view: $e");
     }
   }
 
-  // --- HELPER XỬ LÝ LỖI ---
-  Exception _handleError(dynamic error) {
-    if (error is DioException) {
-      if (error.response?.data != null && error.response?.data is Map) {
-        final data = error.response?.data as Map;
+  // =========================
+  // 2. CÁC HÀM FAVORITE
+  // =========================
 
-        // Bắt lỗi tài khoản bị khóa
-        if (data['status'] == 'locked') {
-          return Exception(data['message'] ?? "Tài khoản đang bị tạm khóa.");
-        }
+  Future<List<SongModel>> getFavoriteSongs() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return [];
 
-        if (data['message'] != null) return Exception(data['message']);
-        if (data['error'] != null) return Exception(data['error']);
+    return await safeExecution(() async {
+      final response = await _supabase
+          .from('songs')
+          .select('*, favorites!inner(*)')
+          .eq('favorites.user_id', userId)
+          .order('created_at', ascending: false, referencedTable: 'favorites')
+          .timeout(_timeOutDuration);
+
+      return (response as List).map((e) => SongModel.fromJson(e)).toList();
+    });
+  }
+
+  Future<bool> isSongLiked(int songId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return false;
+    return await safeExecution(() async {
+      final response = await _supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('song_id', songId)
+          .maybeSingle()
+          .timeout(_timeOutDuration);
+      return response != null;
+    });
+  }
+
+  Future<bool> toggleFavorite(int songId) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) throw Exception("Vui lòng đăng nhập");
+
+    return await safeExecution(() async {
+      final checkResponse = await _supabase
+          .from('favorites')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('song_id', songId)
+          .maybeSingle()
+          .timeout(_timeOutDuration);
+
+      final isLiked = checkResponse != null;
+
+      if (isLiked) {
+        await _supabase
+            .from('favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('song_id', songId)
+            .timeout(_timeOutDuration);
+        return false;
+      } else {
+        await _supabase
+            .from('favorites')
+            .insert({'user_id': userId, 'song_id': songId})
+            .timeout(_timeOutDuration);
+        return true;
       }
+    });
+  }
 
-      // Xử lý các lỗi HTTP
-      if (error.response?.statusCode == 401) {
-        return Exception("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
-      }
+  // =============================
+  // 3. PRIVATE HELPER METHODS
+  // =============================
 
-      return Exception(error.message ?? "Lỗi kết nối server");
+  Future<List<SongModel>> _getNewestSongs(int limit) async {
+    final response = await _supabase
+        .from('songs')
+        .select()
+        .order('created_at', ascending: false)
+        .limit(limit)
+        .timeout(_timeOutDuration);
+    return (response as List).map((e) => SongModel.fromJson(e)).toList();
+  }
+
+  Future<List<SongModel>> _getPopularSongs(int limit) async {
+    final response = await _supabase
+        .from('songs')
+        .select()
+        .order('view_count', ascending: false)
+        .limit(limit)
+        .timeout(_timeOutDuration);
+    return (response as List).map((e) => SongModel.fromJson(e)).toList();
+  }
+
+  Future<List<SongModel>> _getRandomSongs(int limit) async {
+    try {
+      final response = await _supabase
+          .rpc('get_random_songs', params: {'limit_count': limit})
+          .timeout(_timeOutDuration);
+      return (response as List).map((e) => SongModel.fromJson(e)).toList();
+    } catch (e) {
+      return _getNewestSongs(limit);
     }
-    return Exception("Lỗi không xác định: $error");
   }
 }
