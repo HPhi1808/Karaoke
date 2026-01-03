@@ -61,7 +61,6 @@ const authRouter = require('./routes/auth');
 const adminUsersRouter = require('./routes/adminUsers');
 const adminSongsRouter = require('./routes/adminSongs');
 const appUsersRoutes = require('./routes/appUsers');
-const appSongsRouter = require('./routes/appSongs');
 const adminDashboardRouter = require('./routes/adminDashboard');
 const adminGuestsRouter = require('./routes/adminGuests');
 
@@ -81,7 +80,6 @@ app.use('/api/admin/guests', verifyToken, requireAdmin, adminGuestsRouter);
 
 // API App (User thường)
 app.use('/api/user', verifyToken, appUsersRoutes);
-app.use('/api/songs', appSongsRouter);
 
 // app.use('/api/rooms', appRoomsRouter);
 // app.use('/api/moments', appMomentsRouter);

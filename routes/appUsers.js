@@ -4,7 +4,7 @@ const { verifyToken } = require('../middlewares/auth');
 const pool = require('../config/db');
 
 router.get('/profile', verifyToken, async (req, res) => {
-    const user_id = req.user.user_id; // ID từ Supabase Middleware
+    const user_id = req.user.user_id;
     try {
         const result = await pool.query(
             'SELECT id, username, email, full_name, avatar_url, bio, role, created_at FROM users WHERE id = $1',
