@@ -65,7 +65,7 @@ class SongService {
         if (data['error'] != null) return Exception(data['error']);
       }
 
-      // Xử lý các lỗi HTTP Code cơ bản
+      // Xử lý các lỗi HTTP
       if (error.response?.statusCode == 401) {
         return Exception("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
       }

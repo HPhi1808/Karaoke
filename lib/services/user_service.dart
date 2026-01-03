@@ -1,7 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
+import 'base_service.dart';
 
-class UserService {
+class UserService extends BaseService{
   static final UserService instance = UserService._internal();
   UserService._internal();
 
@@ -9,23 +10,27 @@ class UserService {
 
   // Lấy thông tin profile từ bảng 'users' của Supabase
   Future<UserModel> getUserProfile() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception("Chưa đăng nhập");
+    return await safeExecution(() async {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception("Chưa đăng nhập");
 
-    try {
-      final data = await _supabase
-          .from('users')
-          .select()
-          .eq('id', user.id)
-          .single();
+      try {
+        final data = await _supabase
+            .from('users')
+            .select()
+            .eq('id', user.id)
+            .single();
 
-      return UserModel.fromJson(data);
-    } catch (e) {
-      print("❌ Lỗi lấy profile từ Supabase: $e");
-      if (e.toString().contains("PGRST116") || e.toString().contains("Row not found")) {
-        throw Exception("Không tìm thấy dữ liệu user. Hãy kiểm tra Policy RLS!");
+        return UserModel.fromJson(data);
+      } catch (e) {
+        print("❌ Lỗi lấy profile từ Supabase: $e");
+        if (e.toString().contains("PGRST116") ||
+            e.toString().contains("Row not found")) {
+          throw Exception(
+              "Không tìm thấy dữ liệu user. Hãy kiểm tra Policy RLS!");
+        }
+        rethrow;
       }
-      rethrow;
-    }
+    });
   }
 }

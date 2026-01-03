@@ -39,7 +39,6 @@ class _SplashScreenState extends State<SplashScreen> {
     final accessToken = await TokenManager.instance.getAccessToken();
     await Future.delayed(const Duration(seconds: 1));
 
-    // 1. Token không tồn tại -> Login
     if (accessToken == null || accessToken.isEmpty) {
       debugPrint("SPLASH: Không có token -> Login");
       _navigateToLogin();
@@ -47,52 +46,46 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     try {
-      // 2. Kiểm tra Token còn sống không (Lấy Profile)
       await UserService.instance.getUserProfile();
-
-      // 3. Nếu Token OK -> Kiểm tra Session ID (Đá thiết bị cũ)
       await UserManager.instance.checkSessionValidity();
 
       debugPrint("SPLASH: Mọi thứ OK -> Vào Home");
       if (mounted) Navigator.pushReplacementNamed(context, '/home');
 
     } catch (e) {
+      // 1. Token hết hạn / Lỗi Server 500 / Tài khoản bị khóa...
+      // 2. HOẶC User đã bấm nút "Hủy" trên hộp thoại lỗi mạng.
       String errorMsg = e.toString();
       debugPrint("SPLASH: Lỗi check app state: $errorMsg");
 
-      // A. Nếu lỗi là do đăng nhập nơi khác (từ checkSessionValidity) -> Báo lỗi ngay
+      // A. Nếu lỗi nghiệp vụ nghiêm trọng -> Logout ngay
       if (errorMsg.contains("đăng nhập trên thiết bị khác") || errorMsg.contains("bị khóa")) {
         await AuthService.instance.logout();
         _navigateToLogin(message: errorMsg);
         return;
       }
 
-      // B. Nếu lỗi do Token hết hạn (401...) -> Thử Refresh
+      // B. Thử cứu vãn bằng Refresh Token
       try {
-        debugPrint("SPLASH: Token có thể hết hạn -> Thử Refresh...");
+        debugPrint("SPLASH: Token lỗi -> Thử Refresh...");
+
         final recovered = await AuthService.instance.recoverSession();
 
         if (recovered) {
-          // Refresh xong thì phải check lại Session ID lần nữa cho chắc
+          // Refresh thành công thì check lại session lần nữa
           await UserManager.instance.checkSessionValidity();
-
           if (mounted) Navigator.pushReplacementNamed(context, '/home');
           return;
         }
       } catch (refreshErr) {
-        // Nếu refresh lỗi, hoặc sau khi refresh check session lại bị lỗi
-        String refreshMsg = refreshErr.toString();
-        if (refreshMsg.contains("đăng nhập trên thiết bị khác")) {
-          await AuthService.instance.logout();
-          _navigateToLogin(message: refreshMsg);
-          return;
-        }
+        debugPrint("SPLASH: Refresh thất bại -> $refreshErr");
       }
 
-      // C.Về Login (Phiên hết hạn thường)
-      debugPrint("SPLASH: Token chết hẳn -> Logout");
+      // C. Hết cách -> Logout và về Login
+      debugPrint("SPLASH: Token chết hẳn/User hủy retry -> Logout");
       await AuthService.instance.logout();
-      _navigateToLogin();
+
+      _navigateToLogin(message: "Phiên đăng nhập hết hạn hoặc lỗi kết nối.");
     }
   }
 

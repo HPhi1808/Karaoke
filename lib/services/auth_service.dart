@@ -1,12 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/token_manager.dart';
 import '../utils/user_manager.dart';
 import 'api_client.dart';
+import 'base_service.dart';
 
-class AuthService {
+class AuthService extends BaseService{
   static final AuthService instance = AuthService._internal();
   AuthService._internal();
 
@@ -16,29 +18,31 @@ class AuthService {
 
   // Hàm khôi phục session
   Future<bool> recoverSession() async {
-    try {
-      // 1. Lấy Refresh Token từ bộ nhớ
-      final refreshToken = await TokenManager.instance.getRefreshToken();
-      if (refreshToken == null || refreshToken.isEmpty) return false;
+    return await safeExecution(() async {
+      try {
+        // 1. Lấy Refresh Token từ bộ nhớ
+        final refreshToken = await TokenManager.instance.getRefreshToken();
+        if (refreshToken == null || refreshToken.isEmpty) return false;
 
-      // 2. Yêu cầu Supabase cấp session mới
-      final response = await _client.auth.setSession(refreshToken);
+        // 2. Yêu cầu Supabase cấp session mới
+        final response = await _client.auth.setSession(refreshToken);
 
-      if (response.session != null) {
-        // 3. Lưu lại token mới nhất vào máy
-        String role = await getCurrentRole();
-        await TokenManager.instance.saveAuthInfo(
-            response.session!.accessToken,
-            response.session!.refreshToken ?? '',
-            role
-        );
-        return true;
+        if (response.session != null) {
+          // 3. Lưu lại token mới nhất vào máy
+          String role = await getCurrentRole();
+          await TokenManager.instance.saveAuthInfo(
+              response.session!.accessToken,
+              response.session!.refreshToken ?? '',
+              role
+          );
+          return true;
+        }
+        return false;
+      } catch (e) {
+        print("⚠️ Lỗi khôi phục session: $e");
+        return false;
       }
-      return false;
-    } catch (e) {
-      print("⚠️ Lỗi khôi phục session: $e");
-      return false;
-    }
+    });
   }
 
   // ==========================================================
@@ -46,40 +50,42 @@ class AuthService {
   // ==========================================================
 
   Future<void> loginAsGuest() async {
-    // 1. Nếu đang có session trong RAM
-    final currentSession = _client.auth.currentSession;
-    if (currentSession != null && !currentSession.isExpired) {
-      print("✅ Session RAM còn ngon, không cần login lại.");
-      return;
-    }
-
-    // 2. Nếu không có RAM, thử khôi phục từ Disk (Refresh Token)
-    bool isRecovered = await recoverSession();
-
-    if (isRecovered) {
-      print("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
-      return;
-    }
-
-    // 3. Nếu không khôi phục được -> BẮT BUỘC TẠO MỚI (User mới)
-    await logout();
-
-    try {
-      print("🚀 Tạo Guest User mới...");
-      final res = await _client.auth.signInAnonymously();
-
-      if (res.session != null) {
-        await TokenManager.instance.saveAuthInfo(
-            res.session!.accessToken,
-            res.session!.refreshToken ?? '',
-            'guest'
-        );
-      } else {
-        throw Exception("Supabase không trả về Session.");
+    await safeExecution(() async {
+      // 1. Nếu đang có session trong RAM
+      final currentSession = _client.auth.currentSession;
+      if (currentSession != null && !currentSession.isExpired) {
+        print("✅ Session RAM còn, không cần login lại.");
+        return;
       }
-    } catch (e) {
-      throw Exception('Lỗi đăng nhập khách: $e');
-    }
+
+      // 2. Nếu không có RAM, thử khôi phục từ Disk (Refresh Token)
+      bool isRecovered = await recoverSession();
+
+      if (isRecovered) {
+        print("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
+        return;
+      }
+
+      // 3. Nếu không khôi phục được -> BẮT BUỘC TẠO MỚI (User mới)
+      await logout();
+
+      try {
+        print("🚀 Tạo Guest User mới...");
+        final res = await _client.auth.signInAnonymously();
+
+        if (res.session != null) {
+          await TokenManager.instance.saveAuthInfo(
+              res.session!.accessToken,
+              res.session!.refreshToken ?? '',
+              'guest'
+          );
+        } else {
+          throw Exception("Supabase không trả về Session.");
+        }
+      } catch (e) {
+        throw Exception('Lỗi đăng nhập khách: $e');
+      }
+    });
   }
 
   // Getter kiểm tra nhanh
@@ -90,7 +96,7 @@ class AuthService {
 
   // Lấy Role KHÔNG CẦN GỌI DATABASE
   Future<String> getCurrentRole() async {
-    // Ưu tiên 1: Lấy từ Local Storage
+      // Ưu tiên 1: Lấy từ Local Storage
     String? storedRole = await TokenManager.instance.getUserRole();
     if (storedRole != null && storedRole.isNotEmpty) {
       return storedRole;
@@ -116,110 +122,116 @@ class AuthService {
   // ==========================================================
 
   Future<void> login({required String identifier, required String password}) async {
-    try {
-      String? oldGuestId;
-      if (isGuest) {
-        oldGuestId = _client.auth.currentUser?.id;
-      }
-
-      String input = identifier.trim();
-      String emailToLogin = "";
-      String role = 'user';
-
-      // 1. Kiểm tra User trong DB
-      final response = await _client
-          .from('users')
-          .select('email, role, username, locked_until')
-          .or('email.eq.$input,username.eq.$input')
-          .maybeSingle();
-
-      if (response == null) {
-        throw Exception('Tài khoản không tồn tại!');
-      }
-
-      role = response['role']?.toString() ?? 'user';
-      final String? dbUsername = response['username'];
-      final String? lockedUntilStr = response['locked_until'];
-      emailToLogin = response['email'] as String;
-
-      if (role == 'admin' || role == 'own') {
-        throw Exception('App chỉ dành cho Thành viên. Admin vui lòng dùng Web.');
-      }
-
-      if (dbUsername == null) {
-        throw Exception('Dữ liệu tài khoản lỗi (thiếu username).');
-      }
-
-      // Check khóa tài khoản
-      if (lockedUntilStr != null) {
-        DateTime lockedTime = DateTime.parse(lockedUntilStr).toLocal();
-        if (lockedTime.isAfter(DateTime.now())) {
-          throw Exception('Tài khoản bị KHÓA đến ${lockedTime.toString().split('.')[0]}.');
+    await safeExecution(() async {
+      try {
+        String? oldGuestId;
+        if (isGuest) {
+          oldGuestId = _client.auth.currentUser?.id;
         }
-      }
 
-      // 2. Thực hiện đăng nhập Auth
-      final AuthResponse res = await _client.auth.signInWithPassword(
-        email: emailToLogin,
-        password: password,
-      );
+        String input = identifier.trim();
+        String emailToLogin = "";
+        String role = 'user';
 
-      final session = res.session;
+        // 1. Kiểm tra User trong DB
+        final response = await _client
+            .from('users')
+            .select('email, role, username, locked_until')
+            .or('email.eq.$input,username.eq.$input')
+            .maybeSingle();
 
-      // 3. XỬ LÝ SESSION ID
-      if (session != null && res.user != null) {
-        // Lưu Token vào TokenManager
-        await TokenManager.instance.saveAuthInfo(
-            session.accessToken,
-            session.refreshToken ?? '',
-            role
+        if (response == null) {
+          throw Exception('Tài khoản không tồn tại!');
+        }
+
+        role = response['role']?.toString() ?? 'user';
+        final String? dbUsername = response['username'];
+        final String? lockedUntilStr = response['locked_until'];
+        emailToLogin = response['email'] as String;
+
+        if (role == 'admin' || role == 'own') {
+          throw Exception(
+              'App chỉ dành cho Thành viên. Admin vui lòng dùng Web.');
+        }
+
+        if (dbUsername == null) {
+          throw Exception('Dữ liệu tài khoản lỗi (thiếu username).');
+        }
+
+        // Check khóa tài khoản
+        if (lockedUntilStr != null) {
+          DateTime lockedTime = DateTime.parse(lockedUntilStr).toLocal();
+          if (lockedTime.isAfter(DateTime.now())) {
+            throw Exception(
+                'Tài khoản bị KHÓA đến ${lockedTime.toString().split(
+                    '.')[0]}.');
+          }
+        }
+
+        // 2. Thực hiện đăng nhập Auth
+        final AuthResponse res = await _client.auth.signInWithPassword(
+          email: emailToLogin,
+          password: password,
         );
 
-        // --- ĐỒNG BỘ SESSION ID TỪ TOKEN ---
-        final String supabaseSessionId = await UserManager.instance.syncSessionFromToken(session.accessToken);
+        final session = res.session;
 
-        final nowUtc = DateTime.now().toUtc().toIso8601String();
+        // 3. XỬ LÝ SESSION ID
+        if (session != null && res.user != null) {
+          // Lưu Token vào TokenManager
+          await TokenManager.instance.saveAuthInfo(
+              session.accessToken,
+              session.refreshToken ?? '',
+              role
+          );
 
-        // A. Cập nhật ID này lên Database
-        await _client.from('users').update({
-          'current_session_id': supabaseSessionId,
-          'last_sign_in_at': nowUtc,
-          'last_active_at': nowUtc,
-        }).eq('id', res.user!.id);
+          // --- ĐỒNG BỘ SESSION ID TỪ TOKEN ---
+          final String supabaseSessionId = await UserManager.instance
+              .syncSessionFromToken(session.accessToken);
+
+          final nowUtc = DateTime.now().toUtc().toIso8601String();
+
+          // A. Cập nhật ID này lên Database
+          await _client.from('users').update({
+            'current_session_id': supabaseSessionId,
+            'last_sign_in_at': nowUtc,
+            'last_active_at': nowUtc,
+          }).eq('id', res.user!.id);
 
 
-        // C. Khởi động Manager (Guard)
-        UserManager.instance.init();
+          // C. Khởi động Manager (Guard)
+          UserManager.instance.init();
+        } else {
+          throw Exception("Đăng nhập thất bại!");
+        }
 
-      } else {
-        throw Exception("Đăng nhập thất bại!");
+        // 4. Dọn dẹp Guest cũ
+        if (oldGuestId != null) {
+          _cleanupGuestAccount(oldGuestId);
+        }
+      } catch (e) {
+        String msg = e.toString();
+        if (msg.contains("Invalid login credentials")) {
+          throw Exception("Sai mật khẩu hoặc tài khoản!");
+        }
+        rethrow;
       }
-
-      // 4. Dọn dẹp Guest cũ
-      if (oldGuestId != null) {
-        _cleanupGuestAccount(oldGuestId);
-      }
-
-    } catch (e) {
-      String msg = e.toString();
-      if (msg.contains("Invalid login credentials")) {
-        throw Exception("Sai mật khẩu hoặc tài khoản!");
-      }
-      rethrow;
-    }
+    });
   }
 
   // Hàm dọn dẹp guest
   Future<void> _cleanupGuestAccount(String guestId) async {
-    try {
-      await http.post(
-        Uri.parse('$_baseUrl/api/auth/cleanup-guest'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'guest_id': guestId}),
-      );
-    } catch (e) {
-      print("❌ Lỗi kết nối dọn guest: $e");
-    }
+    await safeExecution(() async {
+      try {
+        await http.post(
+          Uri.parse('$_baseUrl/api/auth/cleanup-guest'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'guest_id': guestId}),
+        );
+      } catch (e) {
+        print("❌ Lỗi kết nối dọn guest: $e");
+      }
+    });
   }
 
   // ==========================================================
@@ -229,19 +241,23 @@ class AuthService {
   // Hàm logout
   Future<void> logout() async {
     try {
-      await _client.auth.signOut();
-    } catch (_) {}
+      await _client.auth.signOut(scope: SignOutScope.global);
+    } catch (e) {
+      debugPrint("⚠️ Logout Server Error (Ignored): $e");
+    }
     await TokenManager.instance.clearAuth();
   }
 
   // Hàm xử lý hết hạn token (Đá về login)
   Future<void> handleTokenExpired(BuildContext context) async {
-    if (!context.mounted) return;
-    await logout();
-    Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Phiên đăng nhập hết hạn."))
-    );
+    await safeExecution(() async {
+      if (!context.mounted) return;
+      await logout();
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Phiên đăng nhập hết hạn."))
+      );
+    });
   }
 
   User? get currentUser => _client.auth.currentUser;
@@ -253,36 +269,40 @@ class AuthService {
   // ==========================================================
 
   Future<String> sendRegisterOtp(String email) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/auth/register/send-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
+    return await safeExecution(() async {
+      try {
+        final response = await http.post(
+          Uri.parse('$_baseUrl/api/auth/register/send-otp'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email}),
+        );
 
-      final responseData = jsonDecode(response.body);
+        final responseData = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        return responseData['status'] ?? 'success';
-      } else {
-        throw Exception(responseData['message'] ?? 'Lỗi gửi OTP');
+        if (response.statusCode == 200) {
+          return responseData['status'] ?? 'success';
+        } else {
+          throw Exception(responseData['message'] ?? 'Lỗi gửi OTP');
+        }
+      } catch (e) {
+        rethrow;
       }
-    } catch (e) {
-      rethrow;
-    }
+    });
   }
 
   Future<void> verifyRegisterOtp(String email, String otp) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/register/verify-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'token': otp}),
-    );
+    await safeExecution(() async {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/auth/register/verify-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'token': otp}),
+      );
 
-    if (response.statusCode != 200) {
-      final responseData = jsonDecode(response.body);
-      throw Exception(responseData['message'] ?? 'Mã OTP không đúng');
-    }
+      if (response.statusCode != 200) {
+        final responseData = jsonDecode(response.body);
+        throw Exception(responseData['message'] ?? 'Mã OTP không đúng');
+      }
+    });
   }
 
   Future<void> completeRegister({
@@ -293,33 +313,35 @@ class AuthService {
     required String gender,
     required String region,
   }) async {
-    final usernameRegex = RegExp(r'^[a-zA-Z0-9]{3,20}$');
-    if (!usernameRegex.hasMatch(username)) {
-      throw Exception('Tên đăng nhập 3-20 ký tự, chỉ chứa chữ cái và số!');
-    }
-
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/api/auth/register/complete'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'username': username,
-          'full_name': fullName,
-          'password': password,
-          'gender': gender,
-          'region': region,
-        }),
-      );
-
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode != 200) {
-        throw Exception(responseData['message'] ?? 'Lỗi hoàn tất đăng ký');
+    await safeExecution(() async {
+      final usernameRegex = RegExp(r'^[a-zA-Z0-9]{3,20}$');
+      if (!usernameRegex.hasMatch(username)) {
+        throw Exception('Tên đăng nhập 3-20 ký tự, chỉ chứa chữ cái và số!');
       }
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Lỗi kết nối máy chủ.');
-    }
+
+      try {
+        final response = await http.post(
+          Uri.parse('$_baseUrl/api/auth/register/complete'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email,
+            'username': username,
+            'full_name': fullName,
+            'password': password,
+            'gender': gender,
+            'region': region,
+          }),
+        );
+
+        final responseData = jsonDecode(response.body);
+        if (response.statusCode != 200) {
+          throw Exception(responseData['message'] ?? 'Lỗi hoàn tất đăng ký');
+        }
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception('Lỗi kết nối máy chủ.');
+      }
+    });
   }
 
   // ==========================================================
@@ -327,57 +349,67 @@ class AuthService {
   // ==========================================================
 
   Future<String> sendRecoveryOtp(String email) async {
-    try {
-      final userCheck = await _client
-          .from('users')
-          .select('id, username')
-          .eq('email', email)
-          .maybeSingle();
+    return await safeExecution(() async {
+      try {
+        final userCheck = await _client
+            .from('users')
+            .select('id, username')
+            .eq('email', email)
+            .maybeSingle();
 
-      if (userCheck == null) throw Exception('Email này chưa được đăng ký.');
-      if (userCheck['username'] == null) throw Exception('Email lỗi dữ liệu.');
-    } catch (e) {
-      if (e.toString().contains('Email này')) rethrow;
-    }
+        if (userCheck == null) throw Exception('Email này chưa được đăng ký.');
+        if (userCheck['username'] == null) throw Exception(
+            'Email lỗi dữ liệu.');
+      } catch (e) {
+        if (e.toString().contains('Email này')) rethrow;
+      }
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/forgot-password/send-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
-    );
-    final data = jsonDecode(response.body);
-    if (response.statusCode == 200) return data['status'];
-    throw Exception(data['message'] ?? 'Lỗi gửi OTP');
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/auth/forgot-password/send-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) return data['status'];
+      throw Exception(data['message'] ?? 'Lỗi gửi OTP');
+    });
   }
 
   Future<String> verifyRecoveryOtp(String email, String otp) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/forgot-password/verify-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'token': otp}),
-    );
-    final data = jsonDecode(response.body);
+    return await safeExecution(() async {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/auth/forgot-password/verify-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'token': otp}),
+      );
+      final data = jsonDecode(response.body);
 
-    if (response.statusCode == 200) {
-      return data['temp_token'] ?? '';
-    }
-    throw Exception(data['message'] ?? 'OTP không đúng');
+      if (response.statusCode == 200) {
+        return data['temp_token'] ?? '';
+      }
+      throw Exception(data['message'] ?? 'OTP không đúng');
+    });
   }
 
   Future<void> resetPasswordFinal(String email, String newPassword, String tempToken) async {
-    if (newPassword.length < 6) throw Exception('Mật khẩu quá ngắn (>6 ký tự).');
+    await safeExecution(() async {
+      if (newPassword.length < 6) throw Exception(
+          'Mật khẩu quá ngắn (>6 ký tự).');
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/api/auth/forgot-password/reset'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'new_password': newPassword,
-        'token': tempToken,
-      }),
-    );
-    if (response.statusCode != 200) {
-      throw Exception(jsonDecode(response.body)['message'] ?? 'Lỗi đổi mật khẩu');
-    }
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/auth/forgot-password/reset'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'new_password': newPassword,
+          'token': tempToken,
+        }),
+      );
+      if (response.statusCode != 200) {
+        throw Exception(
+            jsonDecode(response.body)['message'] ?? 'Lỗi đổi mật khẩu');
+      }
+    });
   }
+
 }

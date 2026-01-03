@@ -54,6 +54,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   bool _isLoading = true;
   bool _isLyricsLoaded = false; // Kiểm soát việc hiện nút/lời
   bool _isFavorite = false;
+  String? _errorMessage;
+  Timer? _bufferingWatchdog;
+  bool _isHandlingCompletion = false;
 
   // 2. Audio & Players
   final AudioPlayer _beatPlayer = AudioPlayer();
@@ -108,6 +111,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   @override
   void dispose() {
     WakelockPlus.disable();
+    _bufferingWatchdog?.cancel();
     _audioRecorder.dispose();
     _beatPlayer.dispose();
     _vocalPlayer.dispose();
@@ -136,6 +140,13 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     });
 
     _beatPlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.buffering ||
+          state.processingState == ProcessingState.loading) {
+        _startBufferingWatchdog();
+
+      } else {
+        _bufferingWatchdog?.cancel();
+      }
       // Xử lý khi hát xong
       if (state.processingState == ProcessingState.completed) {
         if (_targetEndTime == null) {
@@ -149,6 +160,34 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         }
       }
     });
+
+    _beatPlayer.playbackEventStream.listen(
+          (event) {},
+      onError: (Object e, StackTrace st) {
+        debugPrint("Playback Error detected: $e");
+        _handlePlaybackError(e);
+      },
+    );
+  }
+
+  void _startBufferingWatchdog() {
+    _bufferingWatchdog?.cancel();
+    _bufferingWatchdog = Timer(const Duration(seconds: 10), () async {
+      if (_beatPlayer.processingState == ProcessingState.buffering ||
+          _beatPlayer.processingState == ProcessingState.loading) {
+        debugPrint("TIMEOUT: Buffering quá lâu -> Kích hoạt lỗi mạng");
+        _handlePlaybackError(Exception("Timeout: Mạng yếu hoặc mất kết nối."));
+      }
+    });
+  }
+
+  Future<bool> _hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   // Cấu hình phiên âm thanh
@@ -175,6 +214,12 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   // Tải thông tin bài hát, beat, vocal và lời
   Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _isLyricsLoaded = false;
+    });
+
     try {
       final song = await SongService.instance.getSongDetail(widget.songId);
       if (mounted) setState(() => _song = song);
@@ -183,42 +228,120 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       await _beatPlayer.setSpeed(1.0);
       await _vocalPlayer.setSpeed(1.0);
 
-      if (song.beatUrl != null) setupFutures.add(_beatPlayer.setUrl(song.beatUrl!));
+      if (song.beatUrl != null) {
+        setupFutures.add(
+            _beatPlayer.setUrl(song.beatUrl!)
+                .timeout(const Duration(seconds: 15), onTimeout: () {
+              throw Exception("Quá thời gian tải nhạc nền. Mạng quá yếu.");
+            })
+                .catchError((e) {
+              throw Exception("Không thể tải nhạc nền (Beat). ${e.toString()}");
+            })
+        );
+      } else {
+        throw Exception("Dữ liệu bài hát lỗi: Không có link Beat.");
+      }
+
       if (song.vocalUrl != null && song.vocalUrl!.isNotEmpty) {
         _hasVocalUrl = true;
-        setupFutures.add(_vocalPlayer.setUrl(song.vocalUrl!));
-        await _vocalPlayer.setVolume(_vocalVolume);
+        setupFutures.add(
+            _vocalPlayer.setUrl(song.vocalUrl!)
+                .timeout(const Duration(seconds: 10))
+                .catchError((e) {
+              debugPrint("⚠️ Lỗi tải vocal (bỏ qua): $e");
+              _hasVocalUrl = false;
+            })
+        );
       }
+
       await _beatPlayer.setVolume(_beatVolume);
+      if (_hasVocalUrl) await _vocalPlayer.setVolume(_vocalVolume);
+
       await Future.wait(setupFutures);
 
-      if (song.lyricUrl != null) {
-        final response = await http.get(Uri.parse(song.lyricUrl!));
-        if (response.statusCode == 200) {
-          final lrcContent = utf8.decode(response.bodyBytes);
-          final result = await compute(_parseSectionsAndCleanLrc, lrcContent);
-          final cleanContent = result['content'] as String;
-          final sections = result['sections'] as List<SongSection>;
-          final parsedLyrics = await compute(LrcParser.parse, cleanContent);
+      if (song.lyricUrl == null || song.lyricUrl!.isEmpty) {
+        throw Exception("Bài hát này chưa có dữ liệu lời (Lyrics).");
+      }
 
-          if (mounted) {
-            setState(() {
-              _lyrics = parsedLyrics;
-              _sections = sections;
-              // Delay nhỏ để tạo hiệu ứng chuyển cảnh mượt từ skeleton sang lời
-              Future.delayed(const Duration(milliseconds: 800), () {
-                if (mounted) setState(() => _isLyricsLoaded = true);
-              });
-            });
-          }
+      final response = await http.get(Uri.parse(song.lyricUrl!))
+          .timeout(const Duration(seconds: 15), onTimeout: () {
+        throw Exception("Internet không ổn định, không thể tải lời bài hát.");
+      });
+
+      if (response.statusCode == 200) {
+        final lrcContent = utf8.decode(response.bodyBytes);
+
+        final result = await compute(_parseSectionsAndCleanLrc, lrcContent);
+        final cleanContent = result['content'] as String;
+        final sections = result['sections'] as List<SongSection>;
+        final parsedLyrics = await compute(LrcParser.parse, cleanContent);
+
+        if (parsedLyrics.isEmpty) {
+          throw Exception("File lời bài hát bị lỗi!");
+        }
+
+        if (mounted) {
+          setState(() {
+            _lyrics = parsedLyrics;
+            _sections = sections;
+            _isLyricsLoaded = true;
+          });
         }
       } else {
-        if (mounted) setState(() => _isLyricsLoaded = true);
+        throw Exception("Lỗi máy chủ khi tải lời: Mã ${response.statusCode}");
       }
+
     } catch (e) {
-      debugPrint("Error loading data: $e");
+      debugPrint("❌ Error loading data: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = _getFriendlyErrorMessage(e);
+          _isLoading = false;
+        });
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && _errorMessage == null) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _getFriendlyErrorMessage(dynamic error) {
+    String msg = error.toString();
+    String lowerMsg = msg.toLowerCase();
+
+    if (msg.startsWith("Exception: ")) {
+      msg = msg.substring(11);
+    }
+
+    if (lowerMsg.contains("socketexception") ||
+        lowerMsg.contains("connection refused") ||
+        lowerMsg.contains("network") ||
+        lowerMsg.contains("timed out")) {
+      return "Mất kết nối Internet.\nKhông thể tải lời bài hát.";
+    }
+
+    return msg;
+  }
+
+  Future<void> _handlePlaybackError(dynamic error) async {
+    await _pauseSession();
+
+    String errorMsg = _getFriendlyErrorMessage(error);
+
+    bool canSave = _isSessionStarted && _isRecording && _currentRecDuration.inSeconds >= 10;
+
+    if (canSave) {
+      if (mounted) {
+        _showNetworkErrorSaveDialog(errorMsg);
+      }
+    } else {
+      if (mounted) {
+        _discardRecording();
+        setState(() {
+          _errorMessage = "$errorMsg\n(Lỗi xảy ra trong quá trình phát nhạc)";
+        });
+      }
     }
   }
 
@@ -272,6 +395,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   Future<void> _togglePlayPause() async {
     if (_isCountingDown) return;
 
+    if (!_beatPlayer.playing) {
+      bool hasNet = await _hasInternet();
+      if (!hasNet) {
+        _handlePlaybackError(Exception("Không có kết nối Internet"));
+        return;
+      }
+    }
+
     if (!_isSessionStarted) {
       setState(() => _selectedSectionIndex = -1);
       await _startFreshSession();
@@ -322,6 +453,11 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   // Bắt đầu một phiên thu âm mới từ đầu (hoặc tại vị trí hiện tại nếu skipSeek=true)
   Future<void> _startFreshSession({bool skipSeek = false}) async {
+    bool hasNet = await _hasInternet();
+    if (!hasNet) {
+      _handlePlaybackError(Exception("Mất kết nối Internet. Không thể bắt đầu."));
+      return;
+    }
     if (await Permission.microphone.request().isDenied) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cần quyền Micro")));
       return;
@@ -355,7 +491,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       });
 
       if (!skipSeek) {
-        await _beatPlayer.seek(Duration.zero);
+        await _beatPlayer.seek(Duration.zero).timeout(const Duration(seconds: 5));;
         if (_hasVocalUrl) await _vocalPlayer.seek(Duration.zero);
       }
 
@@ -388,8 +524,28 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   // Tiếp tục nhạc và thu âm
   Future<void> _resumeSession() async {
     try {
+      if (_targetEndTime != null) {
+        final currentPos = _beatPlayer.position;
+        if (currentPos >= _targetEndTime! - const Duration(milliseconds: 650)) {
+          debugPrint("Resume tại điểm cuối đoạn -> Mở khóa sang Full Bài");
+
+          setState(() {
+            _targetEndTime = null;
+            _selectedSectionIndex = -1;
+            _isCompleted = false;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Đang phát tiếp phần còn lại của bài hát..."),
+                duration: Duration(milliseconds: 1000),
+              ),
+            );
+          }
+        }
+      }
       if (!_isRecording) {
-        // Nếu file ghi âm bị mất/stop, start file mới tại vị trí hiện tại
         await _startFreshSession(skipSeek: true);
         return;
       }
@@ -400,7 +556,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       await Future.delayed(const Duration(milliseconds: 36));
       _beatPlayer.play();
       if (_hasVocalUrl) {
-        await _vocalPlayer.seek(_beatPlayer.position);
+        if ((_vocalPlayer.position - _beatPlayer.position).abs().inMilliseconds > 100) {
+          await _vocalPlayer.seek(_beatPlayer.position);
+        }
         await _vocalPlayer.setVolume(_isVocalEnabled ? 1.0 : 0.0);
         _vocalPlayer.play();
       }
@@ -438,7 +596,23 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
         _isSessionStarted = false;
         _isRecording = false;
         _isCompleted = false;
+        _isUserScrolling = false;
       });
+
+      _lastAutoScrollIndex = -1;
+      _isHandlingCompletion = false;
+
+      if (_scrollController.hasClients && _lyrics.isNotEmpty) {
+        if (_selectedSectionIndex == -1) {
+          _scrollController.scrollToIndex(0, preferPosition: AutoScrollPosition.middle, duration: const Duration(milliseconds: 500));
+        } else {
+          int targetIndex = _lyrics.indexWhere((line) => line.startTime >= startPosition.inMilliseconds - 100);
+          if (targetIndex == -1) targetIndex = _findActiveLineIndex(startPosition.inMilliseconds);
+          if (targetIndex != -1) {
+            _scrollController.scrollToIndex(targetIndex, preferPosition: AutoScrollPosition.middle, duration: const Duration(milliseconds: 500));
+          }
+        }
+      }
       await _startFreshSession(skipSeek: true);
     } catch (e) {
       debugPrint("Restart Error: $e");
@@ -447,6 +621,10 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   // Xử lý sự kiện khi bài hát kết thúc tự nhiên
   Future<void> _handleSongCompletion() async {
+    if (_isHandlingCompletion || _isCompleted) return;
+
+    _isHandlingCompletion = true;
+
     if (mounted) setState(() => _isCompleted = true);
     await _pauseSession();
 
@@ -458,9 +636,6 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     _beatPlayer.seek(startPosition);
     if (_hasVocalUrl) _vocalPlayer.seek(startPosition);
 
-    if (_isRecording && _recordingPath != null) {
-      if (mounted) _showRecordingOptionsDialog();
-    }
     _lastAutoScrollIndex = -1;
     setState(() {
       _isUserScrolling = false;
@@ -473,12 +648,17 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
       _scrollController.scrollToIndex(targetIndex, preferPosition: AutoScrollPosition.middle);
     }
+    if (_isRecording && _recordingPath != null) {
+      if (mounted) {
+        _showRecordingOptionsDialog(allowContinue: false);
+      }
+    }
   }
 
   // Kết thúc thu âm chủ động (nút Check V)
   Future<void> _finishRecordingSession() async {
     await _pauseSession();
-    if (mounted) _showRecordingOptionsDialog();
+    if (mounted) _showRecordingOptionsDialog(allowContinue: true);
   }
 
   // ================================
@@ -486,8 +666,14 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   // ================================
 
   // Xử lý sự kiện tua nhạc (Seek)
-  void _performSeek(double value) {
+  void _performSeek(double value) async {
     if (_isCountingDown) return;
+
+    bool hasNet = await _hasInternet();
+    if (!hasNet) {
+      _handlePlaybackError(Exception("Không có kết nối Internet"));
+      return;
+    }
     final position = Duration(milliseconds: value.toInt());
 
     if (_isCompleted) setState(() => _isCompleted = false);
@@ -557,48 +743,91 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   // Chuẩn bị và chuyển đến đoạn nhạc được chọn
   Future<void> _prepareToPlaySection(int index) async {
+    bool hasNet = await _hasInternet();
+    if (!hasNet) {
+      _handlePlaybackError(Exception("Không có kết nối Internet để tải nhạc."));
+      return;
+    }
+
     setState(() => _isSwitchingSection = true);
+
     await _pauseSession();
     _countdownTimer?.cancel();
 
-    setState(() {
-      _isCompleted = false;
-      _selectedSectionIndex = index;
-      _isUserScrolling = false;
-      _isCountingDown = false;
-      _targetEndTime = null;
-    });
-    _lastAutoScrollIndex = -1;
+    try {
+      Duration targetPosition = Duration.zero;
+      Duration? newTargetEndTime;
 
-    const scrollDuration = Duration(milliseconds: 800);
-
-    // Logic Seek và Scroll đến đúng vị trí
-    if (index == -1) {
-      await _beatPlayer.seek(Duration.zero);
-      if (_hasVocalUrl) await _vocalPlayer.seek(Duration.zero);
-      if (_scrollController.hasClients && _lyrics.isNotEmpty) {
-        _scrollController.scrollToIndex(0, preferPosition: AutoScrollPosition.middle, duration: scrollDuration);
+      if (index != -1) {
+        final section = _sections[index];
+        targetPosition = section.startTime;
+        newTargetEndTime = section.endTime;
       }
-    } else {
-      final section = _sections[index];
-      await _beatPlayer.seek(section.startTime);
-      if (_hasVocalUrl) await _vocalPlayer.seek(section.startTime);
 
-      if (mounted) setState(() => _targetEndTime = section.endTime);
+      await _beatPlayer.seek(targetPosition).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () => throw Exception("Mạng quá yếu, không thể tải đoạn nhạc này."),
+      );
 
-      int targetLineIndex = _lyrics.indexWhere((line) => line.startTime >= section.startTime.inMilliseconds - 100);
-      if (targetLineIndex == -1) targetLineIndex = _findActiveLineIndex(section.startTime.inMilliseconds);
-
-      if (targetLineIndex != -1 && _scrollController.hasClients) {
-        _lastAutoScrollIndex = targetLineIndex;
-        _scrollController.scrollToIndex(targetLineIndex, preferPosition: AutoScrollPosition.middle, duration: scrollDuration);
+      if (_hasVocalUrl) {
+        await _vocalPlayer.seek(targetPosition).timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              debugPrint("Vocal seek timeout (ignored)");
+              return;
+            }
+        ).catchError((e) {
+          debugPrint("Vocal seek error: $e");
+        });
       }
-    }
 
-    await Future.delayed(scrollDuration);
-    if (mounted) {
-      setState(() => _isSwitchingSection = false);
-      _startCountdown();
+      if (mounted) {
+        setState(() {
+          _isCompleted = false;
+          _selectedSectionIndex = index;
+          _targetEndTime = newTargetEndTime;
+
+          _isUserScrolling = false;
+          _isCountingDown = false;
+        });
+      }
+
+      _lastAutoScrollIndex = -1;
+
+      const scrollDuration = Duration(milliseconds: 800);
+
+      if (index == -1) {
+        if (_scrollController.hasClients && _lyrics.isNotEmpty) {
+          _scrollController.scrollToIndex(0, preferPosition: AutoScrollPosition.middle, duration: scrollDuration);
+        }
+      } else {
+        int targetLineIndex = _lyrics.indexWhere((line) => line.startTime >= targetPosition.inMilliseconds - 100);
+
+        if (targetLineIndex == -1) targetLineIndex = _findActiveLineIndex(targetPosition.inMilliseconds);
+
+        if (targetLineIndex != -1 && _scrollController.hasClients) {
+          _lastAutoScrollIndex = targetLineIndex;
+          _scrollController.scrollToIndex(targetLineIndex, preferPosition: AutoScrollPosition.middle, duration: scrollDuration);
+        }
+      }
+      await Future.delayed(scrollDuration);
+
+      if (mounted) {
+        setState(() => _isSwitchingSection = false);
+        if (index == -1) {
+          _startFreshSession(skipSeek: true);
+        } else {
+          _startCountdown();
+        }
+      }
+
+    } catch (e) {
+      debugPrint("Seek error: $e");
+
+      if (mounted) {
+        setState(() => _isSwitchingSection = false);
+        _handlePlaybackError(e);
+      }
     }
   }
 
@@ -878,7 +1107,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
   }
 
   // Hiện lựa chọn thu âm
-  void _showRecordingOptionsDialog() {
+  void _showRecordingOptionsDialog({bool allowContinue = true}) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -892,16 +1121,18 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
               onPressed: () {
                 Navigator.pop(context);
                 _discardRecording();
+                _isHandlingCompletion = false;
               },
               child: const Text("Hủy bỏ", style: TextStyle(color: Colors.redAccent)),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                _resumeSession();
-              },
-              child: const Text("Tiếp tục hát", style: TextStyle(color: Colors.white)),
-            ),
+            if (allowContinue)
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _resumeSession();
+                },
+                child: const Text("Tiếp tục hát", style: TextStyle(color: Colors.white)),
+              ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF00CC)),
               onPressed: () {
@@ -1069,6 +1300,114 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     );
   }
 
+  void _showNetworkErrorSaveDialog(String errorMsg) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Bắt buộc chọn
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Row(
+            children: [
+              Icon(Icons.wifi_off, color: Colors.redAccent),
+              SizedBox(width: 10),
+              Expanded(child: Text("Mất kết nối!", style: TextStyle(color: Colors.white))),
+            ],
+          ),
+          content: Text(
+            "Không thể tải tiếp nhạc nền do lỗi mạng.\n\nBạn đã hát được ${_formatTime(_currentRecDuration)}. Bạn có muốn lưu lại bản thu này trước khi thoát không?",
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Đóng dialog
+                _discardRecording(); // Xóa file
+
+                // Chuyển sang màn hình lỗi
+                setState(() {
+                  _errorMessage = "$errorMsg\n(Bản thu đã bị hủy)";
+                });
+              },
+              child: const Text("Không lưu", style: TextStyle(color: Colors.redAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF00CC)),
+              onPressed: () {
+                Navigator.pop(context); // Đóng dialog hỏi lưu
+
+                // Mở dialog đặt tên file (Logic cũ)
+                // Tuy nhiên ta cần sửa logic sau khi lưu xong -> Hiện màn hình lỗi
+                _showSaveNameDialogForError(errorMsg);
+              },
+              child: const Text("Lưu bản thu", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSaveNameDialogForError(String errorMsg) {
+    final TextEditingController nameController = TextEditingController();
+    nameController.text = "${_song?.title ?? 'Record'}_ErrSave";
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text("Lưu bản thu khẩn cấp", style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: nameController,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+                labelText: "Tên bản ghi âm",
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white54)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF00CC))),
+                suffixText: ".wav",
+                suffixStyle: TextStyle(color: Colors.white30)
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _discardRecording();
+                setState(() {
+                  _errorMessage = "$errorMsg\n(Đã hủy lưu)";
+                });
+              },
+              child: const Text("Hủy", style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF00CC)),
+              onPressed: () {
+                final name = nameController.text.trim();
+                if (name.isNotEmpty) {
+                  Navigator.pop(context);
+                  // Lưu xong thì hiện màn hình lỗi
+                  _saveRecording(name).then((_) {
+                    if (mounted) {
+                      setState(() {
+                        _errorMessage = errorMsg; // Trigger hiện _buildErrorUI
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã lưu thành công!")));
+                    }
+                  });
+                }
+              },
+              child: const Text("Lưu", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // Hát lại từ đầu
   Future<void> _confirmRestartSession() async {
     await _pauseSession();
@@ -1109,6 +1448,17 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_errorMessage != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: widget.onBack),
+        ),
+        body: _buildErrorUI(),
+      );
+    }
+
     final topPadding = MediaQuery.of(context).padding.top;
     final appBarHeight = kToolbarHeight;
 
@@ -1430,10 +1780,51 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
     );
   }
 
+  Widget _buildErrorUI() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 80, color: Colors.white38),
+            const SizedBox(height: 20),
+            const Text(
+              "Đã xảy ra lỗi! Vui lòng kiểm tra kết nối Internet!",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+
+            // const SizedBox(height: 10),
+            // Text(
+            //   _errorMessage ?? "",
+            //   textAlign: TextAlign.center,
+            //   style: const TextStyle(color: Colors.white70),
+            // ),
+
+            const SizedBox(height: 30),
+
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF00CC),
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              ),
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              label: const Text("Thử lại", style: TextStyle(color: Colors.white, fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _formatTime(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
     return "${twoDigits(d.inMinutes.remainder(60))}:${twoDigits(d.inSeconds.remainder(60))}";
   }
+
 }
 
 // =====================
