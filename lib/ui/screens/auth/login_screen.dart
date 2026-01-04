@@ -1,3 +1,4 @@
+import 'dart:async'; // Cần thêm thư viện này để dùng Timer
 import 'package:flutter/material.dart';
 import '../../../services/auth_service.dart';
 
@@ -22,6 +23,14 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  // --- LOGIC CHỐNG SPAM ---
+  int _failedAttempts = 0;
+  bool _isLocked = false;
+  int _countdown = 0;
+  Timer? _lockoutTimer;
+  static const int MAX_ATTEMPTS = 5;
+  static const int LOCK_TIME = 60;
+
   @override
   void initState() {
     super.initState();
@@ -36,11 +45,13 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _identifierController.dispose();
     _passwordController.dispose();
+    _lockoutTimer?.cancel();
     super.dispose();
   }
 
   void _showToast(String message, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -55,36 +66,81 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Hàm bắt đầu khóa tạm thời
+  void _startLockout() {
+    setState(() {
+      _isLocked = true;
+      _isLoading = false;
+      _countdown = LOCK_TIME;
+    });
+
+    _showToast("Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau $_countdown giây.", isError: true);
+
+    _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) return;
+      setState(() {
+        if (_countdown > 0) {
+          _countdown--;
+        } else {
+          // Mở khóa
+          _isLocked = false;
+          _failedAttempts = 0;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
   Future<void> _handleLogin() async {
+    if (_isLocked || _isLoading) return;
+
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text.trim();
 
     if (identifier.isEmpty || password.isEmpty) {
-      _showToast("Vui lòng nhập tài khoản và mật khẩu");
+      _showToast("Vui lòng nhập tài khoản và mật khẩu", isError: true);
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
+      await Future.delayed(const Duration(milliseconds: 500));
+
       await AuthService.instance
           .login(identifier: identifier, password: password);
-      _showToast("Đăng nhập thành công!");
 
+      _showToast("Đăng nhập thành công!");
+      _failedAttempts = 0;
       widget.onLoginSuccess(true);
+
     } catch (e) {
+      _failedAttempts++;
+
       String msg = e.toString();
-      if (msg.contains("Exception:"))
+      if (msg.contains("Exception:")) {
         msg = msg.replaceAll("Exception:", "").trim();
-      _showToast(msg);
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      }
+
+      // Logic khóa nếu sai quá nhiều
+      if (_failedAttempts >= MAX_ATTEMPTS) {
+        _startLockout();
+      } else {
+        await Future.delayed(const Duration(milliseconds: 1500));
+        _showToast(msg, isError: true);
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFFFF00CC);
+
+    final bool canInput = !_isLoading && !_isLocked;
 
     return Theme(
       data: Theme.of(context).copyWith(
@@ -137,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // --- INPUT FIELDS ---
                   TextField(
                     controller: _identifierController,
-                    enabled: !_isLoading,
+                    enabled: canInput,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
                     style: const TextStyle(color: Colors.black87),
@@ -146,7 +202,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       labelStyle: TextStyle(color: Colors.grey[600]),
                       prefixIcon: Icon(Icons.person_outline, color: Colors.grey[600]),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: canInput ? Colors.grey[100] : Colors.grey[200],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -158,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   TextField(
                     controller: _passwordController,
-                    enabled: !_isLoading,
+                    enabled: canInput,
                     obscureText: _obscurePassword,
                     keyboardType: TextInputType.visiblePassword,
                     textInputAction: TextInputAction.done,
@@ -168,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       labelStyle: TextStyle(color: Colors.grey[600]),
                       prefixIcon: Icon(Icons.lock_outline, color: Colors.grey[600]),
                       filled: true,
-                      fillColor: Colors.grey[100],
+                      fillColor: canInput ? Colors.grey[100] : Colors.grey[200],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
@@ -184,25 +240,42 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
 
+                  // Hiển thị cảnh báo nếu nhập sai
+                  if (_failedAttempts > 0 && !_isLocked)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0, right: 8.0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "Còn lại ${MAX_ATTEMPTS - _failedAttempts} lần thử",
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    ),
+
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {
+                      onPressed: canInput ? () {
                         Navigator.pushNamed(context, '/reset_password');
-                      },
+                      } : null,
                       child: Text("Quên mật khẩu?",
-                          style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+                          style: TextStyle(
+                              color: canInput ? Colors.grey[700] : Colors.grey[400],
+                              fontWeight: FontWeight.w600
+                          )),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
 
                   SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleLogin,
+                      onPressed: (_isLoading || _isLocked) ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
+                        backgroundColor: _isLocked ? Colors.grey : primaryColor,
+                        disabledBackgroundColor: _isLocked ? Colors.grey[400] : primaryColor.withValues(alpha: 0.6),
                         elevation: 3,
                         shadowColor: primaryColor.withValues(alpha: 0.4),
                         shape: RoundedRectangleBorder(
@@ -213,8 +286,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 24,
                           width: 24,
                           child: CircularProgressIndicator(color: Colors.white))
-                          : const Text("ĐĂNG NHẬP",
-                          style: TextStyle(
+                          : Text(
+                          _isLocked
+                              ? "Vui lòng chờ ${_countdown}s"
+                              : "ĐĂNG NHẬP",
+                          style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.white)),
@@ -224,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
 
                   TextButton(
-                    onPressed: () async {
+                    onPressed: canInput ? () async {
                       try {
                         await AuthService.instance.loginAsGuest();
                         if (mounted)
@@ -232,22 +308,26 @@ class _LoginScreenState extends State<LoginScreen> {
                       } catch (e) {
                         _showToast("Lỗi đăng nhập khách");
                       }
-                    },
-                    child: const Text("Đăng nhập bằng tài khoản khách", style: TextStyle(color: Colors.black54)),
+                    } : null,
+                    child: Text("Đăng nhập bằng tài khoản khách",
+                        style: TextStyle(color: canInput ? Colors.black54 : Colors.grey[400])
+                    ),
                   ),
 
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Chưa có tài khoản? ", style: TextStyle(color: Colors.black54)),
+                      Text("Chưa có tài khoản? ",
+                          style: TextStyle(color: canInput ? Colors.black54 : Colors.grey[400])
+                      ),
                       TextButton(
-                        onPressed: () {
+                        onPressed: canInput ? () {
                           Navigator.pushNamed(context, '/register');
-                        },
-                        child: const Text("Đăng ký ngay",
+                        } : null,
+                        child: Text("Đăng ký ngay",
                             style: TextStyle(
-                                color: Color(0xFFFF00CC),
+                                color: canInput ? const Color(0xFFFF00CC) : Colors.grey,
                                 fontWeight: FontWeight.bold)),
                       ),
                     ],

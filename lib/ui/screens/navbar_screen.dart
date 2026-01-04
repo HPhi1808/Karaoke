@@ -5,7 +5,7 @@ import 'home/home_screen.dart';
 import 'me/me_screen.dart';
 import 'songs/songs_screen.dart';
 import 'moments/moments_screen.dart';
-import 'message/message_screen.dart';
+import 'mailbox/mailbox_screen.dart';
 
 class NavbarScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -41,7 +41,7 @@ class _NavbarScreenState extends State<NavbarScreen> {
       case 0: return const HomeScreen();
       case 1: return const MomentsScreen();
       case 2: return SongsScreen(onSongClick: widget.onSongClick);
-      case 3: return const MessageScreen();
+      case 3: return const MailboxScreen();
       case 4: return MeScreen(onLogoutClick: widget.onLogout);
       default: return const SizedBox();
     }
@@ -75,7 +75,7 @@ class _NavbarScreenState extends State<NavbarScreen> {
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: primaryColor), label: 'Trang chủ'),
             NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time_filled, color: primaryColor), label: 'Khám phá'),
             NavigationDestination(icon: Icon(Icons.mic_none), selectedIcon: Icon(Icons.mic, color: primaryColor), label: 'Hát'),
-            NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble, color: primaryColor), label: 'Tin nhắn'),
+            NavigationDestination(icon: Icon(Icons.mail_outline), selectedIcon: Icon(Icons.mail, color: primaryColor), label: 'Hộp thư'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: primaryColor), label: 'Tôi'),
           ],
         ),

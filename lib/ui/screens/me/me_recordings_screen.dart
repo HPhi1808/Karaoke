@@ -23,13 +23,17 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
     super.initState();
     _loadRecordings();
 
+    // Lắng nghe trạng thái player
     _audioPlayer.playerStateStream.listen((state) {
       if (mounted) {
         setState(() {
           _isPlaying = state.playing;
+          // Khi phát xong thì reset trạng thái
           if (state.processingState == ProcessingState.completed) {
             _currentPlayingPath = null;
             _isPlaying = false;
+            _audioPlayer.stop();
+            _audioPlayer.seek(Duration.zero);
           }
         });
       }
@@ -43,8 +47,9 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
   }
 
   Future<void> _loadRecordings() async {
-    if (await Permission.storage.request().isDenied && await Permission.manageExternalStorage.request().isDenied) {
-      // Xử lý khi không có quyền (tùy chọn)
+    if (await Permission.storage.request().isDenied &&
+        await Permission.manageExternalStorage.request().isDenied) {
+      // Handle permission denied
     }
 
     final Directory dir = Directory('/storage/emulated/0/Download/KaraokeApp');
@@ -67,16 +72,29 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
 
   Future<void> _playRecording(String path) async {
     try {
-      if (_currentPlayingPath == path && _isPlaying) {
-        await _audioPlayer.pause();
+      // Nếu đang chọn đúng bài này
+      if (_currentPlayingPath == path) {
+        if (_isPlaying) {
+          await _audioPlayer.pause();
+        } else {
+          await _audioPlayer.play();
+        }
       } else {
+        // Nếu chọn bài mới
+        await _audioPlayer.stop();
         await _audioPlayer.setFilePath(path);
-        await _audioPlayer.play();
+
         setState(() => _currentPlayingPath = path);
+
+        await _audioPlayer.play();
       }
     } catch (e) {
       debugPrint("Lỗi phát file: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Không thể phát file này")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Không thể phát file này"))
+        );
+      }
     }
   }
 
@@ -84,7 +102,10 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
     try {
       if (_currentPlayingPath == file.path) {
         await _audioPlayer.stop();
-        _currentPlayingPath = null;
+        setState(() {
+          _currentPlayingPath = null;
+          _isPlaying = false;
+        });
       }
       await file.delete();
       setState(() {
@@ -98,6 +119,36 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
 
   Future<void> _shareRecording(String path) async {
     await Share.shareXFiles([XFile(path)], text: 'Nghe bản thu âm karaoke của tôi này!');
+  }
+
+  Future<void> _postRecording(FileSystemEntity file) async {
+    final shouldPost = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Đăng tải bản thu"),
+        content: Text("Bạn có muốn đăng bản thu '${file.path.split('/').last.replaceAll('.wav', '')}' lên cộng đồng không?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Hủy"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF00CC)),
+            child: const Text("Đăng tải", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldPost == true) {
+      // TODO
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Tính năng đang phát triển (Sử dụng Dio để upload)")),
+      );
+    }
   }
 
   @override
@@ -119,8 +170,11 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
         itemCount: _files.length,
         itemBuilder: (context, index) {
           final file = _files[index];
-          final String fileName = file.path.split('/').last;
+
+          final String fileName = file.path.split('/').last.replaceAll('.wav', '');
+
           final DateTime modified = file.statSync().modified;
+
           final bool isPlayingThis = _currentPlayingPath == file.path && _isPlaying;
 
           return Card(
@@ -149,16 +203,48 @@ class _MeRecordingsScreenState extends State<MeRecordingsScreen> {
                 "${modified.day}/${modified.month}/${modified.year} • ${_formatSize(file.statSync().size)}",
                 style: const TextStyle(fontSize: 12),
               ),
-              trailing: PopupMenuButton(
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.share, size: 18), SizedBox(width: 8), Text("Chia sẻ")])),
-                  const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 18), SizedBox(width: 8), Text("Xóa", style: TextStyle(color: Colors.red))])),
-                ],
-                onSelected: (value) {
-                  if (value == 'delete') _deleteRecording(file);
-                  if (value == 'share') _shareRecording(file.path);
-                },
-              ),
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'post') _postRecording(file);
+                    if (value == 'delete') _deleteRecording(file);
+                    if (value == 'share') _shareRecording(file.path);
+                  },
+                  itemBuilder: (context) => <PopupMenuEntry<String>>[
+                    const PopupMenuItem<String>(
+                      value: 'post',
+                      child: Row(
+                        children: [
+                          Icon(Icons.cloud_upload, color: Colors.blue, size: 18),
+                          SizedBox(width: 8),
+                          Text("Đăng tải", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    // Nút Chia sẻ
+                    const PopupMenuItem<String>(
+                      value: 'share',
+                      child: Row(
+                        children: [
+                          Icon(Icons.share, size: 18),
+                          SizedBox(width: 8),
+                          Text("Chia sẻ"),
+                        ],
+                      ),
+                    ),
+                    // Nút Xóa
+                    const PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, color: Colors.red, size: 18),
+                          SizedBox(width: 8),
+                          Text("Xóa", style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               onTap: () => _playRecording(file.path),
             ),
           );

@@ -16,9 +16,14 @@ class UserModel {
   final String? bio;
   final String? gender;
   final String? region;
+
+  // Các trường số liệu
   final int followersCount;
   final int followingCount;
   final int likesCount;
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  final bool isFriend;
 
   UserModel({
     required this.id,
@@ -33,8 +38,10 @@ class UserModel {
     this.followersCount = 0,
     this.followingCount = 0,
     this.likesCount = 0,
+    this.isFriend = false,
   });
 
+  // Factory mặc định (Dùng cho bảng 'users')
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] as String,
@@ -49,6 +56,31 @@ class UserModel {
       followersCount: json['followers_count'] != null ? json['followers_count'] as int : 0,
       followingCount: json['following_count'] != null ? json['following_count'] as int : 0,
       likesCount: json['likes_count'] != null ? json['likes_count'] as int : 0,
+      isFriend: false,
+    );
+  }
+
+  // --- DÙNG CHO VIEW 'friends_view' ---
+  factory UserModel.fromFriendView(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['friend_id'] as String,
+      fullName: json['full_name'] as String?,
+      username: json['username'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      role: 'user',
+      isFriend: true,
+    );
+  }
+
+  // --- DÙNG CHO TÌM KIẾM NGƯỜI LẠ ---
+  factory UserModel.fromSearch(Map<String, dynamic> json, {bool isFriend = false}) {
+    return UserModel(
+      id: json['id'] as String,
+      fullName: json['full_name'] as String?,
+      username: json['username'] as String?,
+      avatarUrl: json['avatar_url'] as String?,
+      role: json['role'] as String? ?? 'user',
+      isFriend: isFriend,
     );
   }
 

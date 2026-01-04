@@ -254,7 +254,7 @@ class _MeScreenState extends State<MeScreen> {
       children: [
         if (!_isGuest) ...[
           _buildMenuRow(Icons.favorite_border, "Đã thích", () => Navigator.pushNamed(context, '/favorites')),
-          _buildMenuRow(Icons.mic_none_rounded, "Bản ghi âm của tôi", () => Navigator.pushNamed(context, '/recordings')),
+          _buildMenuRow(Icons.mic_none_rounded, "Bản thu âm của tôi", () => Navigator.pushNamed(context, '/recordings')),
           const Divider(),
         ],
 
