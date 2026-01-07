@@ -49,6 +49,15 @@
             <div class="modal-body">
                 <form id="createNotifForm">
                     <div class="mb-3">
+                        <label class="form-label fw-bold">Đối tượng nhận <span class="text-danger">*</span></label>
+                        <select class="form-select" id="newTarget">
+                            <option value="all">📢 Tất cả mọi người (Bao gồm khách)</option>
+                            <option value="user">👤 Chỉ thành viên đăng ký</option>
+                        </select>
+                        <small class="text-muted">"Tất cả" dùng cho thông báo bảo trì. "Thành viên" dùng cho sự kiện/khuyến mãi.</small>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="newTitle" required placeholder="Ví dụ: Bảo trì hệ thống">
                     </div>
@@ -61,7 +70,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
                 <button type="button" class="btn btn-primary" onclick="window.submitNotification()">
-                    <i class="bi bi-send"></i> Gửi ngay
+                    <i class="bi bi-send"></i> Gửi & Đẩy thông báo
                 </button>
             </div>
         </div>
@@ -72,13 +81,13 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title text-warning">Chỉnh sửa thông báo</h5>
+                <h5 class="modal-title text-warning">Chỉnh sửa nội dung (Database)</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <p class="text-danger small">Lưu ý: Việc sửa ở đây chỉ cập nhật trong app, không thay đổi thông báo đẩy đã gửi đi.</p>
                 <form id="editNotifForm">
                     <input type="hidden" id="editNotifId">
-                    
                     <div class="mb-3">
                         <label class="form-label">Tiêu đề <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="editTitle" required>
@@ -139,20 +148,30 @@
             }
         }
 
-        // --- 2. GỬI MỚI (CREATE) ---
+        // --- 2. GỬI MỚI (CREATE) - ĐÃ CẬP NHẬT ---
         window.submitNotification = async function () {
             const title = document.getElementById('newTitle').value.trim();
             const message = document.getElementById('newMessage').value.trim();
+            const target = document.getElementById('newTarget').value; // Lấy giá trị target
 
             if (!title || !message) return alert('Vui lòng nhập đầy đủ thông tin!');
 
+            // Hiển thị loading nhẹ hoặc disable nút để tránh spam click
+            const btn = document.querySelector('#createNotificationModal .btn-primary');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang gửi...';
+
             const res = await window.api('/api/admin/notifications', {
                 method: 'POST',
-                body: JSON.stringify({ title, message })
+                body: JSON.stringify({ title, message, target }) // Gửi thêm target
             });
 
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+
             if (res && res.status === 'success') {
-                alert('Tạo thông báo thành công!');
+                alert(`Đã gửi thông báo thành công tới nhóm: ${target === 'all' ? 'Tất cả' : 'Thành viên'}`);
                 document.getElementById('createNotifForm').reset();
                 bootstrap.Modal.getInstance(document.getElementById('createNotificationModal')).hide();
                 window.fetchNotifications();
@@ -163,17 +182,13 @@
 
         // --- 3. MỞ MODAL SỬA ---
         window.openEditModal = function(id) {
-            // Tìm thông tin thông báo trong biến mảng đã lưu
             const notif = currentNotificationsList.find(item => item.id == id);
-            
             if (!notif) return alert("Không tìm thấy dữ liệu!");
 
-            // Đổ dữ liệu vào Modal Sửa
             document.getElementById('editNotifId').value = notif.id;
             document.getElementById('editTitle').value = notif.title;
             document.getElementById('editMessage').value = notif.message;
 
-            // Hiển thị Modal
             const editModal = new bootstrap.Modal(document.getElementById('editNotificationModal'));
             editModal.show();
         }
@@ -192,12 +207,9 @@
             });
 
             if (res && res.status === 'success') {
-                alert('Cập nhật thành công!');
-                const modalEl = document.getElementById('editNotificationModal');
-                const modalInstance = bootstrap.Modal.getInstance(modalEl);
-                if (modalInstance) modalInstance.hide();
-
-                window.fetchNotifications(); // Tải lại bảng
+                alert('Cập nhật nội dung thành công!');
+                bootstrap.Modal.getInstance(document.getElementById('editNotificationModal')).hide();
+                window.fetchNotifications();
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không cập nhật được'));
             }

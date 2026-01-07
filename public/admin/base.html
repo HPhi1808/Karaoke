@@ -10,35 +10,33 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
   <style>
-    /* 1. Cố định body không cho cuộn cả trang */
+    /* 1. CSS Giao diện (Giữ nguyên) */
     body {
       background: #f0f2f5;
       font-family: 'Segoe UI', sans-serif;
-      height: 100vh; /* Chiều cao bằng màn hình */
-      overflow: hidden; /* Ẩn thanh cuộn của body */
+      height: 100vh;
+      overflow: hidden;
       display: flex;
-      flex-direction: column; /* Xếp dọc: Navbar ở trên, phần dưới ở dưới */
+      flex-direction: column;
     }
 
     .navbar {
       background: linear-gradient(45deg, #667eea, #764ba2);
-      flex-shrink: 0; /* Navbar không được co lại */
+      flex-shrink: 0;
       z-index: 1030;
     }
 
-    /* 2. Container bao quanh Sidebar và Content */
     .main-container {
-      flex: 1; /* Chiếm toàn bộ không gian còn lại bên dưới Navbar */
+      flex: 1;
       display: flex;
-      overflow: hidden; /* Ẩn cuộn thừa của container cha */
+      overflow: hidden;
     }
 
-    /* 3. Sidebar: Cuộn độc lập */
     .sidebar {
       width: 260px;
-      height: 100%; /* Chiều cao bằng container cha */
+      height: 100%;
       background: #343a40;
-      overflow-y: auto; /* Cho phép cuộn dọc */
+      overflow-y: auto;
       flex-shrink: 0;
     }
 
@@ -55,39 +53,89 @@
       color: white;
     }
 
-    /* 4. Content Area: Cuộn độc lập */
     .content-area {
       flex-grow: 1;
-      height: 100%; /* Chiều cao bằng container cha */
+      height: 100%;
       background: #f8f9fa;
-      overflow-y: auto; /* Cho phép cuộn dọc */
-      padding: 1.5rem; /* Đưa padding vào đây để nội dung không sát lề khi cuộn */
+      overflow-y: auto;
+      padding: 1.5rem;
     }
 
-    /* Tùy chỉnh thanh cuộn cho đẹp (Webkit browsers: Chrome, Edge, Safari) */
     ::-webkit-scrollbar {
       width: 8px;
     }
+
     ::-webkit-scrollbar-track {
       background: transparent;
     }
+
     ::-webkit-scrollbar-thumb {
       background: #888;
       border-radius: 4px;
     }
+
     ::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
-</style>
+
+    /* CSS MODAL */
+    .session-modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+    }
+
+    .session-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 25px;
+      border-radius: 12px;
+      width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .session-actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .session-timer {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #dc3545;
+      display: block;
+      margin: 10px 0;
+    }
+  </style>
 </head>
 
 <body>
 
   <nav class="navbar navbar-dark shadow sticky-top">
     <div class="container-fluid">
-      <a class="navbar-brand" href="#">
-        <i class="bi bi-mic-fill"></i> Karaoke Admin
-      </a>
+      <a class="navbar-brand" href="#"><i class="bi bi-mic-fill"></i> Karaoke Admin</a>
       <div class="text-white d-flex align-items-center">
         <span class="me-3">Xin chào: <strong id="adminName">Admin</strong></span>
         <button id="btnLogout" class="btn btn-outline-light btn-sm" onclick="logout()">
@@ -100,55 +148,26 @@
   <div class="d-flex main-container">
     <div class="sidebar p-3 d-none d-md-block" style="width: 260px;">
       <ul class="nav flex-column">
-        <li class="nav-item">
-          <a class="nav-link active" onclick="loadPage('dashboard.html', this)">
-            <i class="bi bi-speedometer2"></i> Tổng quan
-          </a>
-        </li>
-
+        <li class="nav-item"><a class="nav-link active" onclick="loadPage('dashboard.html', this)"><i
+              class="bi bi-speedometer2"></i> Tổng quan</a></li>
         <hr class="text-secondary mx-2">
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('users.html', this)">
-            <i class="bi bi-people-fill"></i> Quản lý Users
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('guests.html', this)">
-            <i class="bi bi-person-badge"></i> Quản lý Guest
-          </a>
-        </li>
-
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('users.html', this)"><i
+              class="bi bi-people-fill"></i> Quản lý Users</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('guests.html', this)"><i
+              class="bi bi-person-badge"></i> Quản lý Guest</a></li>
         <hr class="text-secondary mx-2">
-
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('songs.html', this)">
-            <i class="bi bi-music-note-list"></i> Quản lý Bài hát
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('rooms.html', this)">
-            <i class="bi bi-house-door-fill"></i> Phòng Live
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('moments.html', this)">
-            <i class="bi bi-camera-reels-fill"></i> Khoảnh khắc
-          </a>
-        </li>
-
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('songs.html', this)"><i
+              class="bi bi-music-note-list"></i> Quản lý Bài hát</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('rooms.html', this)"><i
+              class="bi bi-house-door-fill"></i> Phòng Live</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('moments.html', this)"><i
+              class="bi bi-camera-reels-fill"></i> Khoảnh khắc</a></li>
         <hr class="text-secondary mx-2">
-
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('reports.html', this)">
-            <i class="bi bi-flag-fill text-warning"></i> Khiếu nại / Report
-            <span class="badge bg-danger float-end" id="reportCount">0</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" onclick="loadPage('notifications.html', this)">
-            <i class="bi bi-megaphone-fill text-info"></i> Thông báo hệ thống
-          </a>
-        </li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('reports.html', this)"><i
+              class="bi bi-flag-fill text-warning"></i> Khiếu nại / Report <span class="badge bg-danger float-end"
+              id="reportCount">0</span></a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('notifications.html', this)"><i
+              class="bi bi-megaphone-fill text-info"></i> Thông báo hệ thống</a></li>
       </ul>
     </div>
 
@@ -162,245 +181,328 @@
     </div>
   </div>
 
+  <div id="session-modal" class="session-modal">
+    <div class="session-content">
+      <div class="mb-3"><i class="bi bi-alarm text-warning" style="font-size: 3rem;"></i></div>
+      <h4>Phiên làm việc sắp hết hạn!</h4>
+      <p class="text-muted">Để bảo mật, hệ thống sẽ tự động đăng xuất sau:</p>
+      <span id="session-countdown" class="session-timer">60</span>
+      <p>giây nữa.</p>
+      <div class="session-actions">
+        <button onclick="logout()" class="btn btn-secondary"><i class="bi bi-box-arrow-right"></i> Đăng xuất</button>
+        <button onclick="triggerRefreshToken()" class="btn btn-primary" id="btnExtend"><i
+            class="bi bi-arrow-clockwise"></i> Gia hạn thêm</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+    // --- 0. KHỞI TẠO BIẾN TOÀN CỤC ---
+    let warningTimer = null;    // Timer dài hạn (ngủ đông)
+    let countdownInterval = null; // Timer ngắn hạn (đếm ngược 60s trên UI)
+    const WARNING_BUFFER = 60;  // Báo trước 60 giây
+
+    // --- 1. KIỂM TRA ĐĂNG NHẬP SƠ BỘ ---
     (function () {
       const token = localStorage.getItem('access_token');
-      if (!token) {
-        window.location.replace('/admin/login.html');
-      }
+      if (!token) window.location.replace('/admin/login.html');
     })();
 
-    // --- 1. TIỆN ÍCH AUTH ---
-    function isTokenExpired(token) {
-      if (!token) return true;
+    // --- 2. TIỆN ÍCH AUTH ---
+    function parseJwt(token) {
       try {
         const base64Url = token.split('.')[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
           return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
         }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) { return null; }
+    }
 
-        const { exp } = JSON.parse(jsonPayload);
-        return Date.now() >= (exp * 1000) - 10000;
-      } catch (e) {
-        return true;
+    function isTokenExpired(token) {
+      if (!token) return true;
+      const decoded = parseJwt(token);
+      if (!decoded || !decoded.exp) return true;
+      return Date.now() >= (decoded.exp * 1000) - 10000;
+    }
+
+    // --- 3. HẸN GIỜ THÔNG MINH (Thay thế vòng lặp liên tục) ---
+    function scheduleSessionWarning() {
+      // Xóa các timer cũ nếu có
+      if (warningTimer) clearTimeout(warningTimer);
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const decoded = parseJwt(token);
+      if (!decoded || !decoded.exp) return;
+
+      const now = Math.floor(Date.now() / 1000);
+      // Tính thời gian còn lại cho đến lúc CẦN BÁO (hết hạn - 60s)
+      const secondsUntilWarning = (decoded.exp - now) - WARNING_BUFFER;
+
+      console.log(`🕒 Token hết hạn sau ${decoded.exp - now}s. Hẹn giờ hiện Modal sau ${secondsUntilWarning}s.`);
+
+      if (secondsUntilWarning > 0) {
+        // Nếu còn lâu mới hết hạn -> Ngủ đông
+        warningTimer = setTimeout(() => {
+          showSessionModal();
+        }, secondsUntilWarning * 1000);
+      } else {
+        // Nếu đã đến giờ (hoặc quá giờ) -> Hiện Modal ngay
+        showSessionModal();
       }
     }
 
+    // --- 4. HIỂN THỊ MODAL VÀ ĐẾM NGƯỢC ---
+    function showSessionModal() {
+      const modal = document.getElementById('session-modal');
+      const countdownSpan = document.getElementById('session-countdown');
+
+      if (modal.style.display !== 'block') {
+        modal.style.display = 'block';
+        console.warn("⚠️ Đang hiển thị cảnh báo hết phiên!");
+      }
+
+      // Bắt đầu vòng lặp 1s CHỈ KHI modal đang hiện (để update số giây UI)
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      // Cập nhật ngay lập tức lần đầu
+      updateCountdownUI(countdownSpan);
+
+      countdownInterval = setInterval(() => {
+        updateCountdownUI(countdownSpan);
+      }, 1000);
+    }
+
+    function updateCountdownUI(spanElement) {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      const decoded = parseJwt(token);
+      const now = Math.floor(Date.now() / 1000);
+      const timeLeft = decoded.exp - now;
+
+      if (timeLeft > 0) {
+        spanElement.innerText = timeLeft;
+      } else {
+        // Hết giờ thật sự -> Logout
+        clearInterval(countdownInterval);
+        handleLogout("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+      }
+    }
+
+    function hideSessionModal() {
+      const modal = document.getElementById('session-modal');
+      modal.style.display = 'none';
+      if (countdownInterval) clearInterval(countdownInterval);
+    }
+
+    // --- 5. LOGIC REFRESH TOKEN (KHI BẤM NÚT) ---
     async function performRefreshToken() {
       const rfToken = localStorage.getItem('refresh_token');
       if (!rfToken) return null;
+
       try {
-        // [TODO] Code refresh token thật ở đây
-        return null;
+        console.log("🔄 Đang thực hiện refresh token...");
+
+        const configRes = await fetch('/api/admin-config');
+        if (!configRes.ok) return null;
+        const config = await configRes.json();
+
+        const { createClient } = window.supabase;
+        const tempClient = createClient(config.supabaseUrl, config.supabaseAnonKey);
+
+        const { data, error } = await tempClient.auth.refreshSession({ refresh_token: rfToken });
+
+        if (error || !data.session) {
+          console.error("Refresh thất bại:", error);
+          return null;
+        }
+
+        // Lưu Token mới
+        localStorage.setItem('access_token', data.session.access_token);
+        localStorage.setItem('refresh_token', data.session.refresh_token);
+        console.log("✅ Refresh thành công!");
+
+        return data.session.access_token;
       } catch (err) {
-        console.error(err);
+        console.error("Lỗi hệ thống khi refresh:", err);
+        return null;
       }
-      return null;
     }
 
-    // --- 2. HIỂN THỊ TÊN ADMIN ---
+    async function triggerRefreshToken() {
+      const btn = document.getElementById('btnExtend');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
+
+      const newToken = await performRefreshToken();
+
+      if (newToken) {
+        hideSessionModal();
+        // QUAN TRỌNG: Sau khi gia hạn thành công, tính toán lại lịch hẹn mới
+        scheduleSessionWarning();
+
+        // Reset UI nút
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }, 500);
+      } else {
+        handleLogout("Không thể gia hạn phiên làm việc.");
+      }
+    }
+
+    // --- 6. CÁC HÀM UI KHÁC ---
     const adminInfo = localStorage.getItem('admin_info');
     if (adminInfo) {
       try {
         const user = JSON.parse(adminInfo);
-        const name = user.full_name || user.email || 'Admin';
-        document.getElementById('adminName').innerText = name;
+        document.getElementById('adminName').innerText = user.full_name || user.email || 'Admin';
       } catch (e) { }
     }
 
-    // --- 3. HÀM LOGOUT ---
     function handleLogout(message = null) {
-      if (message) {
-        alert(message);
-      }
+      if (message) alert(message);
       localStorage.clear();
       window.location.replace('/admin/login.html');
     }
 
     async function logout() {
       const btn = document.getElementById('btnLogout');
-      if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Đang đăng xuất...';
-      }
+      if (btn) btn.innerHTML = 'Đang xuất...';
       try {
         const adminInfoStr = localStorage.getItem('admin_info');
         if (adminInfoStr) {
           const user = JSON.parse(adminInfoStr);
-          if (user?.id) {
-            await window.api('/api/auth/logout', {
-              method: 'POST',
-              body: JSON.stringify({ userId: user.id })
-            });
-          }
+          await window.api('/api/auth/logout', { method: 'POST', body: JSON.stringify({ userId: user.id }) });
         }
-      } catch (error) {
-        console.error("Lỗi logout:", error);
-      } finally {
-        handleLogout();
-      }
+      } catch (e) { } finally { handleLogout(); }
     }
 
-    // --- 4. HÀM GỌI API TOÀN CỤC (ĐÃ SỬA THÔNG BÁO CHÍNH XÁC) ---
+    // --- 7. WINDOW.API ---
     window.api = async function (url, options = {}) {
       let currentToken = localStorage.getItem('access_token');
-
-      // Check token client-side
       if (isTokenExpired(currentToken)) {
-        console.log("Token hết hạn -> Refreshing...");
         const newToken = await performRefreshToken();
         if (newToken) {
           currentToken = newToken;
+          // Cập nhật lại lịch hẹn nếu refresh tự động thành công
+          scheduleSessionWarning();
         } else {
-          // Trường hợp 1: Hết hạn cục bộ
           handleLogout("Phiên hết hạn.");
           return null;
         }
       }
 
       try {
-        const headers = {
-          'Authorization': `Bearer ${currentToken}`,
-          ...options.headers
-        };
-        if (!(options.body instanceof FormData) && !headers['Content-Type']) {
-          headers['Content-Type'] = 'application/json';
-        }
+        const headers = { 'Authorization': `Bearer ${currentToken}`, ...options.headers };
+        if (!(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
 
         const res = await fetch(url, { ...options, headers });
 
-        // === BẮT LỖI CHÍNH XÁC ===
-
-        // 1. Lỗi 401: Hết hạn thường
         if (res.status === 401) {
-             handleLogout("Phiên đăng nhập đã hết hạn.");
-             return null;
+          const retryToken = await performRefreshToken();
+          if (retryToken) {
+            headers['Authorization'] = `Bearer ${retryToken}`;
+            const retryRes = await fetch(url, { ...options, headers });
+            if (retryRes.ok) return await retryRes.json();
+          }
+          handleLogout("Phiên đăng nhập đã hết hạn.");
+          return null;
         }
-
-        // 2. Lỗi 403: Bị khóa hoặc không đủ quyền
         if (res.status === 403) {
-             const errData = await res.clone().json().catch(() => ({}));
-             if (errData.status === 'locked') {
-                 handleLogout(errData.message);
-                 return null;
-             }
+          const err = await res.clone().json().catch(() => ({}));
+          if (err.status === 'locked') handleLogout(err.message);
         }
-
-        // ==========================
-
         const data = await res.json();
         if (Array.isArray(data)) return data;
         return { ok: res.ok, status: res.status, ...data };
-
-      } catch (err) {
-        console.error("API Error:", err);
-        return { status: 'error', message: "Lỗi kết nối Server" };
-      }
+      } catch (err) { return { status: 'error', message: "Lỗi kết nối Server" }; }
     };
 
-    // --- 5. HÀM LOAD TRANG ---
+    // --- 8. LOAD PAGE ---
     window.loadPage = async function (page, element) {
       localStorage.setItem('last_visited_page', page);
-
       document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
-      if (element) {
-        element.classList.add('active');
-      } else {
+      if (element) element.classList.add('active');
+      else {
         const savedLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
         if (savedLink) savedLink.classList.add('active');
       }
-
       const content = document.getElementById('pageContent');
-      content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2">Đang tải dữ liệu...</div></div>';
-
+      content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
       try {
         const res = await fetch(`./${page}`);
         if (!res.ok) throw new Error("Không tìm thấy trang");
-
         const html = await res.text();
         content.innerHTML = html;
-
-        const scripts = content.querySelectorAll('script');
-        for (const script of scripts) {
-          const newScript = document.createElement('script');
-          newScript.textContent = script.textContent;
-          document.body.appendChild(newScript);
-          script.remove();
-        }
-      } catch (err) {
-        content.innerHTML = `<div class="alert alert-danger m-4">Lỗi tải trang: ${err.message}</div>`;
-      }
+        content.querySelectorAll('script').forEach(s => {
+          const ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+          s.remove();
+        });
+      } catch (e) { content.innerHTML = `<div class="alert alert-danger m-4">Lỗi: ${e.message}</div>`; }
     };
 
-
-    // --- 6. REALTIME SECURITY (CHỐNG ĐĂNG NHẬP 2 NƠI) ---
+    // --- 9. REALTIME SECURITY ---
     async function initRealtimeSecurity() {
-        const adminInfoStr = localStorage.getItem('admin_info');
-        if (!adminInfoStr) return;
-        
+      // (Giữ nguyên code Realtime của bạn)
+      const adminInfoStr = localStorage.getItem('admin_info');
+      if (!adminInfoStr) return;
+      try {
+        const response = await fetch('/api/admin-config');
+        const config = await response.json();
+        const { createClient } = window.supabase;
+        const sbClient = createClient(config.supabaseUrl, config.supabaseAnonKey);
         const user = JSON.parse(adminInfoStr);
-        const userId = user.id;
-
-        // Lưu mốc thời gian hiện tại của client này
         const mySessionTimestamp = new Date().getTime();
-
-        const { createClient } = supabase;
-        const sbUrl = 'https://wvmulnuypsovlvlnmxxi.supabase.co';
-        const sbKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind2bXVsbnV5cHNvdmx2bG5teHhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUzMjAwNjAsImV4cCI6MjA4MDg5NjA2MH0.viLyy9wbJiQhfyJb-HNocsgZ1aMIsKGe4y4PJsg907U';
-        const sbClient = window.supabase.createClient(sbUrl, sbKey);
 
         console.log("🛡️ Đang kích hoạt bảo mật Realtime...");
 
-        sbClient
-            .channel('security-check')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'users',
-                    filter: `id=eq.${userId}`
-                },
-                (payload) => {
-                    const newData = payload.new;
-                    
-                    // 1. Kiểm tra bị KHÓA (Lock Realtime cũ bạn đã làm)
-                    if (newData.locked_until && new Date(newData.locked_until) > new Date()) {
-                         handleLogout(`Tài khoản của bạn vừa bị khóa bởi Admin!\nHiệu lực đến: ${new Date(newData.locked_until).toLocaleString()}`);
-                         return;
-                    }
-
-                    // 2. Kiểm tra ĐĂNG NHẬP NƠI KHÁC
-                    if (newData.last_sign_in_at) {
-                        const lastSignInTime = new Date(newData.last_sign_in_at).getTime();
-                        
-                        // Cho phép sai số 2 giây (do độ trễ mạng)
-                        if (lastSignInTime > mySessionTimestamp + 2000) {
-                            console.warn("Phát hiện phiên đăng nhập mới hơn!");
-                            
-                            // Ngắt kết nối ngay lập tức
-                            sbClient.removeAllChannels();
-                            
-                            handleLogout("Tài khoản của bạn đang được đăng nhập ở một thiết bị khác!");
-                        }
-                    }
-                }
-            )
-            .subscribe();
+        sbClient.channel('security-check').on('postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new.locked_until && new Date(payload.new.locked_until) > new Date())
+              handleLogout("Tài khoản đã bị khóa!");
+            if (payload.new.last_sign_in_at) {
+              const lastSignIn = new Date(payload.new.last_sign_in_at).getTime();
+              if (lastSignIn > mySessionTimestamp + 2000) {
+                sbClient.removeAllChannels();
+                handleLogout("Đăng nhập nơi khác!");
+              }
+            }
+          }
+        ).subscribe();
+      } catch (e) { console.error("Lỗi Realtime:", e); }
     }
 
-    // --- 7. KHỞI CHẠY ---
+    // --- 10. KHỞI CHẠY ---
     (async () => {
+      // Bắt đầu hẹn giờ cảnh báo (Scheduling thay vì Polling)
+      scheduleSessionWarning();
+
       const lastPage = localStorage.getItem('last_visited_page');
       if (lastPage) loadPage(lastPage);
       else loadPage('dashboard.html');
-      setTimeout(initRealtimeSecurity, 5000);
+      setTimeout(initRealtimeSecurity, 3000);
     })();
 
-</script>
+    // Xử lý khi người dùng quay lại Tab (phòng trường hợp trình duyệt ngủ đông làm lệch giờ)
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === 'visible') {
+        // Tính toán lại lịch hẹn để đảm bảo chính xác
+        scheduleSessionWarning();
+      }
+    });
+
+  </script>
 </body>
 
 </html>

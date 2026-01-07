@@ -3,8 +3,11 @@ const router = express.Router();
 const { verifyToken, requireAdmin, requireOwn } = require('../middlewares/auth');
 const pool = require('../config/db');
 const { createClient } = require('@supabase/supabase-js');
+const axios = require('axios');
 require('dotenv').config();
 
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
+const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 // Khởi tạo Supabase Admin
 const supabaseAdmin = createClient(
     process.env.SUPABASE_URL,
@@ -151,7 +154,7 @@ router.post('/:id/message', verifyToken, requireAdmin, async (req, res) => {
     }
 
     try {
-        // 1. Kiểm tra User tồn tại và có username
+        // 1. Kiểm tra User tồn tại
         const userCheck = await pool.query('SELECT id, username FROM users WHERE id = $1', [id]);
         if (userCheck.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Người dùng không tồn tại.' });
@@ -160,24 +163,55 @@ router.post('/:id/message', verifyToken, requireAdmin, async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Không thể gửi tin nhắn cho tài khoản chưa hoàn tất đăng ký' });
         }
 
-        // 2. Chèn tin nhắn
+        // 2. Lưu vào Database
         const query = `
             INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
             VALUES ($1, $2, $3, $4, false, NOW())
             RETURNING *
         `;
         
-        const values = [id, title, message, type || 'system'];
+        const notifType = type || 'system';
+        const values = [id, title, message, notifType];
         const { rows } = await pool.query(query, values);
 
+        // 3. GỬI THÔNG BÁO ĐẨY (PUSH NOTIFICATION) QUA ONESIGNAL
+        try {
+            const pushBody = {
+                app_id: ONESIGNAL_APP_ID,
+                headings: { "en": title, "vi": title },
+                contents: { "en": message, "vi": message },
+                include_aliases: {
+                    external_id: [id] 
+                },
+                target_channel: "push", 
+                data: {
+                    type: notifType,
+                    notification_id: rows[0].id
+                }
+            };
+
+            await axios.post('https://onesignal.com/api/v1/notifications', pushBody, {
+                headers: {
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Authorization": `Basic ${ONESIGNAL_API_KEY}`
+                }
+            });
+            console.log(`✅ Đã push thông báo cho user: ${id}`);
+
+        } catch (pushErr) {
+            // Chỉ log lỗi, không return error để tránh user tưởng là gửi thất bại
+            console.error("❌ Lỗi gửi Push OneSignal:", pushErr.response ? pushErr.response.data : pushErr.message);
+        }
+
+        // 4. Trả về kết quả thành công
         res.json({ 
             status: 'success', 
-            message: 'Đã gửi tin nhắn thành công', 
+            message: 'Đã lưu và gửi tin nhắn thành công', 
             data: rows[0] 
         });
 
     } catch (err) {
-        console.error("Lỗi gửi tin nhắn:", err);
+        console.error("Lỗi hệ thống:", err);
         res.status(500).json({ status: 'error', message: err.message });
     }
 });

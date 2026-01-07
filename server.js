@@ -49,6 +49,13 @@ app.get('/policy', noCache, (req, res) => {
 });
 
 
+// Lấy cấu hình Supabase cho trang Admin
+app.get('/api/admin-config', (req, res) => {
+    res.json({
+        supabaseUrl: process.env.SUPABASE_URL,
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+    });
+});
 
 // 2. Trang Admin
 app.get('/admin', noCache, (req, res) => {

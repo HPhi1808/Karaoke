@@ -214,7 +214,7 @@ router.put('/:id', verifyToken, requireAdmin, songUploads, async (req, res) => {
         let newVocalUrl = currentSong.vocal_url;
         let newImageUrl = currentSong.image_url;
 
-        // Xử lý từng file (Giữ nguyên logic cũ)
+        // Xử lý từng file
         if (files['beat']?.[0]) { 
             await deleteFromR2(currentSong.beat_url); 
             newBeatUrl = await processAndUpload(files['beat'][0], 'beats', { songTitle: title, artistName: artist, fileType: 'beat' }); 
@@ -258,7 +258,7 @@ router.put('/:id', verifyToken, requireAdmin, songUploads, async (req, res) => {
     }
 });
 
-// --- 4. XÓA BÀI HÁT (GIỮ NGUYÊN) ---
+// --- 4. XÓA BÀI HÁT ---
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
     const { id } = req.params;
     try {
