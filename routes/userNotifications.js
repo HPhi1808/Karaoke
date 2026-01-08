@@ -91,7 +91,8 @@ router.post('/follow', async (req, res) => {
             `${actorName} đã bắt đầu theo dõi bạn.`,
             { type: 'profile', userId: follower_id }
         );
-
+        console.log("⚠️ Cảnh báo: Push trả về null, có thể do lỗi cấu hình hoặc User ID chưa map.");
+        console.log("Push Result OneSignal ID: ", pushResult?.id);
         // D. Lưu vào bảng notifications (Lưu cả OneSignal ID)
         await supabase.from('notifications').insert({
             user_id: following_id, // Người nhận (B)

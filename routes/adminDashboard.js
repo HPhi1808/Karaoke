@@ -27,7 +27,7 @@ router.get('/stats/general', verifyToken, requireAdmin, async (req, res) => {
 router.get('/stats/online', verifyToken, requireAdmin, async (req, res) => {
     try {
         const query = `
-            SELECT id, username, role, last_active_at 
+            SELECT id, avatar_url, full_name, username, role, last_active_at 
             FROM users 
             WHERE last_active_at > (NOW() - INTERVAL '7 minutes')
             ORDER BY last_active_at DESC

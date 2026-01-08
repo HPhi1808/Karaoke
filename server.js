@@ -13,6 +13,7 @@ app.use((req, res, next) => {
         'karaokeplus.cloud', 
         'api.karaokeplus.cloud', 
         'www.karaokeplus.cloud',
+        'app.karaokeplus.cloud',
         'localhost',
         '127.0.0.1'
     ];
