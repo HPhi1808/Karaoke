@@ -87,10 +87,14 @@ const adminSongsRouter = require('./routes/adminSongs');
 const adminDashboardRouter = require('./routes/adminDashboard');
 const adminGuestsRouter = require('./routes/adminGuests');
 const adminNotificationsRouter = require('./routes/adminNotifications');
+const userNotificationsRouter = require('./routes/userNotifications');
 
 
 // --- CẤU HÌNH API ENDPOINTS ---
 app.use('/api/auth', authRouter);
+
+// API User
+app.use('/api/user/notifications', userNotificationsRouter);
 
 // API Admin (Cần Token + Quyền Admin)
 app.use('/api/admin/users', verifyToken, requireAdmin, adminUsersRouter);
