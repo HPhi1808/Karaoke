@@ -5,6 +5,23 @@ const cors = require('cors');
 const { verifyToken, requireAdmin } = require('./middlewares/auth');
 
 const app = express();
+app.use((req, res, next) => {
+    const host = req.get('host'); 
+
+    // Danh sách các tên miền ĐƯỢC PHÉP truy cập
+    const allowedDomains = [
+        'karaokeplus.cloud', 
+        'api.karaokeplus.cloud', 
+        'www.karaokeplus.cloud',
+        'localhost',
+        '127.0.0.1'
+    ];
+
+    if (!allowedDomains.includes(host) && !host.includes('localhost')) {
+        return res.status(404).send('Not Found');
+    }
+    next();
+});
 const port = process.env.PORT || 3000;
 
 const noCache = (req, res, next) => {

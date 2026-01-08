@@ -1,0 +1,11 @@
+User-agent: *
+
+Allow: /
+
+Disallow: /admin/
+
+Disallow: /api/
+Disallow: /v1/
+
+Disallow: /.env
+Disallow: /config/
