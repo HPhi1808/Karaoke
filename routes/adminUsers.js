@@ -199,7 +199,6 @@ router.post('/:id/message', verifyToken, requireAdmin, async (req, res) => {
             console.log(`✅ Đã push thông báo cho user: ${id}`);
 
         } catch (pushErr) {
-            // Chỉ log lỗi, không return error để tránh user tưởng là gửi thất bại
             console.error("❌ Lỗi gửi Push OneSignal:", pushErr.response ? pushErr.response.data : pushErr.message);
         }
 

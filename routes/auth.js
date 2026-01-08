@@ -185,9 +185,9 @@ router.post('/register/complete', async (req, res) => {
         });
 
         // 5. CẬP NHẬT PUBLIC.USERS
-        let avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/defautl.jpg';
-        if (gender === 'Nam') avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/man.jpg';
-        if (gender === 'Nữ') avatarUrl = 'https://pub-4b88f65058c84573bfc0002391a01edf.r2.dev/PictureApp/woman.jpg';
+        let avatarUrl = 'https://media.karaokeplus.cloud/PictureApp/defautl.jpg';
+        if (gender === 'Nam') avatarUrl = 'https://media.karaokeplus.cloud/PictureApp/man.jpg';
+        if (gender === 'Nữ') avatarUrl = 'https://media.karaokeplus.cloud/PictureApp/woman.jpg';
 
         const { error: dbError } = await supabaseAdmin
             .from('users')

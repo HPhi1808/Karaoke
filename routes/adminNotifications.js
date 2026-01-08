@@ -29,7 +29,6 @@ async function sendPushNotification(title, message, target) {
             { field: "tag", key: "role", relation: "=", value: "user" }
         ];
     } else {
-        // Gửi cho TẤT CẢ (Bao gồm cả Guest)
         body.included_segments = ["All"];
     }
 
@@ -65,7 +64,7 @@ router.post('/', verifyToken, requireAdmin, async (req, res) => {
         return res.status(400).json({ status: 'error', message: 'Thiếu thông tin' });
     }
 
-    const targetAudience = target || 'all'; // Mặc định là tất cả nếu không chọn
+    const targetAudience = target || 'all';
 
     try {
         // 1. Lưu vào Database

@@ -26,7 +26,6 @@ const storage = multer.diskStorage({
         cb(null, tempDir);
     },
     filename: function (req, file, cb) {
-        // Đặt tên file tạm: fieldname-timestamp.ext
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
@@ -51,12 +50,11 @@ const slugify = (text) => {
 };
 
 /**
- * 3. Hàm upload file lên R2 (Sửa để đọc từ path thay vì buffer)
+ * 3. Hàm upload file lên R2
  */
 async function uploadToR2(file, folderName, { songTitle, artistName, fileType } = {}) {
     if (!file) return null;
 
-    // Đảm bảo file tồn tại trước khi upload
     if (!fs.existsSync(file.path)) {
         throw new Error(`File không tồn tại tại đường dẫn: ${file.path}`);
     }
@@ -64,7 +62,6 @@ async function uploadToR2(file, folderName, { songTitle, artistName, fileType } 
     let fileName;
     const fileExt = path.extname(file.originalname).toLowerCase();
 
-    // LOGIC ĐẶT TÊN
     if (songTitle && artistName) {
         const cleanTitle = slugify(songTitle);
         const cleanArtist = slugify(artistName);
@@ -80,7 +77,6 @@ async function uploadToR2(file, folderName, { songTitle, artistName, fileType } 
     }
 
     try {
-        // Tạo stream đọc file từ ổ cứng
         const fileStream = fs.createReadStream(file.path);
 
         const uploadParallel = new Upload({
@@ -88,7 +84,7 @@ async function uploadToR2(file, folderName, { songTitle, artistName, fileType } 
             params: {
                 Bucket: process.env.R2_BUCKET_NAME,
                 Key: fileName,
-                Body: fileStream, // Dùng Stream thay vì Buffer
+                Body: fileStream,
                 ContentType: file.mimetype,
             },
         });

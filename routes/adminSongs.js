@@ -65,19 +65,14 @@ const processAndUpload = async (file, folder, metadata) => {
 
         } catch (error) {
             console.error(`❌ Lỗi nén ${metadata.fileType}, sẽ upload file gốc:`, error);
-            // Nếu lỗi nén, fileToUpload vẫn giữ nguyên là file gốc
         }
     }
 
     try {
-        // Upload lên R2
         const url = await uploadToR2(fileToUpload, folder, metadata);
         return url;
     } finally {
-        // Dọn dẹp sau khi upload xong (dù thành công hay thất bại)
-        // 1. Xóa file gốc do Multer tạo ra
         cleanupFile(originalPath);
-        // 2. Xóa file nén nếu có tạo ra
         if (compressedPath) cleanupFile(compressedPath);
     }
 };
@@ -114,8 +109,6 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
 
         if (checkDuplicate.rows.length > 0) {
             cleanupAllUploadedFiles(files);
-            
-            // Trả về 409 Conflict
             return res.status(409).json({ 
                 status: 'error', 
                 message: `Bài hát "${title}" của "${artist}" đã tồn tại trên hệ thống!` 
@@ -127,7 +120,6 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
             processAndUpload(files['beat']?.[0], 'beats', { 
                 songTitle: title, artistName: artist, fileType: 'beat' 
             }),
-            // Lyric upload thẳng, không cần nén, nhưng cần xóa file tạm sau khi up
             (async () => {
                 const f = files['lyric']?.[0];
                 if (!f) return null;
@@ -138,7 +130,6 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
             processAndUpload(files['vocal']?.[0], 'vocals', { 
                 songTitle: title, artistName: artist, fileType: 'vocal' 
             }),
-            // Image upload thẳng
             (async () => {
                 const f = files['image']?.[0];
                 if (!f) return null;
@@ -159,7 +150,6 @@ router.post('/', verifyToken, requireAdmin, songUploads, async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        // Xóa file nếu có lỗi server xảy ra
         cleanupAllUploadedFiles(files);
         res.status(500).json({ status: 'error', message: err.message });
     }

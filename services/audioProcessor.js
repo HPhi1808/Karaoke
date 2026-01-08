@@ -2,7 +2,6 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const fs = require('fs');
 
-// Cấu hình đường dẫn FFmpeg
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 /**
@@ -14,10 +13,10 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const compressAudio = (inputPath, outputPath) => {
     return new Promise((resolve, reject) => {
         ffmpeg(inputPath)
-            .audioBitrate('128k') // Nén xuống 128kbps (Mức tối ưu cho Karaoke)
-            .audioFrequency(44100) // Chuẩn tần số âm thanh
-            .audioChannels(2) // Stereo
-            .noVideo() // Đảm bảo bỏ hết video/ảnh cover nếu có
+            .audioBitrate('128k')
+            .audioFrequency(44100)
+            .audioChannels(2)
+            .noVideo()
             .on('end', () => {
                 console.log('✅ Đã nén xong audio:', outputPath);
                 resolve(outputPath);
@@ -26,7 +25,7 @@ const compressAudio = (inputPath, outputPath) => {
                 console.error('❌ Lỗi nén audio:', err);
                 reject(err);
             })
-            .save(outputPath); // Bắt đầu xử lý và lưu
+            .save(outputPath);
     });
 };
 
