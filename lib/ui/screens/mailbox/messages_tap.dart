@@ -3,11 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import '../../../models/user_model.dart';
 import '../me/user_profile_screen.dart';
-import '../auth/login_screen.dart';
 import 'chat_screen.dart';
 
 class MessagesTab extends StatefulWidget {
-  const MessagesTab({super.key});
+  const MessagesTab({Key? key}) : super(key: key);
 
   @override
   State<MessagesTab> createState() => _MessagesTabState();
@@ -18,44 +17,23 @@ class _MessagesTabState extends State<MessagesTab> {
   final TextEditingController _searchController = TextEditingController();
 
   // Dữ liệu
-  List<UserModel> _allFriends = [];
-  List<UserModel> _localSearchResults = [];
-  List<UserModel> _globalSearchResults = [];
+  List<UserModel> _allFriends = []; // Danh sách gốc (tất cả bạn bè)
+  List<UserModel> _localSearchResults = []; // Kết quả tìm bạn bè (đã lọc)
+  List<UserModel> _globalSearchResults = []; // Kết quả tìm người lạ
 
   // Trạng thái UI
-  bool _isLoadingFriends = true;
-  bool _isSearching = false;
-  bool _isGlobalLoading = false;
-  bool _showGlobalResults = false;
-
-  // Trạng thái Guest
-  bool _isGuest = false;
+  bool _isLoadingFriends = true; 
+  bool _isSearching = false; 
+  bool _isGlobalLoading = false; 
+  bool _showGlobalResults = false; 
 
   @override
   void initState() {
     super.initState();
-    _checkGuestAndFetchData();
+    _fetchFriends();
   }
 
-  // --- 0. KIỂM TRA GUEST VÀ TẢI DỮ LIỆU ---
-  void _checkGuestAndFetchData() {
-    final currentUser = _supabase.auth.currentUser;
-    final isGuest = currentUser == null || currentUser.userMetadata?['role'] == 'guest';
-
-    if (isGuest) {
-      setState(() {
-        _isGuest = true;
-        _isLoadingFriends = false;
-      });
-    } else {
-      setState(() {
-        _isGuest = false;
-      });
-      _fetchFriends();
-    }
-  }
-
-  // 1. TẢI DANH SÁCH BẠN BÈ (Local Cache)
+  // 1. TẢI DANH SÁCH BẠN BÈ
   Future<void> _fetchFriends() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -83,7 +61,7 @@ class _MessagesTabState extends State<MessagesTab> {
     }
   }
 
-  // 2. XỬ LÝ KHI GÕ TEXT
+  // 2. XỬ LÝ KHI GÕ TEXT (Lọc Local) - ĐÃ THÊM BỘ LỌC ROLE
   void _onSearchChanged(String query) {
     setState(() {
       _isSearching = query.isNotEmpty;
@@ -95,14 +73,17 @@ class _MessagesTabState extends State<MessagesTab> {
       } else {
         final lowerQuery = query.toLowerCase();
         _localSearchResults = _allFriends.where((user) {
-          return user.fullName!.toLowerCase().contains(lowerQuery) ||
-              user.username!.toLowerCase().contains(lowerQuery);
+          // CHỈ HIỆN USER (Bỏ qua admin, guess)
+          final isUser = user.role == 'user';
+          final matchesName = (user.fullName ?? "").toLowerCase().contains(lowerQuery) ||
+                              (user.username ?? "").toLowerCase().contains(lowerQuery);
+          return isUser && matchesName;
         }).toList();
       }
     });
   }
 
-  // 3. TÌM NGƯỜI LẠ (API Global)
+  // 3. XỬ LÝ KHI BẤM "TÌM NGƯỜI LẠ" (Global) - ĐÃ THÊM BỘ LỌC ROLE
   Future<void> _searchGlobal() async {
     final query = _searchController.text.trim();
     if (query.isEmpty) return;
@@ -120,10 +101,8 @@ class _MessagesTabState extends State<MessagesTab> {
           .from('users')
           .select()
           .or('username.ilike.%$query%, email.eq.$query, full_name.ilike.%$query%')
+          .eq('role', 'user') // CHỈ TÌM NHỮNG NGƯỜI CÓ ROLE LÀ USER
           .neq('id', currentUserId!)
-          .neq('role', 'admin')
-          .neq('role', 'own')
-          .neq('role', 'guest')
           .limit(10);
 
       final List<UserModel> results = (response as List)
@@ -146,86 +125,14 @@ class _MessagesTabState extends State<MessagesTab> {
           _isGlobalLoading = false;
           _globalSearchResults = [];
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Lỗi tìm kiếm: $e")),
-        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isGuest) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.lock_outline_rounded, size: 60, color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Tính năng dành cho thành viên",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "Vui lòng đăng nhập để nhắn tin và trò chuyện cùng bạn bè trên Karaoke Plus.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 45,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => LoginScreen(
-                          onLoginSuccess: (bool isSuccess) {
-                            if (isSuccess) {
-                              Navigator.pushNamedAndRemoveUntil(
-                                  context,
-                                  '/home',
-                                      (route) => false
-                              );
-                            }
-                          },
-                          initialErrorMessage: null,
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF00CC),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    "Đăng nhập / Đăng ký",
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // --- NẾU LÀ USER: HIỆN GIAO DIỆN CHAT BÌNH THƯỜNG ---
     return Column(
       children: [
-        // Thanh tìm kiếm
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: TextField(
@@ -248,46 +155,33 @@ class _MessagesTabState extends State<MessagesTab> {
                   : null,
               filled: true,
               fillColor: Colors.grey[100],
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
           ),
         ),
 
-        // Danh sách
         Expanded(
           child: _isLoadingFriends
               ? const Center(child: CircularProgressIndicator())
               : ListView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             children: [
-              // Kết quả local
-              if (!_showGlobalResults && _localSearchResults.isEmpty && _isSearching)
-                const SizedBox.shrink()
-              else if (!_showGlobalResults)
+              if (!_showGlobalResults)
                 ..._localSearchResults.map((user) => _buildUserItem(user)),
 
-              // Nút tìm Global
               if (_isSearching && !_showGlobalResults)
                 InkWell(
                   onTap: _searchGlobal,
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                     margin: const EdgeInsets.only(top: 10),
-                    decoration: BoxDecoration(
-                      border: Border(top: BorderSide(color: Colors.grey[200]!)),
-                    ),
+                    decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey[200]!))),
                     child: Row(
                       children: [
                         Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
+                          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), shape: BoxShape.circle),
                           child: const Icon(Icons.public, color: Colors.blue, size: 20),
                         ),
                         const SizedBox(width: 12),
@@ -300,18 +194,11 @@ class _MessagesTabState extends State<MessagesTab> {
                                   style: const TextStyle(color: Colors.black87, fontSize: 15),
                                   children: [
                                     const TextSpan(text: "Tìm người lạ: "),
-                                    TextSpan(
-                                      text: '"${_searchController.text}"',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                                    ),
+                                    TextSpan(text: '"${_searchController.text}"', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                "Tìm kiếm trên toàn hệ thống",
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
+                              const Text("Tìm kiếm trên toàn hệ thống", style: TextStyle(fontSize: 12, color: Colors.grey)),
                             ],
                           ),
                         ),
@@ -321,25 +208,15 @@ class _MessagesTabState extends State<MessagesTab> {
                   ),
                 ),
 
-              // Kết quả Global
-              if (_isGlobalLoading)
-                const Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+              if (_isGlobalLoading) const Padding(padding: EdgeInsets.all(20.0), child: Center(child: CircularProgressIndicator())),
 
               if (_showGlobalResults) ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Text("Kết quả từ hệ thống", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
-
                 if (_globalSearchResults.isEmpty && !_isGlobalLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Center(child: Text("Không tìm thấy người dùng này.", style: TextStyle(color: Colors.grey))),
-                  ),
-
+                  const Padding(padding: EdgeInsets.all(20.0), child: Center(child: Text("Không tìm thấy người dùng này.", style: TextStyle(color: Colors.grey)))),
                 ..._globalSearchResults.map((user) => _buildUserItem(user)),
               ]
             ],
@@ -353,53 +230,13 @@ class _MessagesTabState extends State<MessagesTab> {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: Colors.grey[200],
-        backgroundImage: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
-            ? NetworkImage(user.avatarUrl!)
-            : null,
-        child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-            ? Text(
-          (user.fullName != null && user.fullName!.isNotEmpty)
-              ? user.fullName![0].toUpperCase()
-              : (user.username != null && user.username!.isNotEmpty)
-              ? user.username![0].toUpperCase()
-              : "?",
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        )
-            : null,
+        backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty) ? NetworkImage(user.avatarUrl!) : null,
+        child: (user.avatarUrl == null || user.avatarUrl!.isEmpty) ? Text(user.fullName?[0].toUpperCase() ?? "?") : null,
       ),
-      title: Text(
-          user.fullName ?? '',
-          style: const TextStyle(fontWeight: FontWeight.bold)
-      ),
-      subtitle: Text(
-        user.isFriend
-            ? "@${user.username ?? ''} • Bạn bè"
-            : "@${user.username ?? ''} • Người lạ",
-      ),
-      trailing: user.isFriend
-          ? const Icon(Icons.chat_bubble_outline, color: Color(0xFFFF00CC))
-          : OutlinedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChatScreen(targetUser: user),
-            ),
-          );
-        },
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-          side: const BorderSide(color: Color(0xFFFF00CC)),
-        ),
-        child: const Text("Nhắn tin", style: TextStyle(fontSize: 12, color: Color(0xFFFF00CC))),
-      ),
+      title: Text(user.fullName ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(user.isFriend ? "@${user.username} • Bạn bè" : "@${user.username} • Người lạ"),
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => UserProfileScreen(user: user),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => ChatScreen(targetUser: user)));
       },
     );
   }
