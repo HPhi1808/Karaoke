@@ -5,24 +5,19 @@ const cors = require('cors');
 const { verifyToken, requireAdmin } = require('./middlewares/auth');
 
 const app = express();
-app.use((req, res, next) => {
-    const host = req.get('host'); 
+const corsOptions = {
+  origin: [
+    'https://app.karaokeplus.cloud',
+    'https://karaokeplus.cloud',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
 
-    // Danh sách các tên miền ĐƯỢC PHÉP truy cập
-    const allowedDomains = [
-        'karaokeplus.cloud', 
-        'api.karaokeplus.cloud', 
-        'www.karaokeplus.cloud',
-        'app.karaokeplus.cloud',
-        'localhost',
-        '127.0.0.1'
-    ];
-
-    if (!allowedDomains.includes(host) && !host.includes('localhost')) {
-        return res.status(404).send('Not Found');
-    }
-    next();
-});
+app.use(cors(corsOptions));
 const port = process.env.PORT || 3000;
 
 const noCache = (req, res, next) => {
@@ -32,7 +27,6 @@ const noCache = (req, res, next) => {
     next();
 };
 
-app.use(cors());
 app.use(express.json());
 
 // --- CẤU HÌNH TĨNH (STATIC FILES) ---

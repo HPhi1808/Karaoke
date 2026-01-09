@@ -14,15 +14,19 @@ const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 // --- HELPER: Gửi thông báo qua OneSignal ---
 async function sendPushNotification(userIds, heading, content, data) {
     try {
+        const body = {
+            app_id: ONESIGNAL_APP_ID,
+            include_external_user_ids: userIds,
+            headings: { en: heading },
+            contents: { en: content },
+            data: data,
+            // Thêm channel_for_external_user_ids để đảm bảo gửi đúng push
+            channel_for_external_user_ids: "push", 
+        };
+
         const response = await axios.post(
             'https://onesignal.com/api/v1/notifications',
-            {
-                app_id: ONESIGNAL_APP_ID,
-                include_external_user_ids: userIds,
-                headings: { en: heading },
-                contents: { en: content },
-                data: data,
-            },
+            body,
             {
                 headers: {
                     'Content-Type': 'application/json',
@@ -30,9 +34,16 @@ async function sendPushNotification(userIds, heading, content, data) {
                 }
             }
         );
-        return response.data; // Trả về { id: '...', recipients: ... }
+
+        // Kiểm tra xem có người nhận không
+        if (response.data.recipients === 0) {
+            console.warn("⚠️ OneSignal: Gửi thành công nhưng 0 người nhận (User ID chưa map trên Client).");
+        }
+
+        return response.data; 
     } catch (error) {
-        console.error("OneSignal Error:", error.response?.data || error.message);
+        // In chi tiết lỗi từ OneSignal
+        console.error("❌ OneSignal Error Details:", error.response?.data || error.message);
         return null;
     }
 }
@@ -189,6 +200,58 @@ router.put('/read/:id', async (req, res) => {
             .eq('id', id);
         return res.json({ success: true });
     } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+
+// 5. SEND CHAT NOTIFICATION (POST /api/user/notifications/chat)
+router.post('/chat', async (req, res) => {
+    // sender_id: Người gửi
+    // receiver_id: Người nhận
+    // message_content: Nội dung tin nhắn
+    const { sender_id, receiver_id, message_content } = req.body;
+
+    if (!sender_id || !receiver_id) {
+        return res.status(400).json({ error: "Thiếu thông tin người gửi/nhận" });
+    }
+
+    try {
+        // A. Lấy thông tin người gửi để hiện tên
+        const { data: sender } = await supabase
+            .from('users')
+            .select('full_name, username')
+            .eq('id', sender_id)
+            .single();
+
+        const senderName = sender?.full_name || sender?.username || "Ai đó";
+        
+        // Cắt ngắn nội dung nếu quá dài
+        const previewContent = message_content.length > 50 
+            ? message_content.substring(0, 50) + "..." 
+            : message_content;
+
+        // B. Gửi Push Notification
+        // Data kèm theo để khi bấm vào thông báo sẽ mở đúng đoạn chat
+        const pushResult = await sendPushNotification(
+            [receiver_id], 
+            `Tin nhắn mới từ ${senderName}`,
+            previewContent,
+            { 
+                type: 'chat', 
+                senderId: sender_id, 
+                senderName: senderName 
+            }
+        );
+
+        return res.json({ 
+            success: true, 
+            message: "Đã gửi thông báo tin nhắn",
+            debug_onesignal: pushResult 
+        });
+
+    } catch (err) {
+        console.error("Chat Notification Error:", err);
         return res.status(500).json({ error: err.message });
     }
 });

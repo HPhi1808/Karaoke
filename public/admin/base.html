@@ -229,9 +229,8 @@
       return Date.now() >= (decoded.exp * 1000) - 10000;
     }
 
-    // --- 3. HẸN GIỜ THÔNG MINH (Thay thế vòng lặp liên tục) ---
+    // --- 3. HẸN GIỜ THÔNG MINH  ---
     function scheduleSessionWarning() {
-      // Xóa các timer cũ nếu có
       if (warningTimer) clearTimeout(warningTimer);
       if (countdownInterval) clearInterval(countdownInterval);
 
@@ -242,18 +241,15 @@
       if (!decoded || !decoded.exp) return;
 
       const now = Math.floor(Date.now() / 1000);
-      // Tính thời gian còn lại cho đến lúc CẦN BÁO (hết hạn - 60s)
       const secondsUntilWarning = (decoded.exp - now) - WARNING_BUFFER;
 
       console.log(`🕒 Token hết hạn sau ${decoded.exp - now}s. Hẹn giờ hiện Modal sau ${secondsUntilWarning}s.`);
 
       if (secondsUntilWarning > 0) {
-        // Nếu còn lâu mới hết hạn -> Ngủ đông
         warningTimer = setTimeout(() => {
           showSessionModal();
         }, secondsUntilWarning * 1000);
       } else {
-        // Nếu đã đến giờ (hoặc quá giờ) -> Hiện Modal ngay
         showSessionModal();
       }
     }
@@ -268,10 +264,8 @@
         console.warn("⚠️ Đang hiển thị cảnh báo hết phiên!");
       }
 
-      // Bắt đầu vòng lặp 1s CHỈ KHI modal đang hiện (để update số giây UI)
       if (countdownInterval) clearInterval(countdownInterval);
 
-      // Cập nhật ngay lập tức lần đầu
       updateCountdownUI(countdownSpan);
 
       countdownInterval = setInterval(() => {
@@ -289,7 +283,6 @@
       if (timeLeft > 0) {
         spanElement.innerText = timeLeft;
       } else {
-        // Hết giờ thật sự -> Logout
         clearInterval(countdownInterval);
         handleLogout("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
       }
@@ -345,10 +338,8 @@
 
       if (newToken) {
         hideSessionModal();
-        // QUAN TRỌNG: Sau khi gia hạn thành công, tính toán lại lịch hẹn mới
         scheduleSessionWarning();
 
-        // Reset UI nút
         setTimeout(() => {
           btn.disabled = false;
           btn.innerHTML = originalText;
@@ -392,7 +383,6 @@
         const newToken = await performRefreshToken();
         if (newToken) {
           currentToken = newToken;
-          // Cập nhật lại lịch hẹn nếu refresh tự động thành công
           scheduleSessionWarning();
         } else {
           handleLogout("Phiên hết hạn.");
@@ -453,7 +443,6 @@
 
     // --- 9. REALTIME SECURITY ---
     async function initRealtimeSecurity() {
-      // (Giữ nguyên code Realtime của bạn)
       const adminInfoStr = localStorage.getItem('admin_info');
       if (!adminInfoStr) return;
       try {
@@ -485,7 +474,6 @@
 
     // --- 10. KHỞI CHẠY ---
     (async () => {
-      // Bắt đầu hẹn giờ cảnh báo (Scheduling thay vì Polling)
       scheduleSessionWarning();
 
       const lastPage = localStorage.getItem('last_visited_page');
@@ -494,10 +482,8 @@
       setTimeout(initRealtimeSecurity, 3000);
     })();
 
-    // Xử lý khi người dùng quay lại Tab (phòng trường hợp trình duyệt ngủ đông làm lệch giờ)
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === 'visible') {
-        // Tính toán lại lịch hẹn để đảm bảo chính xác
         scheduleSessionWarning();
       }
     });

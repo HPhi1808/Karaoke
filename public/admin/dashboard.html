@@ -130,7 +130,6 @@
         justify-content: center;
     }
 
-    /* Animation cho dấu chấm xanh online */
     .online-dot {
         height: 10px;
         width: 10px;
@@ -211,13 +210,10 @@
             }
         }
 
-        // Cập nhật hàm này để xử lý danh sách user
         window.fetchOnlineStats = async function () {
             const res = await window.api('/api/admin/dashboard/stats/online');
 
             if (res && res.status === 'success') {
-                // Debug: Kiểm tra xem API có trả về avatar_url và full_name không
-                // console.log("Online Users Data:", res.users);
 
                 updateOdometer('statOnline', res.online);
                 const tbody = document.getElementById('onlineUsersTable');
@@ -242,14 +238,10 @@
                     tbody.innerHTML = res.users.map(u => {
                         const timeStr = getTimeAgo(u.last_active_at);
 
-                        // --- LOGIC HIỂN THỊ TÊN VÀ AVATAR MỚI ---
-                        // Ưu tiên full_name, nếu không có thì dùng username
                         const displayName = (u.full_name && u.full_name.trim() !== "") ? u.full_name : u.username;
                         
-                        // Kiểm tra avatar
                         const hasAvatar = u.avatar_url && u.avatar_url.trim() !== '';
 
-                        // Tạo HTML cho Avatar
                         const avatarHtml = hasAvatar
                             ? `<img src="${u.avatar_url}" alt="Avt" class="rounded-circle me-2" style="width:35px; height:35px; object-fit: cover; border: 1px solid #e3e6f0;">`
                             : `<div class="bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px; height:35px; font-weight:bold; font-size: 14px;">
