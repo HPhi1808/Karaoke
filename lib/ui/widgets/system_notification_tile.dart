@@ -17,28 +17,28 @@ class SystemNotificationTile extends StatelessWidget {
         return _SystemStyle(
           icon: Icons.warning_amber_rounded,
           color: Colors.red,
-          bgColor: Colors.red.withOpacity(0.1),
+          bgColor: Colors.red.withValues(alpha: 0.1),
           title: "Cảnh báo vi phạm",
         );
       case 'success':
         return _SystemStyle(
           icon: Icons.card_giftcard,
           color: Colors.green,
-          bgColor: Colors.green.withOpacity(0.1),
+          bgColor: Colors.green.withValues(alpha: 0.1),
           title: "Quà tặng & Khuyến mãi",
         );
       case 'info':
         return _SystemStyle(
           icon: Icons.info_outline,
           color: Colors.blue,
-          bgColor: Colors.blue.withOpacity(0.1),
+          bgColor: Colors.blue.withValues(alpha: 0.1),
           title: "Thông tin hệ thống",
         );
       default: // Mặc định là Broadcast (system)
         return _SystemStyle(
           icon: Icons.campaign_rounded,
           color: const Color(0xFFFF00CC),
-          bgColor: const Color(0xFFFF00CC).withOpacity(0.1),
+          bgColor: const Color(0xFFFF00CC).withValues(alpha: 0.1),
           title: "Thông báo hệ thống",
         );
     }
@@ -64,20 +64,20 @@ class SystemNotificationTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isUnread ? style.bgColor.withOpacity(0.05) : Colors.white,
+          color: isUnread ? style.bgColor.withValues(alpha: 0.05) : Colors.white,
           border: Border(
-            bottom: BorderSide(color: Colors.grey.withOpacity(0.1)),
+            bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
             left: isUnread ? BorderSide(color: style.color, width: 4) : BorderSide.none,
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start, // Căn trên để icon đẹp hơn nếu text dài
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Icon Circle
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: style.bgColor, // Màu nền nhạt theo type
+                color: style.bgColor,
                 shape: BoxShape.circle,
               ),
               child: Icon(style.icon, color: style.color, size: 22),
@@ -97,10 +97,9 @@ class SystemNotificationTile extends StatelessWidget {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: style.color, // Tiêu đề mang màu của loại thông báo
+                          color: style.color,
                         ),
                       ),
-                      // Thời gian ngắn gọn (Ví dụ: 2h)
                       Text(
                         _formatShortTime(notification!.createdAt),
                         style: TextStyle(fontSize: 11, color: Colors.grey[500]),
@@ -109,7 +108,6 @@ class SystemNotificationTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    // Ưu tiên hiển thị message, nếu có title riêng thì nối vào
                     "${notification!.title}: ${notification!.message}",
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -137,7 +135,6 @@ class SystemNotificationTile extends StatelessWidget {
   }
 }
 
-// Class cấu hình style nội bộ
 class _SystemStyle {
   final IconData icon;
   final Color color;

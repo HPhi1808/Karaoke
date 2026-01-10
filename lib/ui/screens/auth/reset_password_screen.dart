@@ -5,7 +5,7 @@ import '../../../services/auth_service.dart';
 class ResetPasswordScreen extends StatefulWidget {
   final VoidCallback onBackClick;
 
-  const ResetPasswordScreen({Key? key, required this.onBackClick}) : super(key: key);
+  const ResetPasswordScreen({super.key, required this.onBackClick});
 
   @override
   State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();

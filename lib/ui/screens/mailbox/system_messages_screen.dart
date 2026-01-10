@@ -41,7 +41,7 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
               .map((e) => NotificationModel.fromJson(e))
               .where((noti) {
             bool isSystem = noti.category == 'system';
-            final type = (noti.type ?? '').trim().toLowerCase();
+            final type = (noti.type).trim().toLowerCase();
             bool isAdminMessage = ['warning', 'info', 'success'].contains(type);
             return isSystem || isAdminMessage;
           })
@@ -106,28 +106,28 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
         return _MessageStyle(
           icon: Icons.warning_amber_rounded,
           color: Colors.red,
-          bgColor: Colors.red.withOpacity(0.1),
+          bgColor: Colors.red.withValues(alpha: 0.1),
           label: "Cảnh báo",
         );
       case 'success':
         return _MessageStyle(
           icon: Icons.card_giftcard,
           color: Colors.green,
-          bgColor: Colors.green.withOpacity(0.1),
+          bgColor: Colors.green.withValues(alpha: 0.1),
           label: "Quà tặng",
         );
       case 'info':
         return _MessageStyle(
           icon: Icons.info_outline,
           color: Colors.blue,
-          bgColor: Colors.blue.withOpacity(0.1),
+          bgColor: Colors.blue.withValues(alpha: 0.1),
           label: "Thông tin",
         );
       default:
         return _MessageStyle(
           icon: Icons.campaign_rounded,
           color: const Color(0xFFFF00CC),
-          bgColor: const Color(0xFFFF00CC).withOpacity(0.1),
+          bgColor: const Color(0xFFFF00CC).withValues(alpha: 0.1),
           label: "Hệ thống",
         );
     }
@@ -175,7 +175,7 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
           return Container(
             margin: const EdgeInsets.only(bottom: 2),
             decoration: BoxDecoration(
-              color: isUnread ? style.bgColor.withOpacity(0.08) : Colors.white,
+              color: isUnread ? style.bgColor.withValues(alpha: 0.08) : Colors.white,
               border: isUnread
                   ? Border(left: BorderSide(color: style.color, width: 4))
                   : null,
@@ -206,7 +206,7 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: style.color.withOpacity(0.1),
+                                  color: style.color.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(

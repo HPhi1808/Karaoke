@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -14,7 +13,6 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audio_session/audio_session.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
 
 import '../../../models/song_model.dart';
@@ -263,8 +261,9 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
             _vocalPlayer.setUrl(song.vocalUrl!)
                 .timeout(const Duration(seconds: 10))
                 .catchError((e) {
-              debugPrint("⚠️ Lỗi tải vocal (bỏ qua): $e");
-              _hasVocalUrl = false;
+                  debugPrint("⚠️ Lỗi tải vocal (bỏ qua): $e");
+                  _hasVocalUrl = false;
+                  return null;
             })
         );
       }
@@ -490,7 +489,7 @@ class _SongDetailScreenState extends State<SongDetailScreen> {
       String path = '';
 
       if (kIsWeb) {
-        path = ''; // Web bắt buộc để rỗng để lưu vào RAM/Blob
+        path = '';
       } else {
         final dir = await getApplicationDocumentsDirectory();
         if (!await dir.exists()) await dir.create(recursive: true);
@@ -1949,7 +1948,7 @@ class KaraokeLineItem extends StatelessWidget {
   final bool isFastFlow;
 
   const KaraokeLineItem({
-    Key? key,
+    super.key,
     required this.line,
     required this.currentPositionMs,
     required this.index,
@@ -1957,7 +1956,7 @@ class KaraokeLineItem extends StatelessWidget {
     this.highlightActiveLine = true,
     this.countdownValue,
     this.isFastFlow = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2100,13 +2099,13 @@ class KaraokeLineItem extends StatelessWidget {
 }
 
 class SkeletonLoadingEffect extends StatefulWidget {
-  const SkeletonLoadingEffect({Key? key}) : super(key: key);
+  const SkeletonLoadingEffect({super.key});
 
   @override
-  _SkeletonLoadingEffectState createState() => _SkeletonLoadingEffectState();
+  SkeletonLoadingEffectState createState() => SkeletonLoadingEffectState();
 }
 
-class _SkeletonLoadingEffectState extends State<SkeletonLoadingEffect>
+class SkeletonLoadingEffectState extends State<SkeletonLoadingEffect>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
@@ -2138,7 +2137,7 @@ class _SkeletonLoadingEffectState extends State<SkeletonLoadingEffect>
               margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 40),
               height: 20,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(10),
               ),
               width: double.infinity,
@@ -2150,7 +2149,7 @@ class _SkeletonLoadingEffectState extends State<SkeletonLoadingEffect>
 }
 
 class ControlsSkeleton extends StatelessWidget {
-  const ControlsSkeleton({Key? key}) : super(key: key);
+  const ControlsSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -2168,11 +2167,11 @@ class ControlsSkeleton extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              CircleAvatar(radius: 15, backgroundColor: Colors.white10),
-              CircleAvatar(radius: 15, backgroundColor: Colors.white10),
+              const CircleAvatar(radius: 15, backgroundColor: Colors.white10),
+              const CircleAvatar(radius: 15, backgroundColor: Colors.white10),
               Container(width: 70, height: 70, decoration: const BoxDecoration(color: Colors.white10, shape: BoxShape.circle)),
-              CircleAvatar(radius: 20, backgroundColor: Colors.white10),
-              CircleAvatar(radius: 14, backgroundColor: Colors.white10),
+              const CircleAvatar(radius: 20, backgroundColor: Colors.white10),
+              const CircleAvatar(radius: 14, backgroundColor: Colors.white10),
             ],
           )
         ],

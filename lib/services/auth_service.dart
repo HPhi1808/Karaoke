@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
@@ -24,9 +24,9 @@ class AuthService extends BaseService{
       await Future.delayed(const Duration(seconds: 2));
       OneSignal.User.addTagWithKey("role", role);
 
-      print("🔔 OneSignal Synced: $userId ($role)");
+      debugPrint("🔔 OneSignal Synced: $userId ($role)");
     } catch (e) {
-      print("⚠️ Lỗi sync OneSignal: $e");
+      debugPrint("⚠️ Lỗi sync OneSignal: $e");
     }
   }
 
@@ -56,7 +56,7 @@ class AuthService extends BaseService{
         }
         return false;
       } catch (e) {
-        print("⚠️ Lỗi khôi phục session: $e");
+        debugPrint("⚠️ Lỗi khôi phục session: $e");
         return false;
       }
     });
@@ -72,7 +72,7 @@ class AuthService extends BaseService{
       final currentSession = _client.auth.currentSession;
       if (currentSession != null && !currentSession.isExpired) {
         _syncOneSignal(currentSession.user.id, 'guest');
-        print("✅ Session RAM còn, không cần login lại.");
+        debugPrint("✅ Session RAM còn, không cần login lại.");
         return;
       }
 
@@ -80,7 +80,7 @@ class AuthService extends BaseService{
       bool isRecovered = await recoverSession();
 
       if (isRecovered) {
-        print("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
+        debugPrint("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
         return;
       }
 
@@ -88,7 +88,7 @@ class AuthService extends BaseService{
       await logout();
 
       try {
-        print("🚀 Tạo Guest User mới...");
+        debugPrint("🚀 Tạo Guest User mới...");
         final res = await _client.auth.signInAnonymously();
 
         if (res.session != null) {
@@ -241,6 +241,112 @@ class AuthService extends BaseService{
     });
   }
 
+  Future<void> loginWithGoogle() async {
+    await safeExecution(() async {
+      String? oldGuestId;
+      if (isGuest) {
+        oldGuestId = _client.auth.currentUser?.id;
+      }
+
+      const webClientId = '575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com';
+
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        serverClientId: webClientId,
+        scopes: ['email', 'profile'],
+      );
+
+      try {
+        final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+        if (googleUser == null) return;
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final accessToken = googleAuth.accessToken;
+        final idToken = googleAuth.idToken;
+
+        if (idToken == null) throw Exception('Không lấy được ID Token từ Google.');
+
+        final AuthResponse res = await _client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        );
+
+        final session = res.session;
+        final user = res.user;
+
+        if (session != null && user != null) {
+          final userData = await _client
+              .from('users')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle();
+
+          final String role = userData?['role'] ?? 'user';
+
+          if (role == 'admin' || role == 'own') {
+            await _client.auth.signOut();
+            await googleSignIn.signOut();
+            await TokenManager.instance.clearAuth();
+            throw Exception("Tài khoản Quản trị viên không thể đăng nhập vào App.");
+          }
+
+          await TokenManager.instance.saveAuthInfo(
+              session.accessToken,
+              session.refreshToken ?? '',
+              role
+          );
+
+          _syncOneSignal(user.id, role);
+          if (user.email != null) {
+            OneSignal.User.addEmail(user.email!);
+          }
+
+          final String supabaseSessionId = await UserManager.instance
+              .syncSessionFromToken(session.accessToken);
+          final nowUtc = DateTime.now().toUtc().toIso8601String();
+
+          Map<String, dynamic> updates = {
+            'current_session_id': supabaseSessionId,
+            'last_sign_in_at': nowUtc,
+            'last_active_at': nowUtc,
+          };
+
+          final createdAt = DateTime.parse(user.createdAt);
+          final isNewUser = DateTime.now().toUtc().difference(createdAt).inSeconds < 30;
+
+          if (isNewUser) {
+            debugPrint("🚀 User mới -> Đồng bộ thông tin Google");
+            final googleAvatar = user.userMetadata?['avatar_url'];
+            final googleName = user.userMetadata?['full_name'];
+
+            updates['avatar_url'] = googleAvatar ??
+                'https://media.karaokeplus.cloud/PictureApp/defautl.jpg';
+
+            if (googleName != null) {
+              updates['full_name'] = googleName;
+            }
+          }
+
+          await _client.from('users').update(updates).eq('id', user.id);
+
+          UserManager.instance.init();
+          debugPrint("✅ Đăng nhập Google thành công: ${user.email}");
+
+        } else {
+          throw Exception("Đăng nhập thất bại.");
+        }
+        if (oldGuestId != null) {
+          _cleanupGuestAccount(oldGuestId);
+        }
+
+      } catch (e) {
+        googleSignIn.signOut();
+        debugPrint("❌ Lỗi Login Google: $e");
+        rethrow;
+      }
+    });
+  }
+
   // Hàm dọn dẹp guest
   Future<void> _cleanupGuestAccount(String guestId) async {
     await safeExecution(() async {
@@ -251,7 +357,7 @@ class AuthService extends BaseService{
           body: jsonEncode({'guest_id': guestId}),
         );
       } catch (e) {
-        print("❌ Lỗi kết nối dọn guest: $e");
+        debugPrint("❌ Lỗi kết nối dọn guest: $e");
       }
     });
   }
@@ -381,8 +487,8 @@ class AuthService extends BaseService{
             .maybeSingle();
 
         if (userCheck == null) throw Exception('Email này chưa được đăng ký.');
-        if (userCheck['username'] == null) throw Exception(
-            'Email lỗi dữ liệu.');
+        if (userCheck['username'] == null) throw Exception('Email lỗi dữ liệu.');
+
       } catch (e) {
         if (e.toString().contains('Email này')) rethrow;
       }

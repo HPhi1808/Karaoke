@@ -9,7 +9,7 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
 
   late final Dio dio;
-  // static const String baseUrl = "http://10.0.2.2:3000";
+  // static const String baseUrl = "http://192.168.1.203:3000";
   static const String baseUrl = 'https://api.karaokeplus.cloud';
 
   ApiClient._internal() {
@@ -42,7 +42,7 @@ class ApiClient {
     dio.interceptors.add(InterceptorsWrapper(
       onError: (DioException e, handler) async {
         if (_isNetworkError(e)) {
-          print("🔴 Mất kết nối mạng: ${e.message}");
+          debugPrint("🔴 Mất kết nối mạng: ${e.message}");
 
           bool shouldRetry = await _showRetryDialog();
 
@@ -57,7 +57,7 @@ class ApiClient {
           }
         }
 
-        print("🔴 API Error: ${e.response?.statusCode} - ${e.requestOptions.path}");
+        debugPrint("🔴 API Error: ${e.response?.statusCode} - ${e.requestOptions.path}");
         return handler.next(e);
       },
     ));
@@ -86,8 +86,8 @@ class ApiClient {
       builder: (ctx) => PopScope(
         canPop: false,
         child: AlertDialog(
-          title: const Text("Mất kết nối Internet"),
-          content: const Text("Vui lòng kiểm tra đường truyền và thử lại."),
+          title: const Text("Mất kết nối"),
+          content: const Text("Vui lòng kiểm tra và thử lại."),
           actions: [
             ElevatedButton(
               onPressed: () {

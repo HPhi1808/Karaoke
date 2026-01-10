@@ -9,7 +9,7 @@ import '../../widgets/song_card.dart';
 class SongsScreen extends StatefulWidget {
   final Function(SongModel) onSongClick;
 
-  const SongsScreen({Key? key, required this.onSongClick}) : super(key: key);
+  const SongsScreen({super.key, required this.onSongClick});
 
   @override
   State<SongsScreen> createState() => _SongsScreenState();
@@ -154,12 +154,11 @@ class _SongTabContent extends StatelessWidget {
   final String listKey;
 
   const _SongTabContent({
-    Key? key,
     required this.songs,
     required this.onRefresh,
     required this.onSongTap,
     this.listKey = "default_list",
-  }): super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +208,7 @@ class _SongTabContent extends StatelessWidget {
 // SKELETON LOADING
 // ==========================================
 class _SongsSkeletonLoading extends StatelessWidget {
-  const _SongsSkeletonLoading({Key? key}) : super(key: key);
+  const _SongsSkeletonLoading();
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +225,7 @@ class _SongsSkeletonLoading extends StatelessWidget {
 }
 
 class _SkeletonCardItem extends StatelessWidget {
-  const _SkeletonCardItem({Key? key}) : super(key: key);
+  const _SkeletonCardItem();
 
   @override
   Widget build(BuildContext context) {

@@ -23,13 +23,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // --- LOGIC CHỐNG SPAM ---
   int _failedAttempts = 0;
   bool _isLocked = false;
   int _countdown = 0;
   Timer? _lockoutTimer;
-  static const int MAX_ATTEMPTS = 5;
-  static const int LOCK_TIME = 60;
+  static const int maxAttempts = 5;
+  static const int lockTime = 60;
 
   @override
   void initState() {
@@ -71,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _isLocked = true;
       _isLoading = false;
-      _countdown = LOCK_TIME;
+      _countdown = lockTime;
     });
 
     _showToast("Bạn đã nhập sai quá nhiều lần. Vui lòng thử lại sau $_countdown giây.", isError: true);
@@ -123,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // Logic khóa nếu sai quá nhiều
-      if (_failedAttempts >= MAX_ATTEMPTS) {
+      if (_failedAttempts >= maxAttempts) {
         _startLockout();
       } else {
         await Future.delayed(const Duration(milliseconds: 1500));
@@ -132,6 +131,32 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           setState(() => _isLoading = false);
         }
+      }
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    if (_isLocked || _isLoading) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await AuthService.instance.loginWithGoogle();
+      _showToast("Đăng nhập Google thành công!");
+      _failedAttempts = 0;
+      widget.onLoginSuccess(true);
+
+    } catch (e) {
+      String msg = e.toString();
+      if (msg.contains("Exception:")) {
+        msg = msg.replaceAll("Exception:", "").trim();
+      }
+      if (!msg.toLowerCase().contains("hủy")) {
+        _showToast("Lỗi Google: $msg", isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -247,7 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Align(
                         alignment: Alignment.centerRight,
                         child: Text(
-                          "Còn lại ${MAX_ATTEMPTS - _failedAttempts} lần thử",
+                          "Còn lại ${maxAttempts - _failedAttempts} lần thử",
                           style: const TextStyle(color: Colors.red, fontSize: 12),
                         ),
                       ),
@@ -298,13 +323,55 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
 
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey[300])),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Text("Hoặc", style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey[300])),
+                    ],
+                  ),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton(
+                      onPressed: canInput ? _handleGoogleLogin : null,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Image.asset('assets/google.png', height: 24,
+                              errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.g_mobiledata, size: 30, color: Colors.blue)
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            "Tiếp tục bằng Google",
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   TextButton(
                     onPressed: canInput ? () async {
                       try {
                         await AuthService.instance.loginAsGuest();
-                        if (mounted)
+                        if (context.mounted) {
                           Navigator.pushReplacementNamed(context, '/home');
+                        }
                       } catch (e) {
                         _showToast("Lỗi đăng nhập khách");
                       }

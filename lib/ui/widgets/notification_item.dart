@@ -5,7 +5,7 @@ import '../../models/notification_model.dart';
 class NotificationItem extends StatelessWidget {
   final NotificationModel notification;
 
-  const NotificationItem({Key? key, required this.notification}) : super(key: key);
+  const NotificationItem({super.key, required this.notification});
 
   Future<void> _markAsRead() async {
     if (notification.isRead) return;
@@ -29,7 +29,6 @@ class NotificationItem extends StatelessWidget {
         // TODO: Navigate logic
       },
       child: Container(
-        // Dùng màu nền trắng sạch sẽ, chỉ highlight nhẹ nếu chưa đọc
         color: isUnread ? const Color(0xFFF0F7FF) : Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -46,11 +45,11 @@ class NotificationItem extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     text: TextSpan(
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
                         color: Colors.black87,
                         height: 1.4,
-                        fontFamily: 'Roboto', // Đảm bảo font không bị lỗi
+                        fontFamily: 'Roboto',
                       ),
                       children: [
                         TextSpan(
@@ -78,7 +77,6 @@ class NotificationItem extends StatelessWidget {
                 ],
               ),
             ),
-            // Chấm xanh báo chưa đọc (tinh tế hơn đổi màu cả background)
             if (isUnread)
               Container(
                 margin: const EdgeInsets.only(left: 8),
@@ -97,7 +95,7 @@ class NotificationItem extends StatelessWidget {
 
   Widget _buildAvatarStack() {
     return SizedBox(
-      width: 52, // Tăng kích thước chút cho dễ nhìn
+      width: 52,
       height: 52,
       child: Stack(
         children: [
@@ -123,7 +121,7 @@ class NotificationItem extends StatelessWidget {
               decoration: BoxDecoration(
                   color: _getIconColor(),
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2), // Viền trắng tạo độ tách biệt
+                  border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4)
                   ]
@@ -149,9 +147,9 @@ class NotificationItem extends StatelessWidget {
   Color _getIconColor() {
     final type = (notification.type ?? '').toLowerCase();
     switch (type) {
-      case 'like': return const Color(0xFFFF4D4F); // Đỏ đẹp
-      case 'comment': return const Color(0xFF1890FF); // Xanh dương
-      case 'follow': return const Color(0xFFFF00CC); // Màu brand
+      case 'like': return const Color(0xFFFF4D4F);
+      case 'comment': return const Color(0xFF1890FF);
+      case 'follow': return const Color(0xFFFF00CC);
       default: return Colors.grey;
     }
   }

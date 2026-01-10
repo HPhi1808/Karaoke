@@ -34,7 +34,7 @@ class UserManager {
     // 1. Kiểm tra user hiện tại
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
-      print("🛡️ User Manager: Không có user, bỏ qua init.");
+      debugPrint("🛡️ User Manager: Không có user, bỏ qua init.");
       return;
     }
 

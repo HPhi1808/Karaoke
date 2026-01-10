@@ -20,7 +20,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final _supabase = Supabase.instance.client;
 
   late UserModel _displayUser;
-  bool _isLoading = true;
 
   bool _isFollowing = false;
   bool _isFollowedByTarget = false;
@@ -45,14 +44,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Future<void> _loadAllData() async {
-    setState(() => _isLoading = true);
     await Future.wait([
       _fetchUserDetails(),
       _checkFollowStatus(),
       _fetchStats(),
     ]);
     if (mounted) {
-      setState(() => _isLoading = false);
     }
   }
 
@@ -234,7 +231,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           children: [
             const SizedBox(height: 10),
-            // Avatar (Dùng _displayUser)
             Container(
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
@@ -258,7 +254,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
             const SizedBox(height: 16),
 
-            // Info (Dùng _displayUser)
             Text(
               _displayUser.fullName ?? "Người dùng",
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black),

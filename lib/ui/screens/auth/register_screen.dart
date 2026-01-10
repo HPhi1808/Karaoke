@@ -6,7 +6,7 @@ class RegisterScreen extends StatefulWidget {
   final VoidCallback onRegisterSuccess;
   final VoidCallback onBackClick;
 
-  const RegisterScreen({Key? key, required this.onRegisterSuccess, required this.onBackClick}) : super(key: key);
+  const RegisterScreen({super.key, required this.onRegisterSuccess, required this.onBackClick});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -327,7 +327,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SizedBox(height: 16),
 
         DropdownButtonFormField<String>(
-          value: _selectedRegion,
+          initialValue: _selectedRegion,
           style: const TextStyle(color: Colors.black87, fontSize: 16),
           dropdownColor: Colors.white,
           decoration: _inputDecoration("Tỉnh / Thành phố", Icons.location_on),

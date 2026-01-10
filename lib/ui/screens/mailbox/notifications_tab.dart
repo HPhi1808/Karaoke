@@ -4,9 +4,10 @@ import '../../../models/notification_model.dart';
 import '../../widgets/notification_item.dart';
 import '../../widgets/system_notification_tile.dart';
 import '../../../services/base_service.dart';
+import '../../../services/auth_service.dart';
 
 class NotificationsTab extends StatefulWidget {
-  const NotificationsTab({Key? key}) : super(key: key);
+  const NotificationsTab({super.key});
 
   @override
   State<NotificationsTab> createState() => _NotificationsTabState();
@@ -14,16 +15,17 @@ class NotificationsTab extends StatefulWidget {
 
 class _NotificationsTabState extends State<NotificationsTab> {
   final _supabase = Supabase.instance.client;
-  final _baseService = BaseService(); // 1. Khởi tạo BaseService
+  final _baseService = BaseService();
 
-  // State chứa dữ liệu
   List<NotificationModel> _notifications = [];
   NotificationModel? _latestSystemNotification;
   bool _isLoading = true;
+  bool _isGuest = false;
 
   @override
   void initState() {
     super.initState();
+    _isGuest = AuthService.instance.isGuest;
     _fetchNotifications();
     _setupRealtimeSubscription();
   }
@@ -32,37 +34,45 @@ class _NotificationsTabState extends State<NotificationsTab> {
   Future<void> _fetchNotifications() async {
     try {
       final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) return;
+      if (!_isGuest && userId == null) return;
 
       // 2. Dùng safeExecution để tự động bắt lỗi mạng và hiện Dialog Retry
       final List<dynamic> response = await _baseService.safeExecution(() async {
-        return await _supabase
-            .from('all_notifications_view')
-            .select()
-            .order('created_at', ascending: false);
+        if (_isGuest) {
+          return await _supabase
+              .from('system_notifications')
+              .select()
+              .order('created_at', ascending: false)
+              .limit(1);
+        } else {
+          return await _supabase
+              .from('all_notifications_view')
+              .select()
+              .order('created_at', ascending: false);
+        }
       });
 
       final allData = response.map((json) => NotificationModel.fromJson(json)).toList();
 
       if (mounted) {
         setState(() {
-          // --- LOGIC MỚI: ĐỊNH NGHĨA THẾ NÀO LÀ "SYSTEM/QUAN TRỌNG" ---
+          if (_isGuest) {
+            _latestSystemNotification = allData.isNotEmpty ? allData.first : null;
+            _notifications = [];
+          } else {
           bool isSystemOrAdminMsg(NotificationModel n) {
-            // 1. Là thông báo hệ thống (Broadcast)
             if (n.category == 'system') return true;
 
-            // 2. Là tin nhắn cá nhân nhưng do Admin gửi (warning, info, success)
-            final type = (n.type ?? '').trim().toLowerCase();
+            final type = (n.type).trim().toLowerCase();
             return ['warning', 'info', 'success'].contains(type);
           }
-
-          // 1. Lấy thông báo Quan Trọng mới nhất
           final systemList = allData.where((e) => isSystemOrAdminMsg(e));
-          _latestSystemNotification = systemList.isNotEmpty ? systemList.first : null;
+          _latestSystemNotification =
+          systemList.isNotEmpty ? systemList.first : null;
 
-          // 2. Lấy danh sách hoạt động cá nhân (Like, Comment...)
-          _notifications = allData.where((e) => !isSystemOrAdminMsg(e)).toList();
-
+          _notifications =
+              allData.where((e) => !isSystemOrAdminMsg(e)).toList();
+        }
           _isLoading = false;
         });
       }
@@ -72,27 +82,13 @@ class _NotificationsTabState extends State<NotificationsTab> {
     }
   }
 
-  // Hàm lắng nghe Realtime (Giữ nguyên, Realtime tự có cơ chế reconnect)
+  // Hàm lắng nghe Realtime
   void _setupRealtimeSubscription() {
     final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
 
-    _supabase.channel('public:notifications_tab')
-        .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'notifications',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'user_id',
-        value: userId,
-      ),
-      callback: (payload) {
-        debugPrint("🔔 Change in Notifications: ${payload.eventType}");
-        _fetchNotifications();
-      },
-    )
-        .onPostgresChanges(
+    final channel = _supabase.channel('public:notifications_tab');
+
+    channel.onPostgresChanges(
       event: PostgresChangeEvent.all,
       schema: 'public',
       table: 'system_notifications',
@@ -100,21 +96,39 @@ class _NotificationsTabState extends State<NotificationsTab> {
         debugPrint("🔔 Change in System Notifications");
         _fetchNotifications();
       },
-    )
-        .onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'system_read_status',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'user_id',
-        value: userId,
-      ),
-      callback: (payload) {
-        _fetchNotifications();
-      },
-    )
-        .subscribe();
+    );
+
+    if (!_isGuest && userId != null) {
+      channel
+          .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'notifications',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'user_id',
+          value: userId,
+        ),
+        callback: (payload) {
+          debugPrint("🔔 Change in Personal Notifications");
+          _fetchNotifications();
+        },
+      )
+          .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'system_read_status',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'user_id',
+          value: userId,
+        ),
+        callback: (payload) {
+          _fetchNotifications();
+        },
+      );
+    }
+    channel.subscribe();
   }
 
   @override
@@ -132,7 +146,6 @@ class _NotificationsTabState extends State<NotificationsTab> {
             const SizedBox(height: 16),
             Text("Chưa có thông báo nào", style: TextStyle(color: Colors.grey[500])),
             const SizedBox(height: 10),
-            // Nút thử lại thủ công (Optional)
             TextButton.icon(
                 onPressed: _fetchNotifications,
                 icon: const Icon(Icons.refresh),
@@ -158,7 +171,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
               notification: _latestSystemNotification,
               onRefresh: _fetchNotifications,
             ),
-            const Divider(height: 30, thickness: 1),
+            if (_notifications.isNotEmpty) const Divider(height: 30, thickness: 1),
           ],
 
           // --- PHẦN 2: HOẠT ĐỘNG CÁ NHÂN ---
@@ -167,7 +180,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text("Mới nhất", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ),
-            ..._notifications.map((noti) => NotificationItem(notification: noti)).toList(),
+            ..._notifications.map((noti) => NotificationItem(notification: noti)),
           ]
         ],
       ),

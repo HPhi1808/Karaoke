@@ -43,16 +43,13 @@ class _UserListTileState extends State<UserListTile> {
     }
 
     try {
-      // Chạy 2 câu lệnh song song để tiết kiệm thời gian
       final results = await Future.wait([
-        // Query 1: Mình -> Họ (Kiểm tra mình có follow họ không)
         _supabase
             .from('follows')
             .count(CountOption.exact)
             .eq('follower_id', currentUser.id)
             .eq('following_id', widget.user.id),
 
-        // Query 2: Họ -> Mình (Kiểm tra họ có follow mình không)
         _supabase
             .from('follows')
             .count(CountOption.exact)
@@ -85,7 +82,6 @@ class _UserListTileState extends State<UserListTile> {
 
     if (_isLoading) return;
 
-    // Optimistic UI update
     final oldState = _isFollowing;
     setState(() {
       _isFollowing = !oldState;
@@ -175,7 +171,6 @@ class _UserListTileState extends State<UserListTile> {
     String text;
     Color bgColor;
     Color textColor;
-    bool isOutlined = false;
     IconData? icon;
 
     if (_isFollowing) {
@@ -184,7 +179,7 @@ class _UserListTileState extends State<UserListTile> {
         text = "Bạn bè";
         bgColor = Colors.grey[300]!;
         textColor = Colors.black87;
-        icon = Icons.swap_horiz; // Icon mũi tên 2 chiều
+        icon = Icons.swap_horiz;
       } else {
         // Mình follow họ, họ chưa follow lại -> Đang follow
         text = "Đang follow";
@@ -205,7 +200,6 @@ class _UserListTileState extends State<UserListTile> {
       }
     }
 
-    // Điều chỉnh độ rộng nút dựa trên nội dung
     double width = 90;
     if (text == "Bạn bè") width = 100;
     if (text == "Follow lại") width = 100;
@@ -222,7 +216,7 @@ class _UserListTileState extends State<UserListTile> {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: isOutlined ? const BorderSide(color: Colors.grey) : BorderSide.none,
+            side: BorderSide.none,
           ),
         ),
         child: Row(

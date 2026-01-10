@@ -5,7 +5,7 @@ import '../../../services/user_service.dart';
 import '../../../models/user_model.dart';
 import 'follow_list_screen.dart';
 import 'edit_profile_screen.dart';
-import 'setting_screen.dart';
+import 'black_list_screen.dart';
 import 'policy_and_support_screen.dart';
 import 'review_app_screen.dart';
 
@@ -307,35 +307,29 @@ class _MeScreenState extends State<MeScreen> {
   Widget _buildMenuButtons() {
     return Column(
       children: [
+        _buildMenuRow(Icons.favorite_border, "Đã thích", () => Navigator.pushNamed(context, '/favorites')),
+        _buildMenuRow(Icons.mic_none_rounded, "Bản thu âm của tôi", () => Navigator.pushNamed(context, '/recordings')),
         if (!_isGuest) ...[
-          _buildMenuRow(Icons.favorite_border, "Đã thích", () => Navigator.pushNamed(context, '/favorites')),
-          _buildMenuRow(Icons.mic_none_rounded, "Bản thu âm của tôi", () => Navigator.pushNamed(context, '/recordings')),
           const Divider(),
+          _buildMenuRow(Icons.person_off, "Danh sách đen", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const BlackListScreen()),
+            );
+          }),
+          _buildMenuRow(Icons.help_outline, "Chính sách & Hỗ trợ", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const PolicyAndSupportScreen()),
+            );
+          }),
+          _buildMenuRow(Icons.star_outline, "Đánh giá", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ReviewAppScreen()),
+            );
+          }),
         ],
-
-        // 1. Cài đặt
-        _buildMenuRow(Icons.settings_outlined, "Cài đặt", () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const SettingScreen()),
-          );
-        }),
-
-        // 2. Chính sách & Hỗ trợ
-        _buildMenuRow(Icons.help_outline, "Chính sách & Hỗ trợ", () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const PolicyAndSupportScreen()),
-          );
-        }),
-
-        // 3. Đánh giá
-        _buildMenuRow(Icons.star_outline, "Đánh giá", () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ReviewAppScreen()),
-          );
-        }),
 
         // Nút Đăng xuất / Đăng nhập
         ListTile(
@@ -364,7 +358,7 @@ class _MeScreenState extends State<MeScreen> {
 
 // SKELETON
 class _MeSkeletonLoading extends StatelessWidget {
-  const _MeSkeletonLoading({super.key});
+  const _MeSkeletonLoading();
 
   @override
   Widget build(BuildContext context) {

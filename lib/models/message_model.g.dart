@@ -20,7 +20,6 @@ MessageModel _$MessageModelFromJson(Map<String, dynamic> json) => MessageModel(
 Map<String, dynamic> _$MessageModelToJson(MessageModel instance) {
   final val = <String, dynamic>{};
 
-  // Hàm hỗ trợ chỉ thêm vào Map nếu giá trị không null
   void writeNotNull(String key, dynamic value) {
     if (value != null) {
       val[key] = value;
@@ -33,6 +32,25 @@ Map<String, dynamic> _$MessageModelToJson(MessageModel instance) {
   val['content'] = instance.content;
   val['is_read'] = instance.isRead;
   writeNotNull('sent_at', instance.sentAt?.toIso8601String());
-  
   return val;
 }
+
+ChatPreviewModel _$ChatPreviewModelFromJson(Map<String, dynamic> json) =>
+    ChatPreviewModel(
+      partnerId: json['partner_id'] as String,
+      fullName: json['full_name'] as String? ?? 'Người dùng',
+      avatarUrl: json['avatar_url'] as String?,
+      lastMessage: json['last_message'] as String? ?? '',
+      lastMessageTime: DateTime.parse(json['last_message_time'] as String),
+      isRead: json['is_read'] as bool? ?? true,
+    );
+
+Map<String, dynamic> _$ChatPreviewModelToJson(ChatPreviewModel instance) =>
+    <String, dynamic>{
+      'partner_id': instance.partnerId,
+      'full_name': instance.fullName,
+      'avatar_url': instance.avatarUrl,
+      'last_message': instance.lastMessage,
+      'last_message_time': instance.lastMessageTime.toIso8601String(),
+      'is_read': instance.isRead,
+    };

@@ -15,7 +15,6 @@ class SongCard extends StatelessWidget {
     this.isLiked = false,
   });
 
-  // 1. Logic an toàn cho số liệu
   String _formatViewCount(int? views) {
     if (views == null || views < 0) return "0";
 
@@ -27,7 +26,6 @@ class SongCard extends StatelessWidget {
     return views.toString();
   }
 
-  // 2. Logic kiểm tra link ảnh
   bool _isValidImageUrl(String? url) {
     if (url == null || url.isEmpty) return false;
     final lowerUrl = url.toLowerCase();
