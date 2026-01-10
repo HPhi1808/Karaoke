@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { getSafeActorName } = require('../services/stringHelper');
 const axios = require('axios');
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -20,8 +21,7 @@ async function sendPushNotification(userIds, heading, content, data) {
             headings: { en: heading },
             contents: { en: content },
             data: data,
-            // Thêm channel_for_external_user_ids để đảm bảo gửi đúng push
-            channel_for_external_user_ids: "push", 
+            channel_for_external_user_ids: "push",
         };
 
         const response = await axios.post(
@@ -35,14 +35,12 @@ async function sendPushNotification(userIds, heading, content, data) {
             }
         );
 
-        // Kiểm tra xem có người nhận không
         if (response.data.recipients === 0) {
             console.warn("⚠️ OneSignal: Gửi thành công nhưng 0 người nhận (User ID chưa map trên Client).");
         }
 
         return response.data; 
     } catch (error) {
-        // In chi tiết lỗi từ OneSignal
         console.error("❌ OneSignal Error Details:", error.response?.data || error.message);
         return null;
     }
@@ -75,43 +73,38 @@ router.post('/follow', async (req, res) => {
     }
 
     try {
-        // A. Insert vào bảng follows
         const { error: followError } = await supabase
             .from('follows')
             .insert({ follower_id, following_id });
 
         if (followError) {
-            // Nếu đã follow rồi (duplicate key) thì thôi, không báo lỗi
             if (followError.code === '23505') return res.status(200).json({ message: "Đã follow rồi" });
             throw followError;
         }
 
-        // B. Lấy thông tin người đi follow (để lấy tên hiển thị thông báo)
         const { data: actor } = await supabase
             .from('users')
             .select('username, full_name')
             .eq('id', follower_id)
             .single();
 
-        const actorName = actor?.full_name || actor?.username || "Một người dùng";
+        const actorName = getSafeActorName(actor);
 
-        // C. Gửi Push Notification
         const pushResult = await sendPushNotification(
-            [following_id], // Gửi cho người được follow
+            [following_id],
             "Người theo dõi mới",
             `${actorName} đã bắt đầu theo dõi bạn.`,
             { type: 'profile', userId: follower_id }
         );
         console.log("⚠️ Cảnh báo: Push trả về null, có thể do lỗi cấu hình hoặc User ID chưa map.");
         console.log("Push Result OneSignal ID: ", pushResult?.id);
-        // D. Lưu vào bảng notifications (Lưu cả OneSignal ID)
         await supabase.from('notifications').insert({
-            user_id: following_id, // Người nhận (B)
-            actor_id: follower_id, // Người gây ra (A)
+            user_id: following_id,
+            actor_id: follower_id,
             type: 'follow',
-            title: "Người theo dõi mới",
+            title: actorName,
             message: "đã bắt đầu theo dõi bạn.",
-            onesignal_id: pushResult?.id || null // Lưu ID để sau này xoá
+            onesignal_id: pushResult?.id || null
         });
 
         return res.json({ success: true, message: "Follow thành công" });
@@ -127,13 +120,11 @@ router.post('/unfollow', async (req, res) => {
     const { follower_id, following_id } = req.body;
 
     try {
-        // A. Xóa khỏi bảng follows
         await supabase
             .from('follows')
             .delete()
             .match({ follower_id, following_id });
 
-        // B. Tìm thông báo cũ trong DB để xóa
         const { data: notiToDelete } = await supabase
             .from('notifications')
             .select('id, onesignal_id')
@@ -142,16 +133,14 @@ router.post('/unfollow', async (req, res) => {
                 actor_id: follower_id,
                 type: 'follow'
             })
-            .single(); // Lấy 1 cái gần nhất
+            .single();
 
         if (notiToDelete) {
-            // C. Xóa thông báo trong DB
             await supabase
                 .from('notifications')
                 .delete()
                 .eq('id', notiToDelete.id);
 
-            // D. Thu hồi Push Notification (Nếu có ID)
             if (notiToDelete.onesignal_id) {
                 await cancelPushNotification(notiToDelete.onesignal_id);
             }
@@ -180,7 +169,7 @@ router.get('/:userId', async (req, res) => {
             `)
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
-            .limit(50); // Lấy 50 cái mới nhất
+            .limit(50);
 
         if (error) throw error;
 
@@ -217,22 +206,18 @@ router.post('/chat', async (req, res) => {
     }
 
     try {
-        // A. Lấy thông tin người gửi để hiện tên
         const { data: sender } = await supabase
             .from('users')
             .select('full_name, username')
             .eq('id', sender_id)
             .single();
-
-        const senderName = sender?.full_name || sender?.username || "Ai đó";
         
-        // Cắt ngắn nội dung nếu quá dài
+        const senderName = getSafeActorName(sender);
+        
         const previewContent = message_content.length > 50 
             ? message_content.substring(0, 50) + "..." 
             : message_content;
 
-        // B. Gửi Push Notification
-        // Data kèm theo để khi bấm vào thông báo sẽ mở đúng đoạn chat
         const pushResult = await sendPushNotification(
             [receiver_id], 
             `Tin nhắn mới từ ${senderName}`,
