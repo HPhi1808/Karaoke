@@ -1,8 +1,8 @@
-# **Karaoke Entertainment Plus**
+# **Karaoke Plus**
 
 # 1. Giới thiệu:
-**Karaoke Entertainment Plus** là một app karaoke để người dùng ca hát giải trí, ở đây người dùng có thể
-hát một hoặc hát cùng mọi người, tạo các phòng hát và chia sẻ những đoạn cover 'đỉnh cao' để mọi người
+**Karaoke Plus** là một app karaoke để người dùng ca hát giải trí, ở đây người dùng có thể
+hát và chia sẻ những đoạn cover 'đỉnh cao' để mọi người
 cùng nhau thưởng thức.
 
 # 2. Yêu cầu môi trường:
@@ -19,7 +19,7 @@ cùng nhau thưởng thức.
 
         git clone https://github.com/Phap625/App-karaoke.git
 
-2. Cài đặt môi trường:
+2. Tải các gói phụ thuộc:
     
         flutter pub get
 
