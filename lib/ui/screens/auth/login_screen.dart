@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -20,8 +22,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  StreamSubscription<AuthState>? _authSubscription;
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isManualLogin = false;
 
   int _failedAttempts = 0;
   bool _isLocked = false;
@@ -38,12 +42,42 @@ class _LoginScreenState extends State<LoginScreen> {
         _showToast(widget.initialErrorMessage!, isError: true);
       });
     }
+    final String? startupUserId = Supabase.instance.client.auth.currentUser?.id;
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+
+      // Nếu có session và sự kiện là đăng nhập thành công
+      if (session != null && (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed)) {
+        if (session.user.isAnonymous) {
+          debugPrint("🙈 LoginScreen: Phát hiện Guest đang chạy ngầm -> Không tự động Redirect.");
+          return;
+        }
+        if (_isManualLogin) return;
+        if (startupUserId != null && session.user.id == startupUserId) {
+          return;
+        }
+        if (mounted) {
+          debugPrint("✅ Phát hiện phiên đăng nhập (Web Redirect Success)");
+
+          if (kIsWeb) {
+            try {
+              await AuthService.instance.finalizeWebLogin(session);
+            } catch (e) {
+              debugPrint("⚠️ Lỗi finalize login web: $e");
+            }
+          }
+          widget.onLoginSuccess(true);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _identifierController.dispose();
     _passwordController.dispose();
+    _authSubscription?.cancel();
     _lockoutTimer?.cancel();
     super.dispose();
   }
@@ -137,27 +171,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleGoogleLogin() async {
     if (_isLocked || _isLoading) return;
-
+    _isManualLogin = true;
     setState(() => _isLoading = true);
 
     try {
       await AuthService.instance.loginWithGoogle();
+      if (kIsWeb) {
+        return;
+      }
+
+      // 📱 NẾU LÀ MOBILE: Chạy tiếp
       _showToast("Đăng nhập Google thành công!");
       _failedAttempts = 0;
       widget.onLoginSuccess(true);
 
     } catch (e) {
+      _isManualLogin = false;
       String msg = e.toString();
       if (msg.contains("Exception:")) {
         msg = msg.replaceAll("Exception:", "").trim();
       }
-      if (!msg.toLowerCase().contains("hủy")) {
+      if (!msg.toLowerCase().contains("hủy") && !msg.toLowerCase().contains("canceled")) {
         _showToast("Lỗi Google: $msg", isError: true);
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -367,13 +404,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   TextButton(
                     onPressed: canInput ? () async {
+                      _isManualLogin = true;
+                      setState(() => _isLoading = true);
                       try {
                         await AuthService.instance.loginAsGuest();
                         if (context.mounted) {
-                          Navigator.pushReplacementNamed(context, '/home');
+                          widget.onLoginSuccess(true);
                         }
                       } catch (e) {
+                        _isManualLogin = false;
                         _showToast("Lỗi đăng nhập khách");
+                      }finally {
+                        if (mounted) setState(() => _isLoading = false);
                       }
                     } : null,
                     child: Text("Đăng nhập bằng tài khoản khách",

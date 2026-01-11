@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
@@ -68,27 +69,38 @@ class AuthService extends BaseService{
 
   Future<void> loginAsGuest() async {
     await safeExecution(() async {
-      // 1. Nếu đang có session trong RAM
+      // 1. ƯU TIÊN 1: Kiểm tra Session đang sống trong RAM
       final currentSession = _client.auth.currentSession;
+
       if (currentSession != null && !currentSession.isExpired) {
-        _syncOneSignal(currentSession.user.id, 'guest');
-        debugPrint("✅ Session RAM còn, không cần login lại.");
-        return;
+        // Nếu session này LÀ GUEST -> Dùng lại ngay
+        if (currentSession.user.isAnonymous) {
+          _syncOneSignal(currentSession.user.id, 'guest');
+          debugPrint("♻️ Tái sử dụng Guest Session (RAM) - Không tạo mới.");
+          return;
+        } else {
+          // Nếu đang là User thật (Real User) mà muốn vào Guest -> Phải đăng xuất User thật trước
+          await logout();
+        }
       }
 
-      // 2. Nếu không có RAM, thử khôi phục từ Disk (Refresh Token)
+      // 2. ƯU TIÊN 2: Thử khôi phục từ Disk (Trường hợp tắt app mở lại)
+      // Lưu ý: recoverSession() của bạn tự động lưu vào TokenManager nếu thành công
       bool isRecovered = await recoverSession();
 
       if (isRecovered) {
-        debugPrint("✅ Đã khôi phục User cũ thành công (Không tạo mới).");
-        return;
+        final recoveredSession = _client.auth.currentSession;
+        if (recoveredSession != null && recoveredSession.user.isAnonymous) {
+          debugPrint("♻️ Tái sử dụng Guest Session (Disk) - Không tạo mới.");
+          return;
+        } else {
+          await logout();
+        }
       }
 
-      // 3. Nếu không khôi phục được -> BẮT BUỘC TẠO MỚI (User mới)
-      await logout();
-
+      // 3. BƯỚC CUỐI: Không còn cách nào khác -> BẮT BUỘC TẠO MỚI
       try {
-        debugPrint("🚀 Tạo Guest User mới...");
+        debugPrint("🚀 Không tìm thấy Guest cũ -> Tạo Guest User mới...");
         final res = await _client.auth.signInAnonymously();
 
         if (res.session != null) {
@@ -143,6 +155,7 @@ class AuthService extends BaseService{
   Future<void> login({required String identifier, required String password}) async {
     await safeExecution(() async {
       try {
+        UserManager.instance.setLoginProcess(true);
         String? oldGuestId;
         if (isGuest) {
           oldGuestId = _client.auth.currentUser?.id;
@@ -232,6 +245,7 @@ class AuthService extends BaseService{
           _cleanupGuestAccount(oldGuestId);
         }
       } catch (e) {
+        UserManager.instance.setLoginProcess(false);
         String msg = e.toString();
         if (msg.contains("Invalid login credentials")) {
           throw Exception("Sai mật khẩu hoặc tài khoản!");
@@ -248,11 +262,23 @@ class AuthService extends BaseService{
         oldGuestId = _client.auth.currentUser?.id;
       }
 
+      // 🌍 1. WEB
+      if (kIsWeb) {
+        await _client.auth.signInWithOAuth(
+          OAuthProvider.google,
+          // redirectTo: 'http://localhost:5000',
+          redirectTo: 'https://app.karaokeplus.cloud',
+          scopes: 'email profile openid',
+        );
+        return;
+      }
+
+      // 📱 2. MOBILE
       const webClientId = '575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com';
 
       final GoogleSignIn googleSignIn = GoogleSignIn(
         serverClientId: webClientId,
-        scopes: ['email', 'profile'],
+        scopes: ['email', 'profile', 'openid'],
       );
 
       try {
@@ -275,75 +301,94 @@ class AuthService extends BaseService{
         final user = res.user;
 
         if (session != null && user != null) {
-          final userData = await _client
-              .from('users')
-              .select('role')
-              .eq('id', user.id)
-              .maybeSingle();
-
-          final String role = userData?['role'] ?? 'user';
-
-          if (role == 'admin' || role == 'own') {
-            await _client.auth.signOut();
-            await googleSignIn.signOut();
-            await TokenManager.instance.clearAuth();
-            throw Exception("Tài khoản Quản trị viên không thể đăng nhập vào App.");
-          }
-
-          await TokenManager.instance.saveAuthInfo(
-              session.accessToken,
-              session.refreshToken ?? '',
-              role
-          );
-
-          _syncOneSignal(user.id, role);
-          if (user.email != null) {
-            OneSignal.User.addEmail(user.email!);
-          }
-
-          final String supabaseSessionId = await UserManager.instance
-              .syncSessionFromToken(session.accessToken);
-          final nowUtc = DateTime.now().toUtc().toIso8601String();
-
-          Map<String, dynamic> updates = {
-            'current_session_id': supabaseSessionId,
-            'last_sign_in_at': nowUtc,
-            'last_active_at': nowUtc,
-          };
-
-          final createdAt = DateTime.parse(user.createdAt);
-          final isNewUser = DateTime.now().toUtc().difference(createdAt).inSeconds < 30;
-
-          if (isNewUser) {
-            debugPrint("🚀 User mới -> Đồng bộ thông tin Google");
-            final googleAvatar = user.userMetadata?['avatar_url'];
-            final googleName = user.userMetadata?['full_name'];
-
-            updates['avatar_url'] = googleAvatar ??
-                'https://media.karaokeplus.cloud/PictureApp/defautl.jpg';
-
-            if (googleName != null) {
-              updates['full_name'] = googleName;
-            }
-          }
-
-          await _client.from('users').update(updates).eq('id', user.id);
-
-          UserManager.instance.init();
-          debugPrint("✅ Đăng nhập Google thành công: ${user.email}");
-
+          await _handleAfterLogin(session, user, googleSignIn);
+          debugPrint("✅ Đăng nhập Google Mobile thành công: ${user.email}");
         } else {
           throw Exception("Đăng nhập thất bại.");
         }
-        if (oldGuestId != null) {
-          _cleanupGuestAccount(oldGuestId);
-        }
+
+        if (oldGuestId != null) _cleanupGuestAccount(oldGuestId);
 
       } catch (e) {
         googleSignIn.signOut();
-        debugPrint("❌ Lỗi Login Google: $e");
+        debugPrint("❌ Lỗi Login Google Mobile: $e");
         rethrow;
       }
+    });
+  }
+
+  Future<void> finalizeWebLogin(Session session) async {
+    final user = session.user;
+    await _handleAfterLogin(session, user, null);
+
+    debugPrint("✅ Web Redirect: Đã hoàn tất đồng bộ dữ liệu sau đăng nhập.");
+  }
+
+  // 🛠️ HÀM PHỤ: Xử lý logic sau khi có User & Session
+  Future<void> _handleAfterLogin(Session session, User user, GoogleSignIn? googleSignIn) async {
+    UserManager.instance.setLoginProcess(true);
+    final userData = await _client
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final String role = userData?['role'] ?? 'user';
+
+    // 1. Check quyền Admin
+    if (role == 'admin' || role == 'own') {
+      UserManager.instance.setLoginProcess(false);
+      await _client.auth.signOut();
+      if (googleSignIn != null) await googleSignIn.signOut();
+      await TokenManager.instance.clearAuth();
+      throw Exception("Tài khoản Quản trị viên không thể đăng nhập vào App.");
+    }
+
+    // 2. Lưu Token
+    await TokenManager.instance.saveAuthInfo(
+        session.accessToken,
+        session.refreshToken ?? '',
+        role
+    );
+
+    // 3. Sync OneSignal
+    _syncOneSignal(user.id, role);
+    if (user.email != null) {
+      OneSignal.User.addEmail(user.email!);
+    }
+
+    final String supabaseSessionId = await UserManager.instance
+        .syncSessionFromToken(session.accessToken);
+    final nowUtc = DateTime.now().toUtc().toIso8601String();
+
+    Map<String, dynamic> updates = {
+      'current_session_id': supabaseSessionId,
+      'last_sign_in_at': nowUtc,
+      'last_active_at': nowUtc,
+    };
+
+    // 4. Kiểm tra User mới để cập nhật Avatar/Tên từ Google
+    final createdAt = DateTime.parse(user.createdAt);
+    final isNewUser = DateTime.now().toUtc().difference(createdAt).inSeconds < 60;
+
+    if (isNewUser) {
+      debugPrint("🚀 User mới -> Đồng bộ thông tin Google");
+      final googleAvatar = user.userMetadata?['avatar_url'];
+      final googleName = user.userMetadata?['full_name'];
+
+      updates['avatar_url'] = googleAvatar ??
+          'https://media.karaokeplus.cloud/PictureApp/defautl.jpg';
+
+      if (googleName != null) {
+        updates['full_name'] = googleName;
+      }
+    }
+
+    await _client.from('users').update(updates).eq('id', user.id);
+    await UserManager.instance.init();
+    Future.delayed(const Duration(seconds: 3), () {
+      UserManager.instance.setLoginProcess(false);
+      debugPrint("🛡️ User Manager: Đã tắt chế độ đăng nhập (Sẵn sàng bảo vệ)");
     });
   }
 

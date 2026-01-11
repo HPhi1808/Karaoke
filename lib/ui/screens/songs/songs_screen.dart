@@ -59,9 +59,9 @@ class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClient
             indicatorWeight: 3,
             labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
             tabs: [
-              Tab(text: "Gợi ý"),
               Tab(text: "Thịnh hành"),
               Tab(text: "Mới nhất"),
+              Tab(text: "Gợi ý"),
             ],
           ),
         ),
@@ -84,15 +84,6 @@ class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClient
             // 3. TabBarView
             return TabBarView(
               children: [
-                _SongTabContent(
-                  listKey: "recommended_list",
-                  songs: data.recommended,
-                  onRefresh: provider.fetchSongsData,
-                  onSongTap: (song) {
-                    provider.onSongSelected(song.id);
-                    widget.onSongClick(song);
-                  },
-                ),
 
                 _SongTabContent(
                   listKey: "popular_list",
@@ -107,6 +98,16 @@ class _SongsScreenState extends State<SongsScreen> with AutomaticKeepAliveClient
                 _SongTabContent(
                   listKey: "newest_list",
                   songs: data.newest,
+                  onRefresh: provider.fetchSongsData,
+                  onSongTap: (song) {
+                    provider.onSongSelected(song.id);
+                    widget.onSongClick(song);
+                  },
+                ),
+
+                _SongTabContent(
+                  listKey: "recommended_list",
+                  songs: data.recommended,
                   onRefresh: provider.fetchSongsData,
                   onSongTap: (song) {
                     provider.onSongSelected(song.id);

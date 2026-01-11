@@ -33,21 +33,27 @@ class _NotificationsTabState extends State<NotificationsTab> {
   // Hàm lấy dữ liệu từ VIEW
   Future<void> _fetchNotifications() async {
     try {
-      final userId = _supabase.auth.currentUser?.id;
+      final user = _supabase.auth.currentUser;
+      final userId = user?.id;
+
       if (!_isGuest && userId == null) return;
 
       // 2. Dùng safeExecution để tự động bắt lỗi mạng và hiện Dialog Retry
       final List<dynamic> response = await _baseService.safeExecution(() async {
         if (_isGuest) {
+          final String userCreatedAt = user!.createdAt;
           return await _supabase
               .from('system_notifications')
               .select()
+              .gte('created_at', userCreatedAt)
               .order('created_at', ascending: false)
               .limit(1);
         } else {
+          final String userCreatedAt = user!.createdAt;
           return await _supabase
               .from('all_notifications_view')
               .select()
+              .gte('created_at', userCreatedAt)
               .order('created_at', ascending: false);
         }
       });
@@ -66,12 +72,10 @@ class _NotificationsTabState extends State<NotificationsTab> {
             final type = (n.type).trim().toLowerCase();
             return ['warning', 'info', 'success'].contains(type);
           }
-          final systemList = allData.where((e) => isSystemOrAdminMsg(e));
-          _latestSystemNotification =
-          systemList.isNotEmpty ? systemList.first : null;
 
-          _notifications =
-              allData.where((e) => !isSystemOrAdminMsg(e)).toList();
+          final systemList = allData.where((e) => isSystemOrAdminMsg(e)).toList();
+          _latestSystemNotification = systemList.isNotEmpty ? systemList.first : null;
+          _notifications = allData.where((e) => !isSystemOrAdminMsg(e)).toList();
         }
           _isLoading = false;
         });

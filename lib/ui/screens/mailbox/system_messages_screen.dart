@@ -24,14 +24,17 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
 
   Future<void> _fetchSystemMessages() async {
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) return;
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      final String userCreatedAt = user.createdAt;
 
       // 2. Bao bọc bằng safeExecution
       final response = await _baseService.safeExecution(() async {
         return await Supabase.instance.client
             .from('all_notifications_view')
             .select()
+            .gte('created_at', userCreatedAt)
             .order('created_at', ascending: false);
       });
 
@@ -41,7 +44,7 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
               .map((e) => NotificationModel.fromJson(e))
               .where((noti) {
             bool isSystem = noti.category == 'system';
-            final type = (noti.type).trim().toLowerCase();
+            final type = (noti.type ?? '').trim().toLowerCase();
             bool isAdminMessage = ['warning', 'info', 'success'].contains(type);
             return isSystem || isAdminMessage;
           })
@@ -96,6 +99,27 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
       }
     } catch (e) {
       debugPrint("Lỗi server khi mark read: $e");
+    }
+  }
+
+  Future<void> _deleteNotification(int index, NotificationModel msg) async {
+    setState(() {
+      _messages.removeAt(index);
+    });
+
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+
+      await Supabase.instance.client.from('system_read_status').upsert({
+        'user_id': userId,
+        'notification_id': msg.id,
+        'is_deleted': true,
+      });
+
+    } catch (e) {
+      debugPrint("Lỗi khi xóa thông báo hệ thống: $e");
+      _fetchSystemMessages();
     }
   }
 
@@ -172,80 +196,104 @@ class _SystemMessagesScreenState extends State<SystemMessagesScreen> {
           final style = _getStyle(msg.type);
           final bool isUnread = !msg.isRead;
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 2),
-            decoration: BoxDecoration(
-              color: isUnread ? style.bgColor.withValues(alpha: 0.08) : Colors.white,
-              border: isUnread
-                  ? Border(left: BorderSide(color: style.color, width: 4))
-                  : null,
+          return Dismissible(
+            key: ValueKey("sys_noti_${msg.id}"),
+            direction: DismissDirection.endToStart,
+
+            background: Container(
+              color: Colors.red,
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              margin: const EdgeInsets.only(bottom: 2),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text("Xoá", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  SizedBox(width: 8),
+                  Icon(Icons.delete_outline, color: Colors.white, size: 28),
+                ],
+              ),
             ),
-            child: InkWell(
-              onTap: () => _markItemAsRead(index),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: style.bgColor,
-                        shape: BoxShape.circle,
+
+            onDismissed: (direction) {
+              _deleteNotification(index, msg);
+            },
+
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 2),
+              decoration: BoxDecoration(
+                color: isUnread ? style.bgColor.withValues(alpha: 0.08) : Colors.white,
+                border: isUnread
+                    ? Border(left: BorderSide(color: style.color, width: 4))
+                    : null,
+              ),
+              child: InkWell(
+                onTap: () => _markItemAsRead(index),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: style.bgColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(style.icon, color: style.color, size: 24),
                       ),
-                      child: Icon(style.icon, color: style.color, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: style.color.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  style.label.toUpperCase(),
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: style.color,
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: style.color.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    style.label.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: style.color,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Text(
-                                _formatDate(msg.createdAt),
-                                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            msg.title,
-                            style: TextStyle(
-                              fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
-                              fontSize: 15,
-                              color: isUnread ? Colors.black87 : Colors.black54,
+                                Text(
+                                  _formatDate(msg.createdAt),
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            msg.message,
-                            style: TextStyle(
-                              color: isUnread ? Colors.black87 : Colors.grey[600],
-                              height: 1.4,
-                              fontSize: 14,
+                            const SizedBox(height: 6),
+                            Text(
+                              msg.title,
+                              style: TextStyle(
+                                fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 15,
+                                color: isUnread ? Colors.black87 : Colors.black54,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 4),
+                            Text(
+                              msg.message,
+                              style: TextStyle(
+                                color: isUnread ? Colors.black87 : Colors.grey[600],
+                                height: 1.4,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

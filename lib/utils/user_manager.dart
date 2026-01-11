@@ -26,6 +26,13 @@ class UserManager {
 
   // Biến Cache ID trong RAM để so sánh nhanh hơn
   String? _cachedLocalSessionId;
+  bool _isLoginProcess = false;
+
+  // THÊM HÀM NÀY ĐỂ BẬT/TẮT CHẾ ĐỘ ĐĂNG NHẬP
+  void setLoginProcess(bool value) {
+    _isLoginProcess = value;
+    debugPrint("🛡️ User Manager: Chế độ đăng nhập = $value");
+  }
 
   // =============================
   // PHẦN 1: INIT & DISPOSE
@@ -105,7 +112,10 @@ class UserManager {
 
   Future<void> checkSessionValidity() async {
     if (AuthService.instance.isGuest) return;
-
+    if (_isLoginProcess) {
+      debugPrint("🛡️ User Manager: Đang trong quá trình login -> Bỏ qua check valid.");
+      return;
+    }
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return;
 
@@ -224,16 +234,20 @@ class UserManager {
       final serverSessionId = userData['current_session_id'] as String?;
       String? localId = await _getLocalSessionId();
 
-      // Chỉ check nếu cả 2 đều có giá trị
-      if (localId != null && serverSessionId != null && localId.isNotEmpty) {
-        if (localId != serverSessionId) {
-          debugPrint("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
-          _showForceLogoutDialog(
-              "Kết thúc phiên",
-              "Tài khoản đã được đăng nhập trên thiết bị khác!"
-          );
-        }
+      if (localId == null || serverSessionId == null) return;
+      if (localId == serverSessionId) {
+        return;
       }
+
+      if (_isLoginProcess) {
+        debugPrint("🛡️ Safe: Đang login, bỏ qua xung đột (Local: $localId != Server: $serverSessionId)");
+        return;
+      }
+      debugPrint("🚨 KICK DEVICE: Local($localId) != Server($serverSessionId)");
+      _showForceLogoutDialog(
+          "Kết thúc phiên",
+          "Tài khoản đã được đăng nhập trên thiết bị khác!"
+      );
     }, onError: (err) {
       debugPrint("🔥 Realtime Error: $err");
     });
