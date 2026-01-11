@@ -4,7 +4,7 @@
         height: 50px;
         object-fit: cover;
         border-radius: 4px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
     .audio-preview {
@@ -38,11 +38,12 @@
 <div class="card shadow border-0 mb-4">
     <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="m-0 font-weight-bold text-primary">🎵 Kho Nhạc Karaoke</h5>
-        
+
         <div class="d-flex gap-2">
             <div class="input-group" style="width: 300px;">
                 <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                <input type="text" id="searchSong" class="form-control border-start-0" placeholder="Tìm bài hát, ca sĩ...">
+                <input type="text" id="searchSong" class="form-control border-start-0"
+                    placeholder="Tìm bài hát, ca sĩ...">
             </div>
 
             <button class="btn btn-primary text-nowrap" onclick="openAddModal()">
@@ -66,7 +67,7 @@
                     </tr>
                 </thead>
                 <tbody id="songTableBody">
-                    </tbody>
+                </tbody>
             </table>
         </div>
     </div>
@@ -84,11 +85,13 @@
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Tên bài hát <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="title" required placeholder="Ví dụ: Em của ngày hôm qua">
+                            <input type="text" class="form-control" name="title" required
+                                placeholder="Ví dụ: Em của ngày hôm qua">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold">Ca sĩ <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="artist" required placeholder="Ví dụ: Sơn Tùng M-TP">
+                            <input type="text" class="form-control" name="artist" required
+                                placeholder="Ví dụ: Sơn Tùng M-TP">
                         </div>
                     </div>
                     <div class="mb-3">
@@ -99,15 +102,18 @@
                     <div class="card bg-light border-0 mb-3">
                         <div class="card-body">
                             <div class="mb-3">
-                                <label class="form-label fw-bold">1. File Beat (Nhạc nền) <span class="text-danger">*</span></label>
+                                <label class="form-label fw-bold">1. File Beat (Nhạc nền) <span
+                                        class="text-danger">*</span></label>
                                 <input type="file" class="form-control" name="beat" accept=".mp3, .m4a, .wav" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label fw-bold">2. File Lyric (.lrc) <span class="text-danger">*</span></label>
+                                <label class="form-label fw-bold">2. File Lyric (.lrc) <span
+                                        class="text-danger">*</span></label>
                                 <input type="file" class="form-control" name="lyric" accept=".lrc" required>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label fw-bold">3. File Vocal (Hát mẫu) <span class="text-muted">(Tùy chọn)</span></label>
+                                <label class="form-label fw-bold">3. File Vocal (Hát mẫu) <span class="text-muted">(Tùy
+                                        chọn)</span></label>
                                 <input type="file" class="form-control" name="vocal" accept=".mp3, .m4a">
                             </div>
                             <div class="mb-0">
@@ -152,7 +158,7 @@
                             <input type="text" class="form-control" id="editGenre" name="genre">
                         </div>
                     </div>
-                    
+
                     <div class="alert alert-info py-2 small">
                         <i class="bi bi-info-circle"></i> Chỉ chọn file nếu bạn muốn thay đổi file cũ.
                     </div>
@@ -199,7 +205,8 @@
             return `
                 <tr id="song-row-${song.song_id}">
                     <td class="ps-3">
-                        <img src="${song.image_url || 'https://via.placeholder.com/50'}" class="cover-img" onerror="this.src='https://via.placeholder.com/50'">
+                        <img src="${song.image_url || 'https://placehold.co/50'}" 
+                        class="cover-img" onerror="this.src='https://placehold.co/50'">
                     </td>
                     <td class="fw-bold text-dark">${song.title}</td>
                     <td class="text-secondary">${song.artist_name}</td>
@@ -213,9 +220,9 @@
                     </td>
 
                     <td>
-                        ${song.beat_url 
-                            ? `<audio controls src="${song.beat_url}" class="audio-preview" preload="none"></audio>` 
-                            : '<span class="text-muted small fst-italic">Chưa có beat</span>'}
+                        ${song.beat_url
+                    ? `<audio controls src="${song.beat_url}" class="audio-preview" preload="none"></audio>`
+                    : '<span class="text-muted small fst-italic">Chưa có beat</span>'}
                     </td>
                     <td class="text-center">
                         <div class="btn-group">
@@ -236,7 +243,7 @@
         }
 
         // --- 2. HÀM TẢI DỮ LIỆU ---
-        window.fetchSongs = async function() {
+        window.fetchSongs = async function () {
             const tbody = document.getElementById('songTableBody');
             if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2 text-muted">Đang tải danh sách bài hát...</div></td></tr>';
 
@@ -293,20 +300,20 @@
         // TÌM KIẾM
         const searchInput = document.getElementById('searchSong');
         if (searchInput) {
-            searchInput.oninput = function() { renderSongTable(); };
+            searchInput.oninput = function () { renderSongTable(); };
         }
 
         // --- 4. CÁC HÀM XỬ LÝ (ADD, EDIT, DELETE) ---
 
         // ======================= THÊM BÀI HÁT =======================
-        window.openAddModal = function() {
-             document.getElementById('addSongForm').reset();
-             new bootstrap.Modal(document.getElementById('addSongModal')).show();
+        window.openAddModal = function () {
+            document.getElementById('addSongForm').reset();
+            new bootstrap.Modal(document.getElementById('addSongModal')).show();
         }
 
-        window.submitSong = async function() {
+        window.submitSong = async function () {
             const form = document.getElementById('addSongForm');
-            if(!form.checkValidity()) { form.reportValidity(); return; }
+            if (!form.checkValidity()) { form.reportValidity(); return; }
 
             const formData = new FormData(form);
 
@@ -324,14 +331,14 @@
                     alert('Upload thành công!');
                     form.reset();
 
-                    const newSong = result.data || result.song; 
-                    
+                    const newSong = result.data || result.song;
+
                     if (newSong && newSong.song_id) {
                         allSongsData.unshift(newSong);
-                        
+
                         const tbody = document.getElementById('songTableBody');
                         if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
-                        
+
                         const newRowHtml = generateSongRow(newSong);
                         tbody.insertAdjacentHTML('afterbegin', newRowHtml);
                     } else {
@@ -350,9 +357,9 @@
         }
 
         // ======================= XÓA BÀI HÁT =======================
-        window.deleteSong = async function(id) {
+        window.deleteSong = async function (id) {
             if (!confirm('Bạn có chắc chắn muốn xóa bài hát này không?\nHành động này cũng sẽ xóa file trên Cloud.')) return;
-            
+
             const btn = event.currentTarget;
             const originalHtml = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
@@ -360,10 +367,10 @@
 
             try {
                 const res = await window.api(`${SONG_API_URL}/${id}`, { method: 'DELETE' });
-                
+
                 if (res && (res.status === 'success' || res.ok)) {
                     allSongsData = allSongsData.filter(s => s.song_id !== id);
-                    
+
                     const row = document.getElementById(`song-row-${id}`);
                     if (row) {
                         row.style.transition = 'all 0.5s';
@@ -383,17 +390,17 @@
         }
 
         // ======================= SỬA BÀI HÁT =======================
-        window.openEditModal = function(id, title, artist, genre) {
+        window.openEditModal = function (id, title, artist, genre) {
             document.getElementById('editSongId').value = id;
             document.getElementById('editTitle').value = title;
             document.getElementById('editArtist').value = artist;
             document.getElementById('editGenre').value = (genre === 'null' || genre === 'undefined') ? '' : genre;
-            
+
             document.querySelectorAll('#editSongForm input[type="file"]').forEach(i => i.value = '');
             new bootstrap.Modal(document.getElementById('editSongModal')).show();
         }
 
-        window.updateSong = async function() {
+        window.updateSong = async function () {
             const id = document.getElementById('editSongId').value;
             const form = document.getElementById('editSongForm');
             const formData = new FormData(form);

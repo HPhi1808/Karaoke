@@ -10,7 +10,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
   <style>
-    /* 1. CSS Giao diện (Giữ nguyên) */
+    /* 1. CSS Giao diện */
     body {
       background: #f0f2f5;
       font-family: 'Segoe UI', sans-serif;
@@ -199,18 +199,194 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // --- 0. KHỞI TẠO BIẾN TOÀN CỤC ---
-    let warningTimer = null;    // Timer dài hạn (ngủ đông)
-    let countdownInterval = null; // Timer ngắn hạn (đếm ngược 60s trên UI)
-    const WARNING_BUFFER = 60;  // Báo trước 60 giây
+    // ==========================================
+    // 0. QUẢN LÝ INTERVAL (CƠ CHẾ MỚI)
+    // ==========================================
+    // Hijack hàm setInterval để kiểm soát các luồng chạy ngầm
+    const originalSetInterval = window.setInterval;
+    window.activeIntervals = [];
+    
+    window.setInterval = function(func, delay) {
+        const id = originalSetInterval(func, delay);
+        window.activeIntervals.push(id);
+        return id;
+    };
 
-    // --- 1. KIỂM TRA ĐĂNG NHẬP SƠ BỘ ---
-    (function () {
+    function clearAllIntervals() {
+        console.log(`🛑 Đang dừng ${window.activeIntervals.length} tiến trình ngầm...`);
+        window.activeIntervals.forEach(clearInterval);
+        window.activeIntervals = [];
+    }
+
+    // ==========================================
+    // 1. BIẾN TOÀN CỤC
+    // ==========================================
+    let sbClient = null;
+    let isRefreshing = false;
+    let refreshPromise = null;
+    let isSessionExpiredMode = false;
+    
+    let warningTimer = null;
+    let countdownInterval = null;
+    const WARNING_BUFFER = 60;
+
+    // ==========================================
+    // 2. KHỞI TẠO APP
+    // ==========================================
+    async function initApp() {
       const token = localStorage.getItem('access_token');
-      if (!token) window.location.replace('/admin/login.html');
-    })();
+      if (!token) {
+        window.location.replace('/admin/login.html');
+        return;
+      }
 
-    // --- 2. TIỆN ÍCH AUTH ---
+      try {
+        const configRes = await fetch('/api/admin-config');
+        if (!configRes.ok) throw new Error("Lỗi Config");
+        const config = await configRes.json();
+        
+        const { createClient } = window.supabase;
+        
+        sbClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+          auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
+        });
+        
+        console.log("✅ Supabase Client Ready.");
+
+        scheduleSessionWarning();
+        
+        const lastPage = localStorage.getItem('last_visited_page');
+        if (lastPage) loadPage(lastPage);
+        else loadPage('dashboard.html');
+
+        setTimeout(initRealtimeSecurity, 3000);
+
+      } catch (e) {
+        console.error("Init Error:", e);
+        handleLogout();
+      }
+    }
+
+    // ==========================================
+    // 3. LOGIC REFRESH TOKEN (RAW API)
+    // ==========================================
+    async function performRefreshToken() {
+      if (isRefreshing) return refreshPromise;
+
+      isRefreshing = true;
+      console.log("🔄 Bắt đầu Refresh Token...");
+
+      refreshPromise = (async () => {
+        try {
+          const rfToken = localStorage.getItem('refresh_token');
+          if (!rfToken) throw new Error("Không có Refresh Token");
+          if (!sbClient) throw new Error("Client chưa init");
+
+          const supabaseUrl = sbClient.supabaseUrl;
+          const supabaseKey = sbClient.supabaseKey;
+
+          const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({ refresh_token: rfToken })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            console.error("❌ API Error:", data);
+            throw new Error(data.error_description || "Lỗi Refresh");
+          }
+
+          const newAccess = data.access_token;
+          const newRefresh = data.refresh_token;
+
+          console.log(`✅ Refresh thành công!`);
+
+          localStorage.setItem('access_token', newAccess);
+          localStorage.setItem('refresh_token', newRefresh);
+          
+          sbClient.auth.setSession({ access_token: newAccess, refresh_token: newRefresh }).catch(()=>{});
+
+          return newAccess;
+
+        } catch (err) {
+          console.error("💀 Refresh chết:", err.message);
+          handleLogout("Phiên bản đăng nhập hết hạn.");
+          return null;
+        } finally {
+          isRefreshing = false;
+          refreshPromise = null;
+        }
+      })();
+
+      return refreshPromise;
+    }
+
+    // ==========================================
+    // 4. WINDOW.API
+    // ==========================================
+    window.api = async function (url, options = {}) {
+      if (isSessionExpiredMode) {
+          console.warn(`⛔ Đã chặn gọi API ${url} vì phiên đang chờ gia hạn.`);
+          return null; 
+      }
+
+      let currentToken = localStorage.getItem('access_token');
+
+      // Check hạn token
+      if (isTokenExpired(currentToken)) {
+        console.warn("⚠️ Token hết hạn (Local Check). Refreshing...");
+        currentToken = await performRefreshToken();
+        if (!currentToken) return null;
+      }
+
+      const headers = { 
+        'Authorization': `Bearer ${currentToken}`, 
+        ...options.headers 
+      };
+      if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      try {
+        let res = await fetch(url, { ...options, headers });
+
+        // Xử lý 401
+        if (res.status === 401) {
+          console.warn(`⚠️ API ${url} báo 401. Thử Refresh...`);
+          const retryToken = await performRefreshToken();
+          if (retryToken) {
+            headers['Authorization'] = `Bearer ${retryToken}`;
+            res = await fetch(url, { ...options, headers });
+            if (res.status === 401) {
+                handleLogout("Phiên không hợp lệ.");
+                return null;
+            }
+          } else {
+             return null; 
+          }
+        }
+
+        if (res.status === 403) {
+          const err = await res.clone().json().catch(() => ({}));
+          if (err.status === 'locked') handleLogout(err.message);
+        }
+
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+        return { ok: res.ok, status: res.status, ...data };
+
+      } catch (err) { return { status: 'error', message: "Lỗi kết nối" }; }
+    };
+
+    // ==========================================
+    // 5. QUẢN LÝ THỜI GIAN & MODAL
+    // ==========================================
     function parseJwt(token) {
       try {
         const base64Url = token.split('.')[1];
@@ -229,7 +405,6 @@
       return Date.now() >= (decoded.exp * 1000) - 10000;
     }
 
-    // --- 3. HẸN GIỜ THÔNG MINH  ---
     function scheduleSessionWarning() {
       if (warningTimer) clearTimeout(warningTimer);
       if (countdownInterval) clearInterval(countdownInterval);
@@ -243,89 +418,58 @@
       const now = Math.floor(Date.now() / 1000);
       const secondsUntilWarning = (decoded.exp - now) - WARNING_BUFFER;
 
-      console.log(`🕒 Token hết hạn sau ${decoded.exp - now}s. Hẹn giờ hiện Modal sau ${secondsUntilWarning}s.`);
-
       if (secondsUntilWarning > 0) {
-        warningTimer = setTimeout(() => {
-          showSessionModal();
-        }, secondsUntilWarning * 1000);
+        warningTimer = setTimeout(showSessionModal, secondsUntilWarning * 1000);
       } else {
         showSessionModal();
       }
     }
 
-    // --- 4. HIỂN THỊ MODAL VÀ ĐẾM NGƯỢC ---
     function showSessionModal() {
       const modal = document.getElementById('session-modal');
       const countdownSpan = document.getElementById('session-countdown');
-
+      
       if (modal.style.display !== 'block') {
         modal.style.display = 'block';
-        console.warn("⚠️ Đang hiển thị cảnh báo hết phiên!");
+        isSessionExpiredMode = true; 
+        
+        clearAllIntervals();
+
+        if (sbClient) {
+            console.log("🛑 Tạm ngắt kết nối Realtime để bảo vệ Token...");
+            sbClient.removeAllChannels(); 
+        }
       }
-
+      
       if (countdownInterval) clearInterval(countdownInterval);
-
       updateCountdownUI(countdownSpan);
-
-      countdownInterval = setInterval(() => {
-        updateCountdownUI(countdownSpan);
-      }, 1000);
+      countdownInterval = setInterval(() => updateCountdownUI(countdownSpan), 1000);
     }
 
     function updateCountdownUI(spanElement) {
       const token = localStorage.getItem('access_token');
       if (!token) return;
       const decoded = parseJwt(token);
-      const now = Math.floor(Date.now() / 1000);
-      const timeLeft = decoded.exp - now;
-
+      const timeLeft = decoded.exp - Math.floor(Date.now() / 1000);
+      
       if (timeLeft > 0) {
         spanElement.innerText = timeLeft;
       } else {
         clearInterval(countdownInterval);
-        handleLogout("Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+        handleLogout("Hết giờ. Đăng xuất.");
       }
     }
 
     function hideSessionModal() {
-      const modal = document.getElementById('session-modal');
-      modal.style.display = 'none';
+      document.getElementById('session-modal').style.display = 'none';
       if (countdownInterval) clearInterval(countdownInterval);
-    }
-
-    // --- 5. LOGIC REFRESH TOKEN (KHI BẤM NÚT) ---
-    async function performRefreshToken() {
-      const rfToken = localStorage.getItem('refresh_token');
-      if (!rfToken) return null;
-
-      try {
-        console.log("🔄 Đang thực hiện refresh token...");
-
-        const configRes = await fetch('/api/admin-config');
-        if (!configRes.ok) return null;
-        const config = await configRes.json();
-
-        const { createClient } = window.supabase;
-        const tempClient = createClient(config.supabaseUrl, config.supabaseAnonKey);
-
-        const { data, error } = await tempClient.auth.refreshSession({ refresh_token: rfToken });
-
-        if (error || !data.session) {
-          console.error("Refresh thất bại:", error);
-          return null;
-        }
-
-        // Lưu Token mới
-        localStorage.setItem('access_token', data.session.access_token);
-        localStorage.setItem('refresh_token', data.session.refresh_token);
-        console.log("✅ Refresh thành công!");
-
-        return data.session.access_token;
-      } catch (err) {
-        console.error("Lỗi hệ thống khi refresh:", err);
-        return null;
-      }
+      
+      isSessionExpiredMode = false;
+      
+      const currentPage = localStorage.getItem('last_visited_page') || 'dashboard.html';
+      loadPage(currentPage); 
+      
+      setTimeout(initRealtimeSecurity, 2000);
     }
 
     async function triggerRefreshToken() {
@@ -333,23 +477,21 @@
       const originalText = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
-
+      
       const newToken = await performRefreshToken();
-
+      
       if (newToken) {
         hideSessionModal();
         scheduleSessionWarning();
-
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.innerHTML = originalText;
-        }, 500);
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = originalText; }, 500);
       } else {
-        handleLogout("Không thể gia hạn phiên làm việc.");
+        logout();
       }
     }
 
-    // --- 6. CÁC HÀM UI KHÁC ---
+    // ==========================================
+    // 6. UI & CÁC HÀM KHÁC
+    // ==========================================
     const adminInfo = localStorage.getItem('admin_info');
     if (adminInfo) {
       try {
@@ -376,48 +518,9 @@
       } catch (e) { } finally { handleLogout(); }
     }
 
-    // --- 7. WINDOW.API ---
-    window.api = async function (url, options = {}) {
-      let currentToken = localStorage.getItem('access_token');
-      if (isTokenExpired(currentToken)) {
-        const newToken = await performRefreshToken();
-        if (newToken) {
-          currentToken = newToken;
-          scheduleSessionWarning();
-        } else {
-          handleLogout("Phiên hết hạn.");
-          return null;
-        }
-      }
-
-      try {
-        const headers = { 'Authorization': `Bearer ${currentToken}`, ...options.headers };
-        if (!(options.body instanceof FormData) && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-
-        const res = await fetch(url, { ...options, headers });
-
-        if (res.status === 401) {
-          const retryToken = await performRefreshToken();
-          if (retryToken) {
-            headers['Authorization'] = `Bearer ${retryToken}`;
-            const retryRes = await fetch(url, { ...options, headers });
-            if (retryRes.ok) return await retryRes.json();
-          }
-          handleLogout("Phiên đăng nhập đã hết hạn.");
-          return null;
-        }
-        if (res.status === 403) {
-          const err = await res.clone().json().catch(() => ({}));
-          if (err.status === 'locked') handleLogout(err.message);
-        }
-        const data = await res.json();
-        if (Array.isArray(data)) return data;
-        return { ok: res.ok, status: res.status, ...data };
-      } catch (err) { return { status: 'error', message: "Lỗi kết nối Server" }; }
-    };
-
-    // --- 8. LOAD PAGE ---
     window.loadPage = async function (page, element) {
+      clearAllIntervals();
+      
       localStorage.setItem('last_visited_page', page);
       document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
       if (element) element.classList.add('active');
@@ -425,11 +528,13 @@
         const savedLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
         if (savedLink) savedLink.classList.add('active');
       }
+      
       const content = document.getElementById('pageContent');
       content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+      
       try {
         const res = await fetch(`./${page}`);
-        if (!res.ok) throw new Error("Không tìm thấy trang");
+        if (!res.ok) throw new Error("404");
         const html = await res.text();
         content.innerHTML = html;
         content.querySelectorAll('script').forEach(s => {
@@ -441,53 +546,36 @@
       } catch (e) { content.innerHTML = `<div class="alert alert-danger m-4">Lỗi: ${e.message}</div>`; }
     };
 
-    // --- 9. REALTIME SECURITY ---
+    // Realtime Security
     async function initRealtimeSecurity() {
       const adminInfoStr = localStorage.getItem('admin_info');
-      if (!adminInfoStr) return;
+      if (!adminInfoStr || !sbClient) return; 
       try {
-        const response = await fetch('/api/admin-config');
-        const config = await response.json();
-        const { createClient } = window.supabase;
-        const sbClient = createClient(config.supabaseUrl, config.supabaseAnonKey);
         const user = JSON.parse(adminInfoStr);
         const mySessionTimestamp = new Date().getTime();
-
-        console.log("🛡️ Đang kích hoạt bảo mật Realtime...");
-
+        console.log("🛡️ Realtime Active (Shared Client)");
         sbClient.channel('security-check').on('postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
           (payload) => {
             if (payload.new.locked_until && new Date(payload.new.locked_until) > new Date())
-              handleLogout("Tài khoản đã bị khóa!");
+              handleLogout("Tài khoản bị khóa!");
             if (payload.new.last_sign_in_at) {
               const lastSignIn = new Date(payload.new.last_sign_in_at).getTime();
-              if (lastSignIn > mySessionTimestamp + 2000) {
-                sbClient.removeAllChannels();
-                handleLogout("Đăng nhập nơi khác!");
+              if (lastSignIn > mySessionTimestamp + 5000) {
+                 sbClient.removeAllChannels();
+                 handleLogout("Tài khoản đang được đăng nhập nơi khác!");
               }
             }
           }
         ).subscribe();
-      } catch (e) { console.error("Lỗi Realtime:", e); }
+      } catch (e) { console.error("Realtime Error:", e); }
     }
 
-    // --- 10. KHỞI CHẠY ---
-    (async () => {
-      scheduleSessionWarning();
-
-      const lastPage = localStorage.getItem('last_visited_page');
-      if (lastPage) loadPage(lastPage);
-      else loadPage('dashboard.html');
-      setTimeout(initRealtimeSecurity, 3000);
-    })();
-
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === 'visible') {
-        scheduleSessionWarning();
-      }
+      if (document.visibilityState === 'visible') scheduleSessionWarning();
     });
 
+    initApp();
   </script>
 </body>
 

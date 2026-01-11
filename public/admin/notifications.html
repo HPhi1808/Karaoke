@@ -111,10 +111,36 @@
 <script>
     {
         let currentNotificationsList = [];
+        const tbody = document.getElementById('notificationTableBody');
+
+        // --- HÀM HỖ TRỢ: TẠO HTML CHO 1 HÀNG ---
+        function generateRowHtml(item) {
+            return `
+                <tr id="notif-row-${item.id}">
+                    <td class="ps-4 fw-bold notif-title">${item.title}</td>
+                    <td class="notif-message">${item.message}</td>
+                    <td class="small text-muted">${new Date(item.created_at).toLocaleString('vi-VN')}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-warning me-1" onclick="window.openEditModal('${item.id}')" title="Sửa">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="window.deleteNotification('${item.id}')" title="Xóa">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // --- HÀM HỖ TRỢ: KIỂM TRA BẢNG TRỐNG ---
+        function checkEmptyTable() {
+            if (tbody.children.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted" id="no-data-row">Chưa có thông báo nào.</td></tr>';
+            }
+        }
 
         // --- 1. LẤY DANH SÁCH ---
         window.fetchNotifications = async function () {
-            const tbody = document.getElementById('notificationTableBody');
             tbody.innerHTML = '<tr><td colspan="4" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải...</td></tr>';
 
             const res = await window.api('/api/admin/notifications');
@@ -124,39 +150,24 @@
                 currentNotificationsList = notifications;
 
                 if (notifications.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Chưa có thông báo nào.</td></tr>';
+                    checkEmptyTable();
                     return;
                 }
 
-                tbody.innerHTML = notifications.map(item => `
-                    <tr id="notif-row-${item.id}">
-                        <td class="ps-4 fw-bold">${item.title}</td>
-                        <td>${item.message}</td>
-                        <td class="small text-muted">${new Date(item.created_at).toLocaleString('vi-VN')}</td>
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-warning me-1" onclick="window.openEditModal('${item.id}')" title="Sửa">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="window.deleteNotification('${item.id}')" title="Xóa">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+                tbody.innerHTML = notifications.map(item => generateRowHtml(item)).join('');
             } else {
                 tbody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Lỗi: ${res?.message || 'Không tải được dữ liệu'}</td></tr>`;
             }
         }
 
-        // --- 2. GỬI MỚI (CREATE) - ĐÃ CẬP NHẬT ---
+        // --- 2. GỬI MỚI (CREATE) - UPDATE DOM TRỰC TIẾP ---
         window.submitNotification = async function () {
             const title = document.getElementById('newTitle').value.trim();
             const message = document.getElementById('newMessage').value.trim();
-            const target = document.getElementById('newTarget').value; // Lấy giá trị target
+            const target = document.getElementById('newTarget').value;
 
             if (!title || !message) return alert('Vui lòng nhập đầy đủ thông tin!');
 
-            // Hiển thị loading nhẹ hoặc disable nút để tránh spam click
             const btn = document.querySelector('#createNotificationModal .btn-primary');
             const originalText = btn.innerHTML;
             btn.disabled = true;
@@ -164,7 +175,7 @@
 
             const res = await window.api('/api/admin/notifications', {
                 method: 'POST',
-                body: JSON.stringify({ title, message, target }) // Gửi thêm target
+                body: JSON.stringify({ title, message, target })
             });
 
             btn.disabled = false;
@@ -172,9 +183,24 @@
 
             if (res && res.status === 'success') {
                 alert(`Đã gửi thông báo thành công tới nhóm: ${target === 'all' ? 'Tất cả' : 'Thành viên'}`);
+                
+                const newItem = res.data;
+                
+                if (newItem) {
+                    const noDataRow = document.getElementById('no-data-row');
+                    if (noDataRow) noDataRow.parentElement.remove();
+                    if (tbody.innerHTML.includes('Lỗi:') || tbody.innerHTML.includes('Đang tải')) tbody.innerHTML = '';
+
+                    const newRowHtml = generateRowHtml(newItem);
+                    tbody.insertAdjacentHTML('afterbegin', newRowHtml);
+                    
+                    currentNotificationsList.unshift(newItem);
+                } else {
+                    window.fetchNotifications();
+                }
+
                 document.getElementById('createNotifForm').reset();
                 bootstrap.Modal.getInstance(document.getElementById('createNotificationModal')).hide();
-                window.fetchNotifications();
             } else {
                 alert('Lỗi: ' + (res?.message));
             }
@@ -183,17 +209,24 @@
         // --- 3. MỞ MODAL SỬA ---
         window.openEditModal = function(id) {
             const notif = currentNotificationsList.find(item => item.id == id);
-            if (!notif) return alert("Không tìm thấy dữ liệu!");
-
-            document.getElementById('editNotifId').value = notif.id;
-            document.getElementById('editTitle').value = notif.title;
-            document.getElementById('editMessage').value = notif.message;
+            
+            if (!notif) {
+                const row = document.getElementById(`notif-row-${id}`);
+                if(!row) return alert("Không tìm thấy dữ liệu!");
+                document.getElementById('editNotifId').value = id;
+                document.getElementById('editTitle').value = row.querySelector('.notif-title').innerText;
+                document.getElementById('editMessage').value = row.querySelector('.notif-message').innerText;
+            } else {
+                document.getElementById('editNotifId').value = notif.id;
+                document.getElementById('editTitle').value = notif.title;
+                document.getElementById('editMessage').value = notif.message;
+            }
 
             const editModal = new bootstrap.Modal(document.getElementById('editNotificationModal'));
             editModal.show();
         }
 
-        // --- 4. LƯU CẬP NHẬT (UPDATE) ---
+        // --- 4. LƯU CẬP NHẬT (UPDATE) - UPDATE DOM TRỰC TIẾP ---
         window.updateNotification = async function() {
             const id = document.getElementById('editNotifId').value;
             const title = document.getElementById('editTitle').value.trim();
@@ -208,27 +241,48 @@
 
             if (res && res.status === 'success') {
                 alert('Cập nhật nội dung thành công!');
+                
+                const row = document.getElementById(`notif-row-${id}`);
+                if (row) {
+                    row.querySelector('.notif-title').innerText = title;
+                    row.querySelector('.notif-message').innerText = message;
+                    
+                    row.classList.add('table-warning');
+                    setTimeout(() => row.classList.remove('table-warning'), 1000);
+                }
+
+                const index = currentNotificationsList.findIndex(x => x.id == id);
+                if (index !== -1) {
+                    currentNotificationsList[index].title = title;
+                    currentNotificationsList[index].message = message;
+                }
+
                 bootstrap.Modal.getInstance(document.getElementById('editNotificationModal')).hide();
-                window.fetchNotifications();
             } else {
                 alert('Lỗi: ' + (res?.message || 'Không cập nhật được'));
             }
         }
 
-        // --- 5. XÓA (DELETE) ---
+        // --- 5. XÓA (DELETE) - UPDATE DOM TRỰC TIẾP ---
         window.deleteNotification = async function (id) {
             if (!confirm('Bạn có chắc chắn muốn xóa thông báo này không?')) return;
             
             const res = await window.api(`/api/admin/notifications/${id}`, { method: 'DELETE' });
 
             if (res && res.status === 'success') {
-                window.fetchNotifications();
+                const row = document.getElementById(`notif-row-${id}`);
+                if (row) {
+                    row.remove();
+                }
+
+                currentNotificationsList = currentNotificationsList.filter(item => item.id != id);
+
+                checkEmptyTable();
             } else {
                 alert('Lỗi: ' + (res?.message));
             }
         }
 
-        // Khởi chạy
         window.fetchNotifications();
     }
 </script>

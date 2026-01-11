@@ -412,6 +412,20 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        const accessToken = data.session.access_token;
+        const base64Url = accessToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
+        
+        const newSessionId = payload.session_id;
+        await supabase
+            .from('users')
+            .update({ 
+                current_session_id: newSessionId,
+                last_sign_in_at: new Date().toISOString()
+            })
+            .eq('id', data.user.id);
+
         res.json({
             status: 'success',
             message: 'Đăng nhập thành công!',
