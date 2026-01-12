@@ -47,7 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final AuthChangeEvent event = data.event;
       final Session? session = data.session;
 
-      // Nếu có session và sự kiện là đăng nhập thành công
       if (session != null && (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.tokenRefreshed)) {
         if (session.user.isAnonymous) {
           debugPrint("🙈 LoginScreen: Phát hiện Guest đang chạy ngầm -> Không tự động Redirect.");

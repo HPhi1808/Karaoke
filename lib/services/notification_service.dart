@@ -63,10 +63,7 @@ class NotificationService {
   }
 
   //Gọi API gửi thông báo tin nhắn
-  Future<void> sendChatNotification({
-    required String receiverId,
-    required String content,
-  }) async {
+  Future<void> sendChatNotification({ required String receiverId, required String content,}) async {
     final currentUser = Supabase.instance.client.auth.currentUser;
     if (currentUser == null) return;
 

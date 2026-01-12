@@ -320,7 +320,6 @@ class AuthService extends BaseService{
   Future<void> finalizeWebLogin(Session session) async {
     final user = session.user;
     await _handleAfterLogin(session, user, null);
-
     debugPrint("✅ Web Redirect: Đã hoàn tất đồng bộ dữ liệu sau đăng nhập.");
   }
 

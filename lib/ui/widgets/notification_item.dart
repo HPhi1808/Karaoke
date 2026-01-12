@@ -109,7 +109,7 @@ class NotificationItem extends StatelessWidget {
               child: ClipOval(
                 // Placeholder Avatar đẹp hơn
                 child: Icon(Icons.person, color: Colors.grey.shade400, size: 30),
-                // Sau này thay bằng: Image.network(avatarUrl, fit: BoxFit.cover)
+                // Thay bằng: Image.network(avatarUrl, fit: BoxFit.cover)
               ),
             ),
           ),

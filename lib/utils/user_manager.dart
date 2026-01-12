@@ -24,11 +24,9 @@ class UserManager {
 
   static const String _kSessionIdKey = 'my_current_session_id';
 
-  // Biến Cache ID trong RAM để so sánh nhanh hơn
   String? _cachedLocalSessionId;
   bool _isLoginProcess = false;
 
-  // THÊM HÀM NÀY ĐỂ BẬT/TẮT CHẾ ĐỘ ĐĂNG NHẬP
   void setLoginProcess(bool value) {
     _isLoginProcess = value;
     debugPrint("🛡️ User Manager: Chế độ đăng nhập = $value");
@@ -131,7 +129,6 @@ class UserManager {
       return;
     }
 
-    // 1. Check bị khóa
     final lockedUntilStr = data['locked_until'];
     if (lockedUntilStr != null) {
       DateTime lockedTime = DateTime.parse(lockedUntilStr).toLocal();
@@ -140,7 +137,6 @@ class UserManager {
       }
     }
 
-    // 2. Check Session ID (Logic đá thiết bị)
     final serverSessionId = data['current_session_id'];
 
     if (serverSessionId != null && localId != null) {
@@ -157,12 +153,10 @@ class UserManager {
   void notifyApiActivity() {
     final now = DateTime.now();
 
-    // 1. LOGIC THROTTLE
     if (_lastDbUpdate == null || now.difference(_lastDbUpdate!) > _throttleDuration) {
       _sendKeepAliveHeartbeat();
     }
 
-    // 2. LOGIC DEBOUNCE (Reset timer idle)
     _keepAliveTimer?.cancel();
     _keepAliveTimer = Timer(_idleThreshold, () {
       _sendKeepAliveHeartbeat();

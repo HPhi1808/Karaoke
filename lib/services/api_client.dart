@@ -9,7 +9,6 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
 
   late final Dio dio;
-  // static const String baseUrl = "http://192.168.1.203:3000";
   static const String baseUrl = 'https://api.karaokeplus.cloud';
 
   ApiClient._internal() {

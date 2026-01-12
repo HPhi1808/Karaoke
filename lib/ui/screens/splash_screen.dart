@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../utils/token_manager.dart';
 import '../../utils/user_manager.dart';
@@ -26,7 +26,6 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    // 1. Van an toàn: Sau 20s không vào được thì ép về login
     _safetyValveTimer = Timer(const Duration(seconds: 20), () {
       if (!_hasNavigated && mounted) {
         debugPrint("SPLASH: 🚨 Safety Valve kích hoạt -> Ép về Login");
@@ -35,11 +34,7 @@ class _SplashScreenState extends State<SplashScreen> {
     });
 
     UserManager.instance.setLoginProcess(true);
-
-    // 2. Lắng nghe sự kiện Auth (cho Web Redirect)
     _setupAuthListener();
-
-    // 3. Kiểm tra trạng thái App
     _checkAppState();
   }
 
@@ -52,7 +47,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _setupAuthListener() {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      // Nếu bắt được sự kiện đăng nhập thành công (từ Web Redirect)
       if (data.event == AuthChangeEvent.signedIn || data.event == AuthChangeEvent.tokenRefreshed) {
         if (data.session != null && !_hasNavigated) {
           debugPrint("SPLASH: 🎯 Auth Event Detected -> Vào luồng chính");
@@ -91,25 +85,21 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.pushReplacementNamed(context, '/home');
   }
 
-  // --- LOGIC CHÍNH: Xử lý User đã đăng nhập ---
   Future<void> _processLoggedInUser(Session session) async {
     try {
       debugPrint("SPLASH: 2. Người dùng đã có Session -> Bắt đầu đồng bộ...");
       UserManager.instance.setLoginProcess(true);
-      // BƯỚC 1: Lấy Session ID chuẩn từ Token (Sử dụng hàm của UserManager)
       final sessionId = await UserManager.instance.syncSessionFromToken(session.accessToken);
 
       if (sessionId.isNotEmpty) {
         debugPrint("SPLASH: 🛠️ Đang ghi đè Session ID ($sessionId) lên Server...");
 
-        // BƯỚC 2: Cập nhật lên Server NGAY LẬP TỨC để tránh bị kick
         await Supabase.instance.client.from('users').update({
-          'last_active_at': DateTime.now().toIso8601String(),
+          'last_active_at': DateTime.now().toUtc().toIso8601String(),
           'current_session_id': sessionId,
         }).eq('id', session.user.id);
       }
 
-      // BƯỚC 3: Gọi các API kiểm tra
       await _baseService.safeExecution(() async {
         return await Future.wait([
           UserService.instance.getUserProfile(),
@@ -131,10 +121,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAppState() async {
     try {
-      // Đợi 1 chút để Supabase Web kịp xử lý URL
       await Future.delayed(const Duration(milliseconds: 200));
 
-      // Ưu tiên 1: Lấy session từ RAM (Supabase SDK)
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session != null) {
@@ -142,11 +130,8 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
-      // Ưu tiên 2: Nếu RAM không có, check TokenManager (Disk)
       final localToken = await TokenManager.instance.getAccessToken();
       if (localToken != null && localToken.isNotEmpty) {
-        // Trường hợp hãn hữu: Có token ở disk nhưng Supabase chưa load kịp
-        // Ta thử recover session
         final recovered = await AuthService.instance.recoverSession();
         if (recovered && Supabase.instance.client.auth.currentSession != null) {
           await _processLoggedInUser(Supabase.instance.client.auth.currentSession!);
@@ -154,7 +139,6 @@ class _SplashScreenState extends State<SplashScreen> {
         }
       }
 
-      // Nếu không tìm thấy session nào
       debugPrint("SPLASH: Chưa thấy token -> Đợi Deep Link thêm chút...");
       await Future.delayed(const Duration(seconds: 2));
 
@@ -176,7 +160,6 @@ class _SplashScreenState extends State<SplashScreen> {
     String errorMsg = e.toString();
     debugPrint("SPLASH: ❌ Lỗi: $errorMsg");
 
-    // Nếu lỗi liên quan đến Session/Khóa -> Logout ngay
     if (errorMsg.contains("đăng nhập trên thiết bị khác") ||
         errorMsg.contains("bị khóa") ||
         errorMsg.contains("JWT")) {
@@ -186,7 +169,6 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    // Các lỗi mạng khác -> Cho về Login để user thử lại
     _navigateToLogin(message: "Lỗi kết nối hoặc phiên hết hạn.");
   }
 
