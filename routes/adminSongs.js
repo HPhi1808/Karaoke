@@ -37,43 +37,18 @@ const cleanupAllUploadedFiles = (files) => {
 const processAndUpload = async (file, folder, metadata) => {
     if (!file) return null;
 
-    // let fileToUpload = file;
-    // let compressedPath = null;
-    // let originalPath = file.path;
-
-    // Chỉ nén nếu là file beat hoặc vocal
-    // if (metadata.fileType === 'beat' || metadata.fileType === 'vocal') {
-    //     try {
-    //         const tempDir = path.dirname(file.path);
-    //         const originalName = path.basename(file.originalname, path.extname(file.originalname));
-    //         // Tạo tên file nén mới
-    //         compressedPath = path.join(tempDir, `compressed_${Date.now()}_${originalName}.mp3`);
-
-    //         console.log(`⏳ Đang nén file ${metadata.fileType}: ${file.path}`);
-            
-    //         // Nén file
-    //         await compressAudio(file.path, compressedPath);
-            
-    //         // Cập nhật object file để trỏ tới file đã nén
-    //         fileToUpload = {
-    //             ...file,
-    //             path: compressedPath,
-    //             mimetype: 'audio/mpeg',
-    //             size: fs.statSync(compressedPath).size
-    //         };
-    //          console.log(`✅ Nén thành công ${metadata.fileType}`);
-
-    //     } catch (error) {
-    //         console.error(`❌ Lỗi nén ${metadata.fileType}, sẽ upload file gốc:`, error);
-    //     }
-    // }
+    const originalPath = file.path; 
 
     try {
-        const url = await uploadToR2(fileToUpload, folder, metadata);
+        console.log(`🚀 Đang upload file gốc (không nén): ${file.originalname}`);
+        const url = await uploadToR2(file, folder, metadata);
         return url;
+
+    } catch (error) {
+        console.error(`❌ Lỗi khi upload file ${file.originalname}:`, error);
+        throw error; 
     } finally {
         cleanupFile(originalPath);
-        if (compressedPath) cleanupFile(compressedPath);
     }
 };
 
