@@ -24,13 +24,34 @@ class UserService extends BaseService{
 
         return UserModel.fromJson(data);
       } catch (e) {
-        debugPrint("❌ Lỗi lấy profile từ Supabase: $e");
+        debugPrint(" Lỗi lấy profile từ Supabase: $e");
         if (e.toString().contains("PGRST116") ||
             e.toString().contains("Row not found")) {
           throw Exception(
               "Không tìm thấy dữ liệu user. Hãy kiểm tra Policy RLS!");
         }
         rethrow;
+      }
+    });
+  }
+
+  // --- LẤY DANH SÁCH BẠN BÈ (FOLLOW CHÉO) ---
+  Future<List<UserModel>> getFriendsList() async {
+    return await safeExecution(() async {
+      try {
+        final userId = _supabase.auth.currentUser?.id;
+        if (userId == null) return [];
+
+        final response = await _supabase
+            .from('friends_view')
+            .select()
+            .eq('user_id', userId);
+        
+        final List<dynamic> data = response as List;
+        return data.map((json) => UserModel.fromFriendView(json)).toList();
+      } catch (e) {
+        debugPrint(" Lỗi lấy danh sách bạn bè: $e");
+        return [];
       }
     });
   }

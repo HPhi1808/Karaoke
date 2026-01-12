@@ -6,6 +6,7 @@ import '../../../models/message_model.dart';
 import '../../widgets/chat_item.dart';
 import '../../../services/auth_service.dart';
 import 'chat_screen.dart';
+import '../../widgets/friends_sidebar.dart'; // Import mới
 
 class MessagesTab extends StatefulWidget {
   const MessagesTab({super.key});
@@ -19,6 +20,7 @@ class _MessagesTabState extends State<MessagesTab> {
   final TextEditingController _searchController = TextEditingController();
 
   bool _isGuest = false;
+  bool _isSidebarOpen = false; // Trạng thái đóng mở sidebar
 
   // --- STATE: DANH SÁCH CHAT (RECENT) ---
   List<ChatPreviewModel> _recentChats = [];
@@ -57,7 +59,7 @@ class _MessagesTabState extends State<MessagesTab> {
   }
 
   // ==========================================================
-  // PHẦN 1: LOGIC QUẢN LÝ DANH SÁCH CHAT (MỚI)
+  // PHẦN 1: LOGIC QUẢN LÝ DANH SÁCH CHAT (GIỮ NGUYÊN)
   // ==========================================================
 
   // 1.1 Tải danh sách chat (Có phân trang)
@@ -127,7 +129,6 @@ class _MessagesTabState extends State<MessagesTab> {
       );
     } catch (e) {
       debugPrint("Lỗi xoá chat: $e");
-      // Nếu lỗi thì load lại danh sách để hiện lại
       _fetchRecentChats(isRefresh: true);
       if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lỗi kết nối!")));
     }
@@ -165,7 +166,7 @@ class _MessagesTabState extends State<MessagesTab> {
   }
 
   // ==========================================================
-  // PHẦN 2: LOGIC TÌM KIẾM (CŨ - GIỮ NGUYÊN)
+  // PHẦN 2: LOGIC TÌM KIẾM (GIỮ NGUYÊN)
   // ==========================================================
 
   Future<void> _fetchFriends() async {
@@ -294,48 +295,89 @@ class _MessagesTabState extends State<MessagesTab> {
         ),
       );
     }
-    return Column(
+    return Stack(
       children: [
-        // 1. THANH TÌM KIẾM
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _searchGlobal(),
-            decoration: InputDecoration(
-              hintText: "Tìm bạn bè, username...",
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _isSearching
-                  ? IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
-                  _onSearchChanged('');
-                  FocusScope.of(context).unfocus();
-                },
-              )
-                  : null,
-              filled: true,
-              fillColor: Colors.grey[100],
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+        Column(
+          children: [
+            // 1. THANH TÌM KIẾM + NÚT BẠN BÈ
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => _searchGlobal(),
+                      decoration: InputDecoration(
+                        hintText: "Tìm bạn bè, username...",
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: _isSearching
+                            ? IconButton(
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  _onSearchChanged('');
+                                  FocusScope.of(context).unfocus();
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // NÚT MỞ SIDEBAR BẠN BÈ
+                  GestureDetector(
+                    onTap: () => setState(() => _isSidebarOpen = true),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.people_alt_outlined,
+                        color: Color(0xFFFF00CC),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // 2. NỘI DUNG CHÍNH (SWITCH GIỮA 2 VIEW)
+            Expanded(
+              child: _isSearching
+                  ? _buildSearchResultsView() // View Tìm kiếm (Cũ)
+                  : _buildRecentChatsView(),  // View Tin nhắn (Mới)
+            ),
+          ],
         ),
 
-        // 2. NỘI DUNG CHÍNH (SWITCH GIỮA 2 VIEW)
-        Expanded(
-          child: _isSearching
-              ? _buildSearchResultsView() // View Tìm kiếm (Cũ)
-              : _buildRecentChatsView(),  // View Tin nhắn (Mới)
+        // LỚP PHỦ MỜ KHI MỞ SIDEBAR
+        if (_isSidebarOpen)
+          GestureDetector(
+            onTap: () => setState(() => _isSidebarOpen = false),
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+            ),
+          ),
+
+        // SIDEBAR BẠN BÈ
+        FriendsSidebar(
+          isOpen: _isSidebarOpen,
+          onClose: () => setState(() => _isSidebarOpen = false),
         ),
       ],
     );
   }
 
-  // VIEW 1: DANH SÁCH TIN NHẮN (RECENT CHATS)
+  // VIEW 1: DANH SÁCH TIN NHẮN (RECENT CHATS) - GIỮ NGUYÊN FORMAT
   Widget _buildRecentChatsView() {
     if (_isLoadingChats) {
       return const Center(child: CircularProgressIndicator());
@@ -357,10 +399,8 @@ class _MessagesTabState extends State<MessagesTab> {
     return RefreshIndicator(
       onRefresh: () => _fetchRecentChats(isRefresh: true),
       child: ListView.builder(
-        // +1 để dành chỗ cho nút loading more ở cuối
         itemCount: _recentChats.length + 1,
         itemBuilder: (context, index) {
-          // Xử lý nút Load More ở cuối danh sách
           if (index == _recentChats.length) {
             if (!_hasMoreChats) {
               return const Padding(
@@ -374,14 +414,13 @@ class _MessagesTabState extends State<MessagesTab> {
                 child: _isLoadingMoreChats
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                     : TextButton(
-                  onPressed: () => _fetchRecentChats(isRefresh: false),
-                  child: const Text("Tải thêm"),
-                ),
+                        onPressed: () => _fetchRecentChats(isRefresh: false),
+                        child: const Text("Tải thêm"),
+                      ),
               ),
             );
           }
 
-          // Hiển thị Chat Item
           final chat = _recentChats[index];
           return ChatItem(
             chat: chat,
@@ -414,11 +453,9 @@ class _MessagesTabState extends State<MessagesTab> {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
-        // List local
         if (!_showGlobalResults)
           ..._localSearchResults.map((user) => _buildUserItem(user)),
 
-        // Nút tìm global
         if (_isSearching && !_showGlobalResults)
           InkWell(
             onTap: _searchGlobal,
@@ -430,7 +467,7 @@ class _MessagesTabState extends State<MessagesTab> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), shape: BoxShape.circle),
                     child: const Icon(Icons.public, color: Colors.blue, size: 20),
                   ),
                   const SizedBox(width: 12),
@@ -443,7 +480,7 @@ class _MessagesTabState extends State<MessagesTab> {
                             style: const TextStyle(color: Colors.black87, fontSize: 15),
                             children: [
                               const TextSpan(text: "Tìm người lạ: "),
-                              TextSpan(text: '"${_searchController.text}"', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                              TextSpan(text: '\"${_searchController.text}\"', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
                             ],
                           ),
                         ),
@@ -457,7 +494,6 @@ class _MessagesTabState extends State<MessagesTab> {
             ),
           ),
 
-        // List global
         if (_isGlobalLoading) const Padding(padding: EdgeInsets.all(20.0), child: Center(child: CircularProgressIndicator())),
 
         if (_showGlobalResults) ...[
@@ -473,7 +509,6 @@ class _MessagesTabState extends State<MessagesTab> {
     );
   }
 
-  // Widget con dùng cho list search
   Widget _buildUserItem(UserModel user) {
     return ListTile(
       leading: CircleAvatar(
@@ -485,7 +520,6 @@ class _MessagesTabState extends State<MessagesTab> {
       subtitle: Text(user.isFriend ? "@${user.username} • Bạn bè" : "@${user.username} • Người lạ"),
       onTap: () async {
         await Navigator.push(context, MaterialPageRoute(builder: (context) => ChatScreen(targetUser: user)));
-        // Quay lại thì refresh list chat
         _fetchRecentChats(isRefresh: true);
       },
     );
