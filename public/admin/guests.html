@@ -78,11 +78,12 @@
     {
         // --- CẤU HÌNH ---
         let currentPage = 1;
-        const limit = 20; // Số lượng hiển thị mỗi trang
+        const limit = 20;
 
         // --- 1. HÀM LẤY DANH SÁCH GUEST RÁC (INACTIVE) ---
         window.fetchInactiveGuests = async function () {
             const tbody = document.getElementById('guestTrashTable');
+            if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-warning"></div> Đang tải...</td></tr>';
 
             const res = await window.api('/api/admin/guests/inactive');
@@ -117,13 +118,11 @@
             const row = document.getElementById(`guest-row-${id}`);
             if (row) row.style.opacity = '0.5';
             
-            // Cập nhật đường dẫn đúng: /api/admin/guests/${id}
             const res = await window.api(`/api/admin/guests/${id}`, { method: 'DELETE' });
             
             if (res && res.status === 'success') {
                 if (row) row.remove();
-                // Refresh luôn bảng bên dưới để đồng bộ dữ liệu
-                window.fetchAllGuests();
+                window.loadGuestList(); 
                 
                 const tbody = document.getElementById('guestTrashTable');
                 if (tbody.children.length === 0) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-success">Đã dọn sạch!</td></tr>';
@@ -133,9 +132,10 @@
             }
         }
 
-        // --- 3. HÀM LẤY TẤT CẢ GUEST (MỚI THÊM) ---
-        window.fetchAllGuests = async function () {
+        // --- 3. HÀM LẤY TẤT CẢ GUEST ---
+        window.loadGuestList = async function () {
             const tbody = document.getElementById('allGuestsTable');
+            if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải danh sách...</td></tr>';
 
             // Gọi API: /api/admin/guests?page=1&limit=20
@@ -145,17 +145,20 @@
                 const guests = res.data;
                 const pagination = res.pagination;
 
-                // Cập nhật nút phân trang
-                document.getElementById('pageInfo').innerText = `Trang ${pagination.current_page} / ${pagination.total_pages}`;
-                document.getElementById('btnPrevPage').disabled = pagination.current_page <= 1;
-                document.getElementById('btnNextPage').disabled = pagination.current_page >= pagination.total_pages;
+                const pageInfoEl = document.getElementById('pageInfo');
+                if (pageInfoEl) pageInfoEl.innerText = `Trang ${pagination.current_page} / ${pagination.total_pages}`;
+                
+                const btnPrev = document.getElementById('btnPrevPage');
+                if (btnPrev) btnPrev.disabled = pagination.current_page <= 1;
+
+                const btnNext = document.getElementById('btnNextPage');
+                if (btnNext) btnNext.disabled = pagination.current_page >= pagination.total_pages;
 
                 if (guests.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-muted">Chưa có tài khoản khách nào.</td></tr>';
                     return;
                 }
 
-                // Render danh sách (Không có nút hành động)
                 tbody.innerHTML = guests.map(g => `
                     <tr>
                         <td class="ps-4"><span class="fw-bold text-secondary">${g.username || 'No Name'}</span></td>
@@ -171,11 +174,11 @@
         // --- 4. HÀM CHUYỂN TRANG ---
         window.changePage = function(direction) {
             currentPage += direction;
-            window.fetchAllGuests();
+            window.loadGuestList();
         }
 
         // --- KHỞI CHẠY ---
         window.fetchInactiveGuests();
-        window.fetchAllGuests();
+        window.loadGuestList();
     }
 </script>
