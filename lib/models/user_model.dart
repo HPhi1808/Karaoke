@@ -16,6 +16,8 @@ class UserModel {
   final String? bio;
   final String? gender;
   final String? region;
+  @JsonKey(name: 'last_active_at')
+  final String? lastActiveAt;
 
   // Các trường số liệu
   final int followersCount;
@@ -35,6 +37,7 @@ class UserModel {
     this.bio,
     this.gender,
     this.region,
+    this.lastActiveAt,
     this.followersCount = 0,
     this.followingCount = 0,
     this.likesCount = 0,
@@ -53,6 +56,7 @@ class UserModel {
       bio: json['bio'] as String?,
       gender: json['gender'] as String?,
       region: json['region'] as String?,
+      lastActiveAt: json['last_active_at'] as String?,
       followersCount: json['followers_count'] != null ? json['followers_count'] as int : 0,
       followingCount: json['following_count'] != null ? json['following_count'] as int : 0,
       likesCount: json['likes_count'] != null ? json['likes_count'] as int : 0,
@@ -70,6 +74,7 @@ class UserModel {
       role: json['role'] as String? ?? 'user',
       email: null,
       bio: null,
+      lastActiveAt: json['last_active_at'] as String?,
       followersCount: 0,
       followingCount: 0,
       likesCount: 0,
@@ -84,6 +89,7 @@ class UserModel {
       username: json['username'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       role: 'user',
+      lastActiveAt: json['last_active_at'] as String?,
       isFriend: true,
     );
   }
@@ -96,6 +102,7 @@ class UserModel {
       username: json['username'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       role: json['role'] as String? ?? 'user',
+      lastActiveAt: json['last_active_at'] as String?,
       isFriend: isFriend,
     );
   }
@@ -111,6 +118,7 @@ class UserModel {
       'bio': bio,
       'gender': gender,
       'region': region,
+      'last_active_at': lastActiveAt,
     };
   }
 }

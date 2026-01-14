@@ -2,23 +2,17 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'message_model.g.dart';
 
-// --- MODEL 1: TIN NHẮN CHI TIẾT ---
 @JsonSerializable(includeIfNull: false)
 class MessageModel {
   @JsonKey(name: 'message_id')
   final dynamic messageId;
-
   @JsonKey(name: 'sender_id')
   final String senderId;
-
   @JsonKey(name: 'receiver_id')
   final String receiverId;
-
   final String content;
-
   @JsonKey(name: 'is_read', defaultValue: false)
   final bool isRead;
-
   @JsonKey(name: 'sent_at')
   final DateTime? sentAt;
 
@@ -35,26 +29,14 @@ class MessageModel {
   Map<String, dynamic> toJson() => _$MessageModelToJson(this);
 }
 
-// --- MODEL 2: XEM TRƯỚC TIN NHẮN ---
-@JsonSerializable()
 class ChatPreviewModel {
-  @JsonKey(name: 'partner_id')
   final String partnerId;
-
-  @JsonKey(name: 'full_name', defaultValue: 'Người dùng')
   final String fullName;
-
-  @JsonKey(name: 'avatar_url')
   final String? avatarUrl;
-
-  @JsonKey(name: 'last_message', defaultValue: '')
   final String lastMessage;
-
-  @JsonKey(name: 'last_message_time')
   final DateTime lastMessageTime;
-
-  @JsonKey(name: 'is_read', defaultValue: true)
   final bool isRead;
+  final int unreadCount;
 
   ChatPreviewModel({
     required this.partnerId,
@@ -63,8 +45,31 @@ class ChatPreviewModel {
     required this.lastMessage,
     required this.lastMessageTime,
     this.isRead = true,
+    this.unreadCount = 0,
   });
 
-  factory ChatPreviewModel.fromJson(Map<String, dynamic> json) => _$ChatPreviewModelFromJson(json);
-  Map<String, dynamic> toJson() => _$ChatPreviewModelToJson(this);
+  // Tự viết hàm fromJson để đảm bảo nhận được unread_count từ SQL
+  factory ChatPreviewModel.fromJson(Map<String, dynamic> json) {
+    return ChatPreviewModel(
+      partnerId: json['partner_id'] as String,
+      fullName: json['full_name'] as String? ?? 'Người dùng',
+      avatarUrl: json['avatar_url'] as String?,
+      lastMessage: json['last_message'] as String? ?? '',
+      lastMessageTime: DateTime.parse(json['last_message_time'] as String),
+      isRead: json['is_read'] as bool? ?? true,
+      unreadCount: json['unread_count'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'partner_id': partnerId,
+      'full_name': fullName,
+      'avatar_url': avatarUrl,
+      'last_message': lastMessage,
+      'last_message_time': lastMessageTime.toIso8601String(),
+      'is_read': isRead,
+      'unread_count': unreadCount,
+    };
+  }
 }

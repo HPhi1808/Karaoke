@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/user_model.dart';
 import '../../services/user_service.dart';
 import '../screens/mailbox/chat_screen.dart';
@@ -19,6 +20,7 @@ class FriendsSidebar extends StatefulWidget {
 
 class _FriendsSidebarState extends State<FriendsSidebar> {
   final TextEditingController _searchController = TextEditingController();
+  final _supabase = Supabase.instance.client;
   List<UserModel> _friends = [];
   List<UserModel> _filteredFriends = [];
   bool _isLoading = true;
@@ -33,6 +35,39 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _getStatusText(String? lastActiveAtStr) {
+    if (lastActiveAtStr == null) return "Ngoại tuyến";
+
+    final lastActive = DateTime.parse(lastActiveAtStr).toLocal();
+    final now = DateTime.now();
+    final diff = now.difference(lastActive);
+
+    if (diff.inMinutes <= 5) {
+      return "Đang hoạt động";
+    }
+
+    if (diff.inDays > 0) {
+      return "Hoạt động ${lastActive.day}/${lastActive.month}";
+    }
+
+    if (diff.inHours > 0) {
+      return "Hoạt động ${diff.inHours} giờ trước";
+    }
+    
+    if (diff.inMinutes > 0) {
+      return "Hoạt động ${diff.inMinutes} phút trước";
+    }
+    
+    return "Vừa xong";
+  }
+
+  Color _getStatusColor(String? lastActiveAtStr) {
+    if (lastActiveAtStr == null) return Colors.grey;
+    final lastActive = DateTime.parse(lastActiveAtStr).toLocal();
+    final diff = DateTime.now().difference(lastActive);
+    return diff.inMinutes <= 5 ? Colors.green : Colors.grey;
   }
 
   Future<void> _fetchFriends() async {
@@ -106,7 +141,7 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
               ),
             ),
             
-            // Search trong sidebar
+            // Search
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: TextField(
@@ -115,18 +150,8 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
                 decoration: InputDecoration(
                   hintText: "Tìm bạn bè...",
                   prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            _searchController.clear();
-                            _onSearchChanged("");
-                          },
-                        )
-                      : null,
                   filled: true,
                   fillColor: Colors.grey[100],
-                  contentPadding: EdgeInsets.zero,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -140,17 +165,14 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _friends.isEmpty
-                      ? _buildEmptyState() // Không có bạn bè nào trong danh sách
-                      : _filteredFriends.isEmpty
-                          ? _buildNoResultsFound() // Có bạn bè nhưng tìm không thấy
-                          : ListView.builder(
-                              padding: EdgeInsets.zero,
-                              itemCount: _filteredFriends.length,
-                              itemBuilder: (context, index) {
-                                final friend = _filteredFriends[index];
-                                return _buildFriendItem(friend);
-                              },
-                            ),
+                      ? _buildEmptyState() 
+                      : ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemCount: _filteredFriends.length,
+                          itemBuilder: (context, index) {
+                            return _buildFriendItem(_filteredFriends[index]);
+                          },
+                        ),
             ),
           ],
         ),
@@ -159,45 +181,70 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
   }
 
   Widget _buildFriendItem(UserModel friend) {
-    return ListTile(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ChatScreen(targetUser: friend)),
-        );
-      },
-      leading: Stack(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.grey[200],
-            backgroundImage: (friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty)
-                ? NetworkImage(friend.avatarUrl!)
-                : null,
-            child: (friend.avatarUrl == null || friend.avatarUrl!.isEmpty)
-                ? Text(friend.fullName?[0].toUpperCase() ?? "?")
-                : null,
-          ),
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: Colors.green,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _supabase.from('users').stream(primaryKey: ['id']).eq('id', friend.id),
+      builder: (context, snapshot) {
+        String? lastActiveAt = friend.lastActiveAt;
+        String? avatarUrl = friend.avatarUrl;
+        String fullName = friend.fullName ?? "Người dùng";
+
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final data = snapshot.data!.first;
+          lastActiveAt = data['last_active_at'];
+          avatarUrl = data['avatar_url'];
+          fullName = data['full_name'] ?? fullName;
+        }
+
+        final statusText = _getStatusText(lastActiveAt);
+        final statusColor = _getStatusColor(lastActiveAt);
+
+        return ListTile(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ChatScreen(targetUser: friend)),
+            );
+          },
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                backgroundColor: Colors.grey[200],
+                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                    ? NetworkImage(avatarUrl)
+                    : null,
+                child: (avatarUrl == null || avatarUrl.isEmpty)
+                    ? Text(fullName.isNotEmpty ? fullName[0].toUpperCase() : "?")
+                    : null,
               ),
-            ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      title: Text(
-        friend.fullName ?? "Người dùng",
-        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-      ),
-      subtitle: const Text("Đang hoạt động", style: TextStyle(fontSize: 12, color: Colors.grey)),
-      trailing: const Icon(Icons.chat_bubble_outline, size: 18, color: Color(0xFFFF00CC)),
+          title: Text(
+            fullName,
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          ),
+          subtitle: Text(
+            statusText, 
+            style: TextStyle(
+              fontSize: 12, 
+              color: statusColor == Colors.green ? Colors.green : Colors.grey
+            )
+          ),
+          trailing: const Icon(Icons.chat_bubble_outline, size: 18, color: Color(0xFFFF00CC)),
+        );
+      }
     );
   }
 
@@ -209,23 +256,6 @@ class _FriendsSidebarState extends State<FriendsSidebar> {
           Icon(Icons.people_outline, size: 40, color: Colors.grey[300]),
           const SizedBox(height: 10),
           const Text("Chưa có bạn bè nào", style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  // THÊM MỚI: Widget hiển thị khi tìm kiếm không ra kết quả
-  Widget _buildNoResultsFound() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.search_off, size: 40, color: Colors.grey[300]),
-          const SizedBox(height: 10),
-          const Text(
-            "Không tìm thấy bạn bè",
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500),
-          ),
         ],
       ),
     );

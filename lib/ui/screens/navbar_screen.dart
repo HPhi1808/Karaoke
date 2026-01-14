@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/song_model.dart';
+import '../../services/notification_service.dart';
 import '../../utils/user_manager.dart';
 import 'home/home_screen.dart';
 import 'me/me_screen.dart';
@@ -28,6 +29,8 @@ class _NavbarScreenState extends State<NavbarScreen> {
   void initState() {
     super.initState();
     UserManager.instance.init();
+    // Kích hoạt lắng nghe thông báo ngay khi vào màn hình chính
+    NotificationService.instance.init(); 
   }
 
   @override
@@ -71,12 +74,38 @@ class _NavbarScreenState extends State<NavbarScreen> {
               _selectedIndex = index;
             });
           },
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: primaryColor), label: 'Trang chủ'),
-            NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time_filled, color: primaryColor), label: 'Khám phá'),
-            NavigationDestination(icon: Icon(Icons.mic_none), selectedIcon: Icon(Icons.mic, color: primaryColor), label: 'Hát'),
-            NavigationDestination(icon: Icon(Icons.mail_outline), selectedIcon: Icon(Icons.mail, color: primaryColor), label: 'Hộp thư'),
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: primaryColor), label: 'Tôi'),
+          destinations: [
+            const NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home, color: primaryColor), label: 'Trang chủ'),
+            const NavigationDestination(icon: Icon(Icons.access_time_outlined), selectedIcon: Icon(Icons.access_time_filled, color: primaryColor), label: 'Khám phá'),
+            const NavigationDestination(icon: Icon(Icons.mic_none), selectedIcon: Icon(Icons.mic, color: primaryColor), label: 'Hát'),
+            NavigationDestination(
+              icon: StreamBuilder<int>(
+                stream: NotificationService.instance.getTotalUnreadCountStream(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    label: Text(count > 9 ? "9+" : "$count"),
+                    isLabelVisible: count > 0,
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.mail_outline),
+                  );
+                },
+              ),
+              selectedIcon: StreamBuilder<int>(
+                stream: NotificationService.instance.getTotalUnreadCountStream(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    label: Text(count > 9 ? "9+" : "$count"),
+                    isLabelVisible: count > 0,
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.mail, color: primaryColor),
+                  );
+                },
+              ),
+              label: 'Hộp thư',
+            ),
+            const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person, color: primaryColor), label: 'Tôi'),
           ],
         ),
       ),

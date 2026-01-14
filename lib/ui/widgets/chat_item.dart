@@ -32,7 +32,6 @@ class ChatItem extends StatelessWidget {
     return "Vừa xong";
   }
 
-  // Hàm hiện BottomSheet khi bấm giữ
   void _showOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -42,7 +41,6 @@ class ChatItem extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.delete, color: Colors.red),
             title: const Text("Xoá cuộc trò chuyện", style: TextStyle(color: Colors.red)),
-            subtitle: const Text("Cuộc trò chuyện sẽ bị ẩn cho đến khi có tin nhắn mới."),
             onTap: () {
               Navigator.pop(ctx);
               onDeleteChat(chat.partnerId);
@@ -51,7 +49,6 @@ class ChatItem extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.block, color: Colors.grey),
             title: const Text("Chặn người dùng"),
-            subtitle: const Text("Họ sẽ không thể nhắn tin cho bạn nữa."),
             onTap: () {
               Navigator.pop(ctx);
               onBlockUser(chat.partnerId);
@@ -65,9 +62,12 @@ class ChatItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool hasUnread = chat.unreadCount > 0;
+
     return ListTile(
       onTap: onTap,
       onLongPress: () => _showOptions(context),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: CircleAvatar(
         radius: 28,
         backgroundColor: Colors.grey[200],
@@ -80,20 +80,59 @@ class ChatItem extends StatelessWidget {
       ),
       title: Text(
         chat.fullName,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        style: TextStyle(
+          fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600, 
+          fontSize: 16,
+          color: hasUnread ? Colors.black : Colors.black87,
+        ),
       ),
       subtitle: Text(
         chat.lastMessage,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: Colors.grey[600],
-          fontWeight: (chat.isRead == false) ? FontWeight.bold : FontWeight.normal,
+          color: hasUnread ? Colors.black : Colors.grey[600],
+          fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      trailing: Text(
-        _formatTime(chat.lastMessageTime),
-        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+      trailing: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            _formatTime(chat.lastMessageTime),
+            style: TextStyle(
+              color: hasUnread ? Colors.red : Colors.grey[500],
+              fontSize: 11,
+              fontWeight: hasUnread ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          if (hasUnread) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.red, // Màu đỏ chuẩn như ảnh bạn gửi
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  )
+                ],
+              ),
+              child: Text(
+                chat.unreadCount > 9 ? "9+" : "${chat.unreadCount}",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

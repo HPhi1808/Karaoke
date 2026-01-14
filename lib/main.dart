@@ -16,6 +16,7 @@ import 'ui/screens/me/favorites_screen.dart';
 
 // Import services, providers & utils
 import 'services/auth_service.dart';
+import 'services/notification_service.dart'; // THÊM IMPORT
 import 'providers/songs_provider.dart';
 import 'utils/token_manager.dart';
 
@@ -113,6 +114,9 @@ class MyApp extends StatelessWidget {
   // --- HÀM XỬ LÝ ĐĂNG XUẤT ---
   void _handleLogout(BuildContext context) async {
     try {
+      // RESET DỮ LIỆU THÔNG BÁO VỀ 0 NGAY LẬP TỨC
+      NotificationService.instance.clear(); 
+      
       await AuthService.instance.logout();
       await TokenManager.instance.clearAuth();
       if (context.mounted) {
