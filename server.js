@@ -59,6 +59,11 @@ app.get('/policy', noCache, (req, res) => {
     res.sendFile(path.join(__dirname, 'public/user/policy.html'));
 });
 
+app.get('/reviews', noCache, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/user/reviews.html'));
+});
+
+
 
 // Lấy cấu hình Supabase cho trang Admin
 app.get('/api/admin-config', (req, res) => {
@@ -82,10 +87,14 @@ const adminDashboardRouter = require('./routes/adminDashboard');
 const adminGuestsRouter = require('./routes/adminGuests');
 const adminNotificationsRouter = require('./routes/adminNotifications');
 const userNotificationsRouter = require('./routes/userNotifications');
+const userReviewsRouter = require('./routes/reviewsUser');
 
 
 // --- CẤU HÌNH API ENDPOINTS ---
 app.use('/api/auth', authRouter);
+
+// API get Reviews
+app.get('/api/reviews-list', userReviewsRouter.getPublicReviews);
 
 // API User
 app.use('/api/user/notifications', userNotificationsRouter);
