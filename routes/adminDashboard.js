@@ -3,7 +3,7 @@ const router = express.Router();
 const { verifyToken, requireAdmin } = require('../middlewares/auth');
 const pool = require('../config/db');
 
-// --- 1. LẤY SỐ LIỆU TỔNG QUAN (Chạy 1 lần lúc load trang) ---
+// --- 1. LẤY SỐ LIỆU TỔNG QUAN  ---
 router.get('/stats/general', verifyToken, requireAdmin, async (req, res) => {
     try {
         const [usersRes, guestsRes] = await Promise.all([
@@ -34,15 +34,27 @@ router.get('/stats/online', verifyToken, requireAdmin, async (req, res) => {
         `;
         
         const result = await pool.query(query);
+        const allActive = result.rows;
+
+        // Phân loại
+        const activeMembers = allActive.filter(u => u.role !== 'guest');
+        const activeGuests = allActive.filter(u => u.role === 'guest');
         
         res.json({
             status: 'success',
-            online: result.rows.length,
-            users: result.rows
+            data: {
+                total: allActive.length,
+                members: activeMembers.length,
+                guests: activeGuests.length,
+                users_list: allActive
+            }
         });
     } catch (err) {
         console.error(err);
-        res.json({ status: 'error', online: 0, users: [] });
+        res.json({ 
+            status: 'error', 
+            data: { total: 0, members: 0, guests: 0, users_list: [] } 
+        });
     }
 });
 

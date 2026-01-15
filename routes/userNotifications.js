@@ -1,12 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
 const { getSafeActorName } = require('../services/stringHelper');
 const axios = require('axios');
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const { getSupabaseClient } = require('../config/supabaseClient');
 
 // Cấu hình OneSignal
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
@@ -66,6 +62,7 @@ async function cancelPushNotification(notificationId) {
 
 // 1. FOLLOW USER (POST /api/user/notifications/follow)
 router.post('/follow', async (req, res) => {
+    const supabase = getSupabaseClient();
     const { follower_id, following_id } = req.body;
 
     if (!follower_id || !following_id) {
@@ -117,6 +114,7 @@ router.post('/follow', async (req, res) => {
 
 // 2. UNFOLLOW USER (POST /api/user/notifications/unfollow)
 router.post('/unfollow', async (req, res) => {
+    const supabase = getSupabaseClient();
     const { follower_id, following_id } = req.body;
 
     try {
@@ -156,6 +154,7 @@ router.post('/unfollow', async (req, res) => {
 
 // 3. GET NOTIFICATIONS (GET /api/user/notifications/:userId)
 router.get('/:userId', async (req, res) => {
+    const supabase = getSupabaseClient();
     const { userId } = req.params;
 
     try {
@@ -181,6 +180,7 @@ router.get('/:userId', async (req, res) => {
 
 // 4. MARK AS READ (PUT /api/user/notifications/read/:id)
 router.put('/read/:id', async (req, res) => {
+    const supabase = getSupabaseClient();
     const { id } = req.params;
     try {
         await supabase
@@ -196,6 +196,7 @@ router.put('/read/:id', async (req, res) => {
 
 // 5. SEND CHAT NOTIFICATION (POST /api/user/notifications/chat)
 router.post('/chat', async (req, res) => {
+    const supabase = getSupabaseClient();
     // sender_id: Người gửi
     // receiver_id: Người nhận
     // message_content: Nội dung tin nhắn

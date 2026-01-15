@@ -3,6 +3,7 @@ const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const { verifyToken, requireAdmin } = require('./middlewares/auth');
+const { isUsingBackup } = require('./config/supabaseClient');
 
 const app = express();
 const corsOptions = {
@@ -67,9 +68,38 @@ app.get('/reviews', noCache, (req, res) => {
 
 // Lấy cấu hình Supabase cho trang Admin
 app.get('/api/admin-config', (req, res) => {
+    const useBackup = isUsingBackup();
+    if (useBackup) {
+        console.log("⚠️ Admin UI đang yêu cầu config của BACKUP DB");
+        return res.json({
+            supabaseUrl: process.env.BACKUP_SUPABASE_URL,
+            supabaseAnonKey: process.env.BACKUP_SUPABASE_ANON_KEY,
+            mode: 'backup'
+        });
+    }
     res.json({
         supabaseUrl: process.env.SUPABASE_URL,
-        supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+        mode: 'main'
+    });
+});
+
+// Lấy cấu hình Supabase cho app người dùng
+app.get('/api/app-config', (req, res) => {
+    const useBackup = isUsingBackup();
+
+    if (useBackup) {
+        return res.json({
+            supabaseUrl: process.env.BACKUP_SUPABASE_URL,
+            supabaseAnonKey: process.env.BACKUP_SUPABASE_ANON_KEY,
+            isBackup: true
+        });
+    }
+
+    return res.json({
+        supabaseUrl: process.env.SUPABASE_URL,
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
+        isBackup: false
     });
 });
 
@@ -88,11 +118,12 @@ const adminGuestsRouter = require('./routes/adminGuests');
 const adminNotificationsRouter = require('./routes/adminNotifications');
 const userNotificationsRouter = require('./routes/userNotifications');
 const userReviewsRouter = require('./routes/reviewsUser');
+const convertDatabaseRouter = require('./routes/convertDataBase');
 
 
 // --- CẤU HÌNH API ENDPOINTS ---
 app.use('/api/auth', authRouter);
-
+app.use('/api/admin/switch-db', convertDatabaseRouter);
 // API get Reviews
 app.get('/api/reviews-list', userReviewsRouter.getPublicReviews);
 

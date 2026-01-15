@@ -1,19 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, requireAdmin, requireOwn } = require('../middlewares/auth');
+const { getSupabaseClient } = require('../config/supabaseClient');
 const pool = require('../config/db');
-const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 require('dotenv').config();
 
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
-// Khởi tạo Supabase Admin
-const supabaseAdmin = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
 
 // --- 1. LẤY DANH SÁCH USER  ---
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
@@ -43,6 +37,7 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
 
 // --- 2. ĐỔI ROLE ---
 router.patch('/:id/role', verifyToken, requireOwn, async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { id } = req.params;
     const { role } = req.body;
 
@@ -72,6 +67,7 @@ router.patch('/:id/role', verifyToken, requireOwn, async (req, res) => {
 
 // --- 3. XÓA USER ---
 router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { id } = req.params;
     const requesterId = req.user.user_id;
     const requesterRole = req.user.role;
@@ -107,6 +103,7 @@ router.delete('/:id', verifyToken, requireAdmin, async (req, res) => {
 
 // --- 4. KHÓA / MỞ KHÓA TÀI KHOẢN ---
 router.post('/:id/lock', verifyToken, requireAdmin, async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { id } = req.params;
     const { duration } = req.body; 
     

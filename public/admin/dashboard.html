@@ -15,12 +15,22 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Người dùng đang hoạt
-                                động</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Đang trực tuyến
+                            </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800 d-flex align-items-center"
                                 style="height: 1.2em; overflow: hidden;" id="statOnline">
                                 <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
                             </div>
+
+                            <div class="mt-1" style="font-size: 0.85rem;">
+                                <span class="text-primary fw-bold" id="statOnlineMembers">...</span> <span
+                                    class="text-muted">thành viên</span>
+                                <span class="text-muted mx-1">•</span>
+                                <span class="text-secondary fw-bold" id="statOnlineGuests">...</span> <span
+                                    class="text-muted">khách</span>
+                            </div>
+
                         </div>
                         <div class="col-auto"><i class="bi bi-broadcast text-success fs-2"></i></div>
                     </div>
@@ -33,7 +43,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tài Khoản Người Dùng
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tổng Member
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statUsers">...</div>
                         </div>
@@ -48,7 +58,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Tài khoản Khách</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Tổng Guest</div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statGuests">...</div>
                         </div>
                         <div class="col-auto"><i class="bi bi-person-badge text-info fs-2"></i></div>
@@ -107,7 +117,6 @@
 </div>
 
 <style>
-    /* --- CSS CHO HIỆU ỨNG ODOMETER --- */
     .digit-container {
         display: inline-block;
         overflow: hidden;
@@ -160,11 +169,10 @@
 
 <script>
     {
-        // --- KHAI BÁO BIẾN ---
         let onlineInterval;
         let historyChart = null;
 
-        // --- 1. HÀM TỰ ĐỘNG TẢI CHART.JS ---
+        // --- 1. Load Chart.js ---
         async function ensureChartJsLoaded() {
             if (typeof Chart !== 'undefined') return;
             return new Promise((resolve, reject) => {
@@ -176,7 +184,7 @@
             });
         }
 
-        // --- 2. HÀM HELPER: ODOMETER ---
+        // --- 2. Odometer Helpers ---
         function updateOdometer(elementId, value) {
             const el = document.getElementById(elementId);
             if (!el) return;
@@ -210,14 +218,20 @@
             }
         }
 
+        // --- XỬ LÝ DỮ LIỆU ONLINE ---
         window.fetchOnlineStats = async function () {
             const res = await window.api('/api/admin/dashboard/stats/online');
 
             if (res && res.status === 'success') {
+                const data = res.data; 
 
-                updateOdometer('statOnline', res.online);
+                updateOdometer('statOnline', data.total);
+
+                document.getElementById('statOnlineMembers').innerText = data.members;
+                document.getElementById('statOnlineGuests').innerText = data.guests;
+
+                // 3. Vẽ bảng danh sách
                 const tbody = document.getElementById('onlineUsersTable');
-
                 const getTimeAgo = (dateString) => {
                     if (!dateString) return 'Không rõ';
                     const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
@@ -234,19 +248,14 @@
                     return "Vừa xong";
                 };
 
-                if (res.users && res.users.length > 0) {
-                    tbody.innerHTML = res.users.map(u => {
+                if (data.users_list && data.users_list.length > 0) {
+                    tbody.innerHTML = data.users_list.map(u => {
                         const timeStr = getTimeAgo(u.last_active_at);
-
                         const displayName = (u.full_name && u.full_name.trim() !== "") ? u.full_name : u.username;
-                        
                         const hasAvatar = u.avatar_url && u.avatar_url.trim() !== '';
-
                         const avatarHtml = hasAvatar
                             ? `<img src="${u.avatar_url}" alt="Avt" class="rounded-circle me-2" style="width:35px; height:35px; object-fit: cover; border: 1px solid #e3e6f0;">`
-                            : `<div class="bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px; height:35px; font-weight:bold; font-size: 14px;">
-                                ${displayName.charAt(0).toUpperCase()}
-                               </div>`;
+                            : `<div class="bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px; height:35px; font-weight:bold; font-size: 14px;">${displayName.charAt(0).toUpperCase()}</div>`;
 
                         const roleBadge = u.role === 'admin'
                             ? '<span class="badge bg-danger">ADMIN</span>'
@@ -279,69 +288,46 @@
             }
         }
 
-        // --- 4. HÀM VẼ BIỂU ĐỒ ---
+        // --- 4. Chart Logic ---
         window.fetchActiveHistory = async function () {
             try {
                 await ensureChartJsLoaded();
                 const data = await window.api('/api/admin/dashboard/active-history');
                 if (!Array.isArray(data)) return;
-
                 const labels = data.map(d => {
                     const date = new Date(d.recorded_at);
                     return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
                 });
                 const values = data.map(d => d.active_count);
-
                 const canvas = document.getElementById('activeHistoryChart');
                 if (!canvas) return;
-
                 const ctx = canvas.getContext('2d');
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
                 gradient.addColorStop(0, 'rgba(78, 115, 223, 0.5)');
                 gradient.addColorStop(1, 'rgba(78, 115, 223, 0.0)');
-
                 if (historyChart) historyChart.destroy();
-
                 historyChart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
                         datasets: [{
-                            label: 'User Online',
-                            data: values,
-                            backgroundColor: gradient,
-                            borderColor: '#4e73df',
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 4,
+                            label: 'User Online', data: values, backgroundColor: gradient, borderColor: '#4e73df', fill: true, tension: 0.4, pointRadius: 4,
                         }]
                     },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { mode: 'index', intersect: false },
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } },
-                            y: { beginAtZero: true, grid: { borderDash: [2], drawBorder: false } }
-                        }
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true, grid: { borderDash: [2], drawBorder: false } } } }
                 });
             } catch (e) { console.error("Lỗi vẽ biểu đồ:", e); }
         }
 
-        // --- KHỞI CHẠY ---
+        // --- Run ---
         window.fetchGeneralStats();
         window.fetchOnlineStats();
         window.fetchActiveHistory();
 
         if (onlineInterval) clearInterval(onlineInterval);
         onlineInterval = setInterval(() => {
-            if (document.getElementById('statOnline')) {
-                window.fetchOnlineStats();
-            } else {
-                clearInterval(onlineInterval);
-            }
+            if (document.getElementById('statOnline')) { window.fetchOnlineStats(); }
+            else { clearInterval(onlineInterval); }
         }, 10000);
     }
 </script>

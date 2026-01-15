@@ -1,9 +1,9 @@
-const { createClient } = require('@supabase/supabase-js');
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const { getSupabaseClient} = require('../config/supabaseClient');
 
 // Hàm lấy danh sách đánh giá
 const getPublicReviews = async (req, res) => {
     try {
+        const supabase = getSupabaseClient();
         const { data, error } = await supabase
             .from('app_reviews')
             .select(`

@@ -6,7 +6,6 @@ const path = require('path');
 
 const { verifyToken, requireAdmin } = require('../middlewares/auth');
 const { upload, uploadToR2, deleteFromR2 } = require('../services/uploadService');
-const { compressAudio } = require('../services/audioProcessor');
 
 // Cấu hình nhận file
 const songUploads = upload.fields([

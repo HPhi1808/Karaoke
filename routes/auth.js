@@ -1,10 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+const { getSupabaseClient} = require('../config/supabaseClient');
 
 const ALLOWED_PROVINCES = [
     "TP Hà Nội", "TP Huế", "Quảng Ninh", "Cao Bằng", "Lạng Sơn", "Lai Châu",
@@ -21,10 +18,11 @@ const ALLOWED_PROVINCES = [
 // BƯỚC 1: GỬI OTP XÁC THỰC EMAIL
 // ============================================================
 router.post('/register/send-otp', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { email } = req.body;
     try {
         // 1. KIỂM TRA TÀI KHOẢN TRONG PUBLIC.USERS
-        const { data: publicUser } = await supabase
+        const { data: publicUser } = await supabaseAdmin
             .from('users')
             .select('username') 
             .eq('email', email)
@@ -38,7 +36,7 @@ router.post('/register/send-otp', async (req, res) => {
         }
         
         // TRƯỜNG HỢP B: TÀI KHOẢN ĐANG TREO
-        const { data: verifyData } = await supabase
+        const { data: verifyData } = await supabaseAdmin
             .from('email_verifications')
             .select('*')
             .eq('email', email)
@@ -64,7 +62,7 @@ router.post('/register/send-otp', async (req, res) => {
         }
 
         // 4. GỬI OTP MỚI (Supabase tự gửi email)
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabaseAdmin.auth.signUp({
             email,
             password: 'temp_password_123',
             options: { emailRedirectTo: null }
@@ -78,7 +76,7 @@ router.post('/register/send-otp', async (req, res) => {
         }
 
         // 5. KHỞI TẠO BẢNG VERIFICATION
-        await supabase.from('email_verifications').upsert({
+        await supabaseAdmin.from('email_verifications').upsert({
             email: email,
             is_verified: false,
             token: null,
@@ -97,10 +95,11 @@ router.post('/register/send-otp', async (req, res) => {
 // BƯỚC 2: XÁC THỰC MÃ OTP
 // ============================================================
 router.post('/register/verify-otp', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { email, token } = req.body;
     try {
         // 1. Xác thực với Supabase Auth
-        const { error } = await supabase.auth.verifyOtp({
+        const { error } = await supabaseAdmin.auth.verifyOtp({
             email,
             token,
             type: 'signup'
@@ -109,7 +108,7 @@ router.post('/register/verify-otp', async (req, res) => {
         if (error) throw error;
 
         // 2. Cập nhật bảng email_verifications
-        await supabase.from('email_verifications').upsert({ 
+        await supabaseAdmin.from('email_verifications').upsert({ 
             email, 
             token: token,
             is_verified: true
@@ -125,6 +124,7 @@ router.post('/register/verify-otp', async (req, res) => {
 // BƯỚC 3: HOÀN TẤT ĐĂNG KÝ
 // ============================================================
 router.post('/register/complete', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { email, password, full_name, username, gender, region } = req.body;
     
     try {
@@ -141,7 +141,7 @@ router.post('/register/complete', async (req, res) => {
              return res.status(400).json({ status: 'error', message: 'Tên đăng nhập chỉ được chứa chữ cái và số.' });
         }
 
-        const { data: duplicateUser } = await supabase
+        const { data: duplicateUser } = await supabaseAdmin
             .from('users')
             .select('id')
             .eq('username', username)
@@ -152,7 +152,7 @@ router.post('/register/complete', async (req, res) => {
         }
 
         // 2. KIỂM TRA QUYỀN VÀ THỜI HẠN
-        const { data: verifyData } = await supabase
+        const { data: verifyData } = await supabaseAdmin
             .from('email_verifications')
             .select('*')
             .eq('email', email)
@@ -204,7 +204,7 @@ router.post('/register/complete', async (req, res) => {
         if (dbError) throw dbError;
 
         // 6. DỌN DẸP
-        await supabase.from('email_verifications').delete().eq('email', email);
+        await supabaseAdmin.from('email_verifications').delete().eq('email', email);
 
         res.json({ status: 'success', message: 'Đăng ký thành công!' });
 
@@ -219,10 +219,11 @@ router.post('/register/complete', async (req, res) => {
 
 // Bước 1: Gửi OTP recovery
 router.post('/forgot-password/send-otp', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { email } = req.body;
     try {
         // 1. Kiểm tra Email
-        const { data: user } = await supabase
+        const { data: user } = await supabaseAdmin
             .from('users')
             .select('username, role') 
             .eq('email', email)
@@ -240,7 +241,7 @@ router.post('/forgot-password/send-otp', async (req, res) => {
         }
 
         // 2. KIỂM TRA NHẢY BƯỚC (Dùng expires_at mới)
-        const { data: verifyData } = await supabase
+        const { data: verifyData } = await supabaseAdmin
             .from('email_verifications')
             .select('*')
             .eq('email', email)
@@ -253,11 +254,11 @@ router.post('/forgot-password/send-otp', async (req, res) => {
         }
 
         // 3. Gửi OTP Recovery
-        const { error } = await supabase.auth.resetPasswordForEmail(email);
+        const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email);
         if (error) throw error;
 
         // Reset lại bảng verification
-        await supabase.from('email_verifications').upsert({
+        await supabaseAdmin.from('email_verifications').upsert({
             email: email,
             is_verified: false,
             token: null,
@@ -273,13 +274,14 @@ router.post('/forgot-password/send-otp', async (req, res) => {
 
 // Bước 2: Verify OTP recovery
 router.post('/forgot-password/verify-otp', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { email, token } = req.body;
     try {
-        const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+        const { data, error } = await supabaseAdmin.auth.verifyOtp({ email, token, type: 'recovery' });
         if (error) throw error;
 
         // Trigger DB sẽ tự động set expires_at
-        await supabase.from('email_verifications').upsert({ 
+        await supabaseAdmin.from('email_verifications').upsert({ 
             email, 
             token: token,
             is_verified: true
@@ -296,6 +298,7 @@ router.post('/forgot-password/verify-otp', async (req, res) => {
 
 // Bước 3: Đặt lại mật khẩu mới
 router.post('/forgot-password/reset', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     // Client cần gửi: email, new_password, và token (là OTP đã nhập)
     const { email, new_password, token } = req.body; 
 
@@ -319,7 +322,7 @@ router.post('/forgot-password/reset', async (req, res) => {
         // 3. Kiểm tra thời gian bằng cột expires_at
         if (!verifyData.expires_at || new Date() > new Date(verifyData.expires_at)) {
             // Xóa bản ghi hết hạn
-            await supabase.from('email_verifications').delete().eq('email', email);
+            await supabaseAdmin.from('email_verifications').delete().eq('email', email);
             return res.status(403).json({ status: 'error', message: 'Phiên xác thực đã hết hạn. Vui lòng thử lại.' });
         }
 
@@ -337,7 +340,7 @@ router.post('/forgot-password/reset', async (req, res) => {
         if (updateError) throw updateError;
 
         // 5. Dọn dẹp
-        await supabase.from('email_verifications').delete().eq('email', email);
+        await supabaseAdmin.from('email_verifications').delete().eq('email', email);
 
         res.json({ status: 'success', message: 'Đổi mật khẩu thành công!' });
 
@@ -348,13 +351,14 @@ router.post('/forgot-password/reset', async (req, res) => {
 
 // --- LUỒNG ĐĂNG NHẬP (LOGIN) ---
 router.post('/login', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { identifier, password } = req.body;
 
     try {
         let emailToLogin = identifier.trim();
 
         if (!emailToLogin.includes('@')) {
-            const { data: user, error } = await supabase
+            const { data: user, error } = await supabaseAdmin
                 .from('users')
                 .select('email')
                 .eq('username', emailToLogin)
@@ -366,7 +370,7 @@ router.post('/login', async (req, res) => {
             emailToLogin = user.email;
         }
 
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabaseAdmin.auth.signInWithPassword({
             email: emailToLogin,
             password: password,
         });
@@ -375,14 +379,14 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Mật khẩu không chính xác!' });
         }
 
-        const { data: userProfile, error: profileError } = await supabase
+        const { data: userProfile, error: profileError } = await supabaseAdmin
             .from('users')
             .select('role, full_name, username, locked_until') 
             .eq('id', data.user.id)
             .maybeSingle(); 
 
         if (profileError || !userProfile) {
-            await supabase.auth.admin.signOut(data.user.id, 'global');
+            await supabaseAdmin.auth.admin.signOut(data.user.id, 'global');
             return res.status(500).json({ status: 'error', message: 'Lỗi hệ thống: Không tìm thấy hồ sơ người dùng.' });
         }
 
@@ -418,7 +422,7 @@ router.post('/login', async (req, res) => {
         const payload = JSON.parse(Buffer.from(base64, 'base64').toString());
         
         const newSessionId = payload.session_id;
-        await supabase
+        await supabaseAdmin
             .from('users')
             .update({ 
                 current_session_id: newSessionId,
@@ -448,6 +452,7 @@ router.post('/login', async (req, res) => {
 
 // --- LUỒNG ĐĂNG XUẤT (LOGOUT) ---
 router.post('/logout', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ status: 'error', message: 'Thiếu userId' });
 
@@ -470,6 +475,7 @@ router.post('/logout', async (req, res) => {
 });
 
 router.post('/cleanup-guest', async (req, res) => {
+    const supabaseAdmin = getSupabaseClient();
     const { guest_id } = req.body;
     if (!guest_id) return res.status(400).json({ message: 'Thiếu guest_id' });
 
