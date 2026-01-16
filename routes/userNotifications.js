@@ -1,62 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getSafeActorName } = require('../services/stringHelper');
-const axios = require('axios');
 const { getSupabaseClient } = require('../config/supabaseClient');
-
-// Cấu hình OneSignal
-const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
-const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
-
-// --- HELPER: Gửi thông báo qua OneSignal ---
-async function sendPushNotification(userIds, heading, content, data) {
-    try {
-        const body = {
-            app_id: ONESIGNAL_APP_ID,
-            include_external_user_ids: userIds,
-            headings: { en: heading },
-            contents: { en: content },
-            data: data,
-            channel_for_external_user_ids: "push",
-        };
-
-        const response = await axios.post(
-            'https://onesignal.com/api/v1/notifications',
-            body,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Basic ${ONESIGNAL_API_KEY}`
-                }
-            }
-        );
-
-        if (response.data.recipients === 0) {
-            console.warn("⚠️ OneSignal: Gửi thành công nhưng 0 người nhận (User ID chưa map trên Client).");
-        }
-
-        return response.data; 
-    } catch (error) {
-        console.error("❌ OneSignal Error Details:", error.response?.data || error.message);
-        return null;
-    }
-}
-
-// --- HELPER: Thu hồi thông báo OneSignal ---
-async function cancelPushNotification(notificationId) {
-    if (!notificationId) return;
-    try {
-        await axios.delete(
-            `https://onesignal.com/api/v1/notifications/${notificationId}?app_id=${ONESIGNAL_APP_ID}`,
-            {
-                headers: { 'Authorization': `Basic ${ONESIGNAL_API_KEY}` }
-            }
-        );
-        console.log(`Đã thu hồi thông báo: ${notificationId}`);
-    } catch (error) {
-        console.error("Cancel Push Error:", error.response?.data || error.message);
-    }
-}
+const { 
+    sendPushNotification,
+    cancelPushNotification
+} = require('../services/notificationService');
 
 // ================= API ENDPOINTS =================
 

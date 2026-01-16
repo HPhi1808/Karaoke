@@ -116,6 +116,7 @@ const adminSongsRouter = require('./routes/adminSongs');
 const adminDashboardRouter = require('./routes/adminDashboard');
 const adminGuestsRouter = require('./routes/adminGuests');
 const adminNotificationsRouter = require('./routes/adminNotifications');
+const adminReportsRouter = require('./routes/adminReports');
 const userNotificationsRouter = require('./routes/userNotifications');
 const userReviewsRouter = require('./routes/reviewsUser');
 const convertDatabaseRouter = require('./routes/convertDataBase');
@@ -136,6 +137,7 @@ app.use('/api/admin/songs', verifyToken, requireAdmin, adminSongsRouter);
 app.use('/api/admin/dashboard', verifyToken, requireAdmin, adminDashboardRouter);
 app.use('/api/admin/guests', verifyToken, requireAdmin, adminGuestsRouter);
 app.use('/api/admin/notifications', verifyToken, requireAdmin, adminNotificationsRouter);
+app.use('/api/admin/reports', verifyToken, requireAdmin, adminReportsRouter);
 
 
 // --- KHỞI CHẠY SERVER ---
