@@ -1,17 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { getSafeActorName } = require('../services/stringHelper');
-const { getSupabaseClient } = require('../config/supabaseClient');
+const pool = require('../config/db');
 const { 
     sendPushNotification,
-    cancelPushNotification
+    cancelPushNotification,
+    createAndSendNotification
 } = require('../services/notificationService');
 
 // ================= API ENDPOINTS =================
 
 // 1. FOLLOW USER (POST /api/user/notifications/follow)
 router.post('/follow', async (req, res) => {
-    const supabase = getSupabaseClient();
     const { follower_id, following_id } = req.body;
 
     if (!follower_id || !following_id) {
@@ -19,136 +18,135 @@ router.post('/follow', async (req, res) => {
     }
 
     try {
-        const { error: followError } = await supabase
-            .from('follows')
-            .insert({ follower_id, following_id });
+        // 1. Insert vào bảng follows
+        const insertQuery = `
+            INSERT INTO follows (follower_id, following_id) 
+            VALUES ($1, $2)
+            ON CONFLICT (follower_id, following_id) DO NOTHING
+            RETURNING *;
+        `;
+        const result = await pool.query(insertQuery, [follower_id, following_id]);
 
-        if (followError) {
-            if (followError.code === '23505') return res.status(200).json({ message: "Đã follow rồi" });
-            throw followError;
+        if (result.rowCount === 0) {
+             return res.status(200).json({ message: "Đã follow rồi" });
         }
 
-        const { data: actor } = await supabase
-            .from('users')
-            .select('username, full_name')
-            .eq('id', follower_id)
-            .single();
-
-        const actorName = getSafeActorName(actor);
-
-        const pushResult = await sendPushNotification(
-            [following_id],
-            "Người theo dõi mới",
-            `${actorName} đã bắt đầu theo dõi bạn.`,
-            { type: 'profile', userId: follower_id }
+        // 2. Lấy tên người follow
+        const actorRes = await pool.query(
+            `SELECT email, raw_user_meta_data 
+             FROM auth.users WHERE id = $1`, 
+            [follower_id]
         );
-        console.log("⚠️ Cảnh báo: Push trả về null, có thể do lỗi cấu hình hoặc User ID chưa map.");
-        console.log("Push Result OneSignal ID: ", pushResult?.id);
-        await supabase.from('notifications').insert({
-            user_id: following_id,
-            actor_id: follower_id,
-            type: 'follow',
-            title: actorName,
-            message: "đã bắt đầu theo dõi bạn.",
-            onesignal_id: pushResult?.id || null
-        });
+        
+        if (actorRes.rows.length > 0) {
+            const actor = actorRes.rows[0];
+            const meta = actor.raw_user_meta_data || {};
+            
+            const actorName = meta.full_name || meta.username || actor.email || "Ai đó";
+
+            // 3. Gửi thông báo
+            createAndSendNotification({
+                userId: following_id,
+                title: "Người theo dõi mới",
+                message: `${actorName} đã bắt đầu theo dõi bạn.`,
+                type: 'follow',
+                actorId: follower_id,
+                data: { 
+                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                    type: 'profile', 
+                    userId: follower_id 
+                }
+            });
+        }
 
         return res.json({ success: true, message: "Follow thành công" });
 
     } catch (err) {
-        console.error(err);
+        console.error("Lỗi Follow:", err);
         return res.status(500).json({ error: err.message });
     }
 });
 
 // 2. UNFOLLOW USER (POST /api/user/notifications/unfollow)
 router.post('/unfollow', async (req, res) => {
-    const supabase = getSupabaseClient();
     const { follower_id, following_id } = req.body;
 
     try {
-        await supabase
-            .from('follows')
-            .delete()
-            .match({ follower_id, following_id });
+        // Xóa Follow
+        await pool.query(
+            "DELETE FROM follows WHERE follower_id = $1 AND following_id = $2",
+            [follower_id, following_id]
+        );
 
-        const { data: notiToDelete } = await supabase
-            .from('notifications')
-            .select('id, onesignal_id')
-            .match({
-                user_id: following_id,
-                actor_id: follower_id,
-                type: 'follow'
-            })
-            .single();
+        // Tìm thông báo cũ
+        const notiRes = await pool.query(
+            `SELECT id, onesignal_id FROM notifications 
+             WHERE user_id = $1 AND actor_id = $2 AND type = 'follow'
+             LIMIT 1`,
+            [following_id, follower_id]
+        );
 
-        if (notiToDelete) {
-            await supabase
-                .from('notifications')
-                .delete()
-                .eq('id', notiToDelete.id);
+        if (notiRes.rows.length > 0) {
+            const notiToDelete = notiRes.rows[0];
 
+            // Xóa DB
+            await pool.query("DELETE FROM notifications WHERE id = $1", [notiToDelete.id]);
+
+            // Thu hồi Push
             if (notiToDelete.onesignal_id) {
-                await cancelPushNotification(notiToDelete.onesignal_id);
+                cancelPushNotification(notiToDelete.onesignal_id);
             }
         }
 
         return res.json({ success: true, message: "Unfollow và dọn dẹp thành công" });
 
     } catch (err) {
-        console.error(err);
+        console.error("Lỗi Unfollow:", err);
         return res.status(500).json({ error: err.message });
     }
 });
 
-// 3. GET NOTIFICATIONS (GET /api/user/notifications/:userId)
+// 3. GET NOTIFICATIONS
 router.get('/:userId', async (req, res) => {
-    const supabase = getSupabaseClient();
     const { userId } = req.params;
 
     try {
-        const { data, error } = await supabase
-            .from('notifications')
-            .select(`
-                *,
-                actor:users!actor_id (
-                    id, username, full_name, avatar_url
-                )
-            `)
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-
-        if (error) throw error;
-
-        return res.json(data);
+        const query = `
+            SELECT 
+                n.*,
+                json_build_object(
+                    'id', u.id,
+                    'email', u.email,
+                    'full_name', u.raw_user_meta_data->>'full_name',
+                    'avatar_url', u.raw_user_meta_data->>'avatar_url'
+                ) as actor
+            FROM notifications n
+            LEFT JOIN auth.users u ON n.actor_id = u.id
+            WHERE n.user_id = $1
+            ORDER BY n.created_at DESC
+            LIMIT 50
+        `;
+        
+        const result = await pool.query(query, [userId]);
+        return res.json(result.rows);
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 });
 
-// 4. MARK AS READ (PUT /api/user/notifications/read/:id)
+// 4. MARK AS READ
 router.put('/read/:id', async (req, res) => {
-    const supabase = getSupabaseClient();
     const { id } = req.params;
     try {
-        await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('id', id);
+        await pool.query("UPDATE notifications SET is_read = true WHERE id = $1", [id]);
         return res.json({ success: true });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
 });
 
-
-// 5. SEND CHAT NOTIFICATION (POST /api/user/notifications/chat)
+// 5. SEND CHAT NOTIFICATION
 router.post('/chat', async (req, res) => {
-    const supabase = getSupabaseClient();
-    // sender_id: Người gửi
-    // receiver_id: Người nhận
-    // message_content: Nội dung tin nhắn
     const { sender_id, receiver_id, message_content } = req.body;
 
     if (!sender_id || !receiver_id) {
@@ -156,23 +154,29 @@ router.post('/chat', async (req, res) => {
     }
 
     try {
-        const { data: sender } = await supabase
-            .from('users')
-            .select('full_name, username')
-            .eq('id', sender_id)
-            .single();
+        const senderRes = await pool.query(
+            `SELECT email, raw_user_meta_data 
+             FROM auth.users WHERE id = $1`, 
+            [sender_id]
+        );
         
-        const senderName = getSafeActorName(sender);
-        
+        let senderName = "Ai đó";
+        if (senderRes.rows.length > 0) {
+            const u = senderRes.rows[0];
+            const meta = u.raw_user_meta_data || {};
+            senderName = meta.full_name || meta.username || u.email || "Người dùng";
+        }
+
         const previewContent = message_content.length > 50 
             ? message_content.substring(0, 50) + "..." 
             : message_content;
 
         const pushResult = await sendPushNotification(
-            [receiver_id], 
+            [receiver_id.toString()],
             `Tin nhắn mới từ ${senderName}`,
             previewContent,
             { 
+                click_action: "FLUTTER_NOTIFICATION_CLICK_CHAT",
                 type: 'chat', 
                 senderId: sender_id, 
                 senderName: senderName 
