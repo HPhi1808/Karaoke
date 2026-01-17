@@ -1,11 +1,12 @@
 require('dotenv').config();
-const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { Upload } = require('@aws-sdk/lib-storage');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// 1. Khởi tạo kết nối với Cloudflare R2
+// 1. Khởi tạo kết nối R2
 const r2Client = new S3Client({
     region: 'auto',
     endpoint: process.env.R2_ENDPOINT,
@@ -15,7 +16,7 @@ const r2Client = new S3Client({
     },
 });
 
-// 2. Cấu hình Multer: LƯU FILE VÀO Ổ CỨNG
+// 2. Cấu hình Multer
 const tempDir = 'uploads/temp/';
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
@@ -34,9 +35,16 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage: storage,
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('audio/') || file.mimetype === 'application/octet-stream') {
+            cb(null, true);
+        } else {
+            cb(new Error('Chỉ chấp nhận file âm thanh!'), false);
+        }
+    }
 });
 
-// Hàm hỗ trợ: Slugify
+// Hàm Slugify
 const slugify = (text) => {
     if (!text) return '';
     return text.toString().toLowerCase()
@@ -47,6 +55,15 @@ const slugify = (text) => {
         .replace(/\-\-+/g, '-')
         .replace(/^-+/, '')
         .replace(/-+$/, '');
+};
+
+// Hàm hỗ trợ xóa file local
+const cleanupLocalFile = (filePath) => {
+    if (fs.existsSync(filePath)) {
+        fs.unlink(filePath, (err) => {
+            if (err) console.error("Lỗi xóa file temp:", err);
+        });
+    }
 };
 
 /**
@@ -62,6 +79,7 @@ async function uploadToR2(file, folderName, { songTitle, artistName, fileType } 
     let fileName;
     const fileExt = path.extname(file.originalname).toLowerCase();
 
+    // Logic đặt tên file
     if (songTitle && artistName) {
         const cleanTitle = slugify(songTitle);
         const cleanArtist = slugify(artistName);
@@ -90,13 +108,33 @@ async function uploadToR2(file, folderName, { songTitle, artistName, fileType } 
         });
 
         await uploadParallel.done();
+        fileStream.destroy(); 
+        cleanupLocalFile(file.path);
 
         const domain = process.env.R2_PUBLIC_DOMAIN.replace(/\/$/, "");
         return `${domain}/${fileName}`;
     } catch (error) {
+        // Nếu lỗi cũng phải xóa file tạm
+        cleanupLocalFile(file.path);
         console.error("Lỗi upload R2:", error);
         throw error;
     }
+}
+
+async function generatePresignedUrl(fileName, fileType) {
+    const command = new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: fileName,
+        ContentType: fileType,
+        ACL: 'public-read',
+    });
+
+    const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 300 });
+    
+    const domain = process.env.R2_PUBLIC_DOMAIN.replace(/\/$/, "");
+    const publicUrl = `${domain}/${fileName}`;
+
+    return { uploadUrl, publicUrl };
 }
 
 // 4. Hàm xóa file trên R2
@@ -105,6 +143,7 @@ async function deleteFromR2(fullUrl) {
     try {
         const domain = process.env.R2_PUBLIC_DOMAIN.replace(/\/$/, "");
         const key = decodeURI(fullUrl.replace(`${domain}/`, ""));
+        
         const command = new DeleteObjectCommand({
             Bucket: process.env.R2_BUCKET_NAME,
             Key: key,
@@ -116,4 +155,4 @@ async function deleteFromR2(fullUrl) {
     }
 }
 
-module.exports = { upload, uploadToR2, deleteFromR2 };
+module.exports = { upload, uploadToR2, deleteFromR2, generatePresignedUrl };
