@@ -34,16 +34,15 @@ router.post('/follow', async (req, res) => {
 
         // 2. Lấy tên người follow
         const actorRes = await pool.query(
-            `SELECT email, raw_user_meta_data 
-             FROM auth.users WHERE id = $1`, 
+            `SELECT full_name, username 
+             FROM public.users 
+             WHERE id = $1`, 
             [follower_id]
         );
         
         if (actorRes.rows.length > 0) {
             const actor = actorRes.rows[0];
-            const meta = actor.raw_user_meta_data || {};
-            
-            const actorName = meta.full_name || meta.username || actor.email || "Ai đó";
+            const actorName = actor.full_name || actor.username || "Người dùng";            
 
             // 3. Gửi thông báo
             createAndSendNotification({
@@ -53,7 +52,7 @@ router.post('/follow', async (req, res) => {
                 type: 'follow',
                 actorId: follower_id,
                 data: { 
-                    click_action: "FLUTTER_NOTIFICATION_CLICK",
+                    click_action: "FLUTTER_NOTIFICATION_CLICK_PROFILE",
                     type: 'profile', 
                     userId: follower_id 
                 }
@@ -156,16 +155,16 @@ router.post('/chat', async (req, res) => {
 
     try {
         const senderRes = await pool.query(
-            `SELECT email, raw_user_meta_data 
-             FROM auth.users WHERE id = $1`, 
+            `SELECT full_name, username 
+             FROM public.users 
+             WHERE id = $1`, 
             [sender_id]
         );
         
         let senderName = "Ai đó";
         if (senderRes.rows.length > 0) {
             const u = senderRes.rows[0];
-            const meta = u.raw_user_meta_data || {};
-            senderName = meta.full_name || meta.username || u.email || "Người dùng";
+            senderName = u.full_name || u.username || "Người dùng";
         }
 
         const previewContent = message_content.length > 50 
@@ -198,37 +197,31 @@ router.post('/chat', async (req, res) => {
 
 // 6. TRIGGER NOTIFICATION FOR LIKE/COMMENT WITH MERGE LOGIC
 router.post('/trigger', async (req, res) => {
-    // actor_id: Người vừa bấm like/comment
-    // receiver_id: Chủ bài viết
-    // moment_id: ID bài viết
-    // type: 'like' hoặc 'comment'
+
     const { actor_id, receiver_id, moment_id, type } = req.body;
 
     if (!actor_id || !receiver_id || !moment_id || !type) {
         return res.status(400).json({ error: "Thiếu thông tin bắt buộc" });
     }
 
-    // 1. Chặn tự thông báo cho chính mình
     if (actor_id.toString() === receiver_id.toString()) {
         return res.json({ status: 'ignored', message: 'Self action' });
     }
 
     try {
-        // 2. Lấy tên người vừa hành động (Actor)
         const actorRes = await pool.query(
-            `SELECT email, raw_user_meta_data FROM auth.users WHERE id = $1`, 
+            `SELECT full_name, username 
+             FROM public.users 
+             WHERE id = $1`, 
             [actor_id]
         );
         
         let actorName = "Ai đó";
         if (actorRes.rows.length > 0) {
             const u = actorRes.rows[0];
-            const meta = u.raw_user_meta_data || {};
-            actorName = meta.full_name || meta.username || u.email || "Người dùng";
+            actorName = u.full_name || u.username || "Người dùng";
         }
 
-        // 3. Kiểm tra xem đã có thông báo CŨ (Chưa đọc, cùng bài, cùng loại) chưa?
-        // Logic: Tìm thông báo gần nhất của user này về bài này mà chưa đọc
         const existQuery = await pool.query(`
             SELECT id, action_count, onesignal_id 
             FROM notifications 
@@ -240,20 +233,10 @@ router.post('/trigger', async (req, res) => {
         `, [receiver_id, moment_id, type]);
 
         if (existQuery.rows.length > 0) {
-            // ===============================================
-            // TRƯỜNG HỢP A: ĐÃ CÓ THÔNG BÁO CŨ -> GỘP (MERGE)
-            // ===============================================
             const oldNotif = existQuery.rows[0];
             const newCount = (oldNotif.action_count || 1) + 1;
             
-            // Tạo câu thông báo mới: "An và X người khác..."
             const newMessage = buildNotificationMessage(actorName, type, newCount);
-
-            // Cập nhật DB:
-            // - actor_id: cập nhật thành người mới nhất
-            // - message: cập nhật text
-            // - action_count: tăng số lượng
-            // - updated_at: đẩy lên đầu danh sách
             await pool.query(`
                 UPDATE notifications 
                 SET actor_id = $1, 
@@ -262,22 +245,12 @@ router.post('/trigger', async (req, res) => {
                     updated_at = NOW()
                 WHERE id = $4
             `, [actor_id, newCount, newMessage, oldNotif.id]);
-
-            // [CHIẾN THUẬT CHỐNG SPAM]:
-            // Ta KHÔNG gọi sendPushNotification ở đây.
-            // Người dùng sẽ thấy số badge tăng hoặc danh sách cập nhật khi vào app, 
-            // nhưng điện thoại sẽ không rung bần bật vì spam.
             
             return res.json({ status: 'merged', message: 'Notification merged, no push sent.' });
 
         } else {
-            // ===============================================
-            // TRƯỜNG HỢP B: THÔNG BÁO MỚI TINH -> TẠO MỚI & PUSH
-            // ===============================================
             const title = type === 'like' ? 'Lượt thích mới' : 'Bình luận mới';
-            const message = buildNotificationMessage(actorName, type, 1);
-
-            // A. Gửi Push trước lấy ID
+            const message = buildNotificationMessage(type, 1);
             const pushData = { 
                 click_action: "FLUTTER_NOTIFICATION_CLICK_MOMENT",
                 type: type, 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karaoke Plus</title>
-    
+    <link rel="icon" type="image/png" href="./logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -343,7 +343,7 @@
     <div class="glow-bg"></div>
 
     <button id="openExpBtn" class="top-right-btn">
-        <i class="fas fa-rocket"></i> Trải nghiệm
+        <i class="fas fa-rocket"></i> Dùng thử
     </button>
 
     <main class="container">
@@ -393,7 +393,7 @@
         <div class="modal-box">
             <h3 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Lưu ý</h3>
             <p style="font-size: 0.9rem; margin-bottom: 10px;">
-                Đây là bản trải nghiệm Web, một số tính năng (thu âm, thông báo) có thể bị hạn chế hoặc không hoạt động mượt mà như trên ứng dụng.
+                Đây là bản dùng thử, một số tính năng (thu âm, đăng tải) có thể bị hạn chế hoặc không hoạt động mượt mà như trên ứng dụng.
             </p>
             <p style="font-size: 0.9rem; color: #fff;">
                 Để có trải nghiệm trọn vẹn nhất, hãy tải file APK về máy.
@@ -402,7 +402,7 @@
             <div class="modal-buttons">
                 <button id="closeModalBtn" class="btn-cancel">Quay lại</button>
                 <button id="confirmExpBtn" class="btn-confirm disabled" disabled>
-                    Trải nghiệm (5)
+                    Dùng thử (5)
                 </button>
             </div>
         </div>
@@ -416,7 +416,7 @@
         // 1. Gán link cho nút bấm tải về
         document.getElementById('downloadLink').href = APK_URL;
 
-        // 2. Tạo mã QR (Hiện đang comment theo code gốc của bạn)
+        // 2. Tạo mã QR cho file APK
         // new QRCode(document.getElementById("qrcode"), {
         //     text: APK_URL,
         //     width: 160,
@@ -426,7 +426,7 @@
         //     correctLevel : QRCode.CorrectLevel.M
         // });
 
-        // --- XỬ LÝ LOGIC POPUP TRẢI NGHIỆM ---
+        // --- XỬ LÝ LOGIC POPUP DÙNG THỬ ---
         const openBtn = document.getElementById('openExpBtn');
         const modal = document.getElementById('expModal');
         const closeBtn = document.getElementById('closeModalBtn');
@@ -443,7 +443,7 @@
         // Hàm đóng Modal
         closeBtn.addEventListener('click', () => {
             modal.classList.remove('active');
-            clearInterval(countdownTimer); // Dừng đếm ngược nếu đóng sớm
+            clearInterval(countdownTimer);
         });
 
         // Hàm xử lý đếm ngược
@@ -453,24 +453,24 @@
             // Reset trạng thái nút
             confirmBtn.disabled = true;
             confirmBtn.classList.add('disabled');
-            confirmBtn.innerText = `Trải nghiệm (${timeLeft})`;
+            confirmBtn.innerText = `Dùng thử (${timeLeft})`;
 
             // Bắt đầu đếm
             countdownTimer = setInterval(() => {
                 timeLeft--;
                 if (timeLeft > 0) {
-                    confirmBtn.innerText = `Trải nghiệm (${timeLeft})`;
+                    confirmBtn.innerText = `Dùng thử (${timeLeft})`;
                 } else {
                     // Hết giờ -> Mở khóa nút
                     clearInterval(countdownTimer);
                     confirmBtn.disabled = false;
                     confirmBtn.classList.remove('disabled');
-                    confirmBtn.innerText = "Trải nghiệm";
+                    confirmBtn.innerText = "Dùng thử";
                 }
             }, 1000);
         }
 
-        // Xử lý khi bấm nút Trải nghiệm (sau khi đã mở khóa)
+        // Xử lý khi bấm nút Dùng thử (sau khi đã mở khóa)
         confirmBtn.addEventListener('click', () => {
             if (!confirmBtn.disabled) {
                 window.location.href = WEB_APP_URL;
