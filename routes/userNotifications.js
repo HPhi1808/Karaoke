@@ -4,7 +4,8 @@ const pool = require('../config/db');
 const { 
     sendPushNotification,
     cancelPushNotification,
-    createAndSendNotification
+    createAndSendNotification,
+    buildNotificationMessage
 } = require('../services/notificationService');
 
 // ================= API ENDPOINTS =================
@@ -191,6 +192,118 @@ router.post('/chat', async (req, res) => {
 
     } catch (err) {
         console.error("Chat Notification Error:", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// 6. TRIGGER NOTIFICATION FOR LIKE/COMMENT WITH MERGE LOGIC
+router.post('/trigger', async (req, res) => {
+    // actor_id: Người vừa bấm like/comment
+    // receiver_id: Chủ bài viết
+    // moment_id: ID bài viết
+    // type: 'like' hoặc 'comment'
+    const { actor_id, receiver_id, moment_id, type } = req.body;
+
+    if (!actor_id || !receiver_id || !moment_id || !type) {
+        return res.status(400).json({ error: "Thiếu thông tin bắt buộc" });
+    }
+
+    // 1. Chặn tự thông báo cho chính mình
+    if (actor_id.toString() === receiver_id.toString()) {
+        return res.json({ status: 'ignored', message: 'Self action' });
+    }
+
+    try {
+        // 2. Lấy tên người vừa hành động (Actor)
+        const actorRes = await pool.query(
+            `SELECT email, raw_user_meta_data FROM auth.users WHERE id = $1`, 
+            [actor_id]
+        );
+        
+        let actorName = "Ai đó";
+        if (actorRes.rows.length > 0) {
+            const u = actorRes.rows[0];
+            const meta = u.raw_user_meta_data || {};
+            actorName = meta.full_name || meta.username || u.email || "Người dùng";
+        }
+
+        // 3. Kiểm tra xem đã có thông báo CŨ (Chưa đọc, cùng bài, cùng loại) chưa?
+        // Logic: Tìm thông báo gần nhất của user này về bài này mà chưa đọc
+        const existQuery = await pool.query(`
+            SELECT id, action_count, onesignal_id 
+            FROM notifications 
+            WHERE user_id = $1 
+              AND moment_id = $2 
+              AND type = $3 
+              AND is_read = false
+            LIMIT 1
+        `, [receiver_id, moment_id, type]);
+
+        if (existQuery.rows.length > 0) {
+            // ===============================================
+            // TRƯỜNG HỢP A: ĐÃ CÓ THÔNG BÁO CŨ -> GỘP (MERGE)
+            // ===============================================
+            const oldNotif = existQuery.rows[0];
+            const newCount = (oldNotif.action_count || 1) + 1;
+            
+            // Tạo câu thông báo mới: "An và X người khác..."
+            const newMessage = buildNotificationMessage(actorName, type, newCount);
+
+            // Cập nhật DB:
+            // - actor_id: cập nhật thành người mới nhất
+            // - message: cập nhật text
+            // - action_count: tăng số lượng
+            // - updated_at: đẩy lên đầu danh sách
+            await pool.query(`
+                UPDATE notifications 
+                SET actor_id = $1, 
+                    action_count = $2, 
+                    message = $3,
+                    updated_at = NOW()
+                WHERE id = $4
+            `, [actor_id, newCount, newMessage, oldNotif.id]);
+
+            // [CHIẾN THUẬT CHỐNG SPAM]:
+            // Ta KHÔNG gọi sendPushNotification ở đây.
+            // Người dùng sẽ thấy số badge tăng hoặc danh sách cập nhật khi vào app, 
+            // nhưng điện thoại sẽ không rung bần bật vì spam.
+            
+            return res.json({ status: 'merged', message: 'Notification merged, no push sent.' });
+
+        } else {
+            // ===============================================
+            // TRƯỜNG HỢP B: THÔNG BÁO MỚI TINH -> TẠO MỚI & PUSH
+            // ===============================================
+            const title = type === 'like' ? 'Lượt thích mới' : 'Bình luận mới';
+            const message = buildNotificationMessage(actorName, type, 1);
+
+            // A. Gửi Push trước lấy ID
+            const pushData = { 
+                click_action: "FLUTTER_NOTIFICATION_CLICK_MOMENT",
+                type: type, 
+                momentId: moment_id 
+            };
+            
+            const pushResult = await sendPushNotification(
+                [receiver_id.toString()], 
+                title, 
+                message, 
+                pushData
+            );
+            
+            const oneSignalId = pushResult ? pushResult.id : null;
+
+            // B. Lưu vào DB
+            await pool.query(`
+                INSERT INTO notifications (user_id, actor_id, moment_id, type, title, message, action_count, onesignal_id)
+                VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+            `, [receiver_id, actor_id, moment_id, type, title, message, oneSignalId]);
+
+            return res.json({ status: 'created', message: 'Notification created and pushed.' });
+        }
+
+    } catch (err) {
+        console.error("Trigger Error:", err);
         return res.status(500).json({ error: err.message });
     }
 });

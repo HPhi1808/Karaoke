@@ -39,6 +39,7 @@ async function sendPushNotification(userIds, heading, content, data) {
     }
 }
 
+// --- HELPER: Thu hồi thông báo OneSignal ---
 async function cancelPushNotification(notificationId) {
     if (!notificationId) return;
     try {
@@ -51,6 +52,16 @@ async function cancelPushNotification(notificationId) {
         console.log(`🗑️ Đã thu hồi thông báo OneSignal: ${notificationId}`);
     } catch (error) {
         console.error("❌ Cancel Push Error:", error.response?.data || error.message);
+    }
+}
+
+// --- HELPER: Xây dựng nội dung thông báo ---
+function buildNotificationMessage(actorName, type, count) {
+    const actionText = type === 'like' ? 'thích' : 'bình luận về';
+    if (count <= 1) {
+        return `${actorName} đã ${actionText} bài viết của bạn.`;
+    } else {
+        return `${actorName} và ${count - 1} người khác đã ${actionText} bài viết của bạn.`;
     }
 }
 
@@ -84,4 +95,4 @@ async function createAndSendNotification({ userId, title, message, type, actorId
     }
 }
 
-module.exports = { createAndSendNotification, cancelPushNotification, sendPushNotification };
+module.exports = { createAndSendNotification, cancelPushNotification, sendPushNotification, buildNotificationMessage };
