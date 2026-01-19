@@ -197,22 +197,21 @@ router.post('/chat', async (req, res) => {
 
 // 6. TRIGGER NOTIFICATION FOR LIKE/COMMENT WITH MERGE LOGIC
 router.post('/trigger', async (req, res) => {
-
     const { actor_id, receiver_id, moment_id, type } = req.body;
 
     if (!actor_id || !receiver_id || !moment_id || !type) {
         return res.status(400).json({ error: "Thiếu thông tin bắt buộc" });
     }
 
+    // Không tự thông báo cho chính mình
     if (actor_id.toString() === receiver_id.toString()) {
         return res.json({ status: 'ignored', message: 'Self action' });
     }
 
     try {
+        // 1. Lấy thông tin người thực hiện (Actor)
         const actorRes = await pool.query(
-            `SELECT full_name, username 
-             FROM public.users 
-             WHERE id = $1`, 
+            `SELECT full_name, username FROM public.users WHERE id = $1`, 
             [actor_id]
         );
         
@@ -222,21 +221,26 @@ router.post('/trigger', async (req, res) => {
             actorName = u.full_name || u.username || "Người dùng";
         }
 
+        // 2. KIỂM TRA ĐIỀU KIỆN GỘP
         const existQuery = await pool.query(`
-            SELECT id, action_count, onesignal_id 
+            SELECT id, action_count, onesignal_id, created_at
             FROM notifications 
             WHERE user_id = $1 
               AND moment_id = $2 
               AND type = $3 
               AND is_read = false
+              AND created_at >= NOW() - INTERVAL '1 hour'  -- <--- THÊM DÒNG NÀY
             LIMIT 1
         `, [receiver_id, moment_id, type]);
 
+        // 3. XỬ LÝ KẾT QUẢ
         if (existQuery.rows.length > 0) {
+            // --- TRƯỜNG HỢP A: GỘP THÔNG BÁO ---
             const oldNotif = existQuery.rows[0];
             const newCount = (oldNotif.action_count || 1) + 1;
             
             const newMessage = buildNotificationMessage(actorName, type, newCount);
+
             await pool.query(`
                 UPDATE notifications 
                 SET actor_id = $1, 
@@ -246,17 +250,19 @@ router.post('/trigger', async (req, res) => {
                 WHERE id = $4
             `, [actor_id, newCount, newMessage, oldNotif.id]);
             
-            return res.json({ status: 'merged', message: 'Notification merged, no push sent.' });
+            return res.json({ status: 'merged', message: 'Notification merged within 1h window.' });
 
         } else {
+            // --- TRƯỜNG HỢP B: TẠO MỚI & GỬI PUSH ---
             const title = type === 'like' ? 'Lượt thích mới' : 'Bình luận mới';
-            const message = buildNotificationMessage(type, 1);
+            const message = buildNotificationMessage(actorName, type, 1);
             const pushData = { 
                 click_action: "FLUTTER_NOTIFICATION_CLICK_MOMENT",
                 type: type, 
                 momentId: moment_id 
             };
             
+            // Gửi Push OneSignal
             const pushResult = await sendPushNotification(
                 [receiver_id.toString()], 
                 title, 
@@ -266,13 +272,13 @@ router.post('/trigger', async (req, res) => {
             
             const oneSignalId = pushResult ? pushResult.id : null;
 
-            // B. Lưu vào DB
+            // Insert dòng mới vào DB
             await pool.query(`
-                INSERT INTO notifications (user_id, actor_id, moment_id, type, title, message, action_count, onesignal_id)
-                VALUES ($1, $2, $3, $4, $5, $6, 1, $7)
+                INSERT INTO notifications (user_id, actor_id, moment_id, type, title, message, action_count, onesignal_id, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, 1, $7, NOW())
             `, [receiver_id, actor_id, moment_id, type, title, message, oneSignalId]);
 
-            return res.json({ status: 'created', message: 'Notification created and pushed.' });
+            return res.json({ status: 'created', message: 'New notification created (New time window or Read).' });
         }
 
     } catch (err) {

@@ -43,7 +43,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tổng Member
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tổng User
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800" id="statUsers">...</div>
                         </div>
@@ -211,19 +211,31 @@
         // --- 3. CÁC HÀM GỌI API ---
 
         window.fetchGeneralStats = async function () {
+            const statUsersEl = document.getElementById('statUsers');
+            const statGuestsEl = document.getElementById('statGuests');
+            
+            if (!statUsersEl || !statGuestsEl) return;
+
             const res = await window.api('/api/admin/dashboard/stats/general');
             if (res && res.status === 'success') {
-                document.getElementById('statUsers').innerText = res.data.total_users;
-                document.getElementById('statGuests').innerText = res.data.total_guests;
+                if(statUsersEl) statUsersEl.innerText = res.data.total_users;
+                if(statGuestsEl) statGuestsEl.innerText = res.data.total_guests;
             }
         }
 
         // --- XỬ LÝ DỮ LIỆU ONLINE ---
         window.fetchOnlineStats = async function () {
+            const statOnlineEl = document.getElementById('statOnline');
+            if (!statOnlineEl) return;
+
             const res = await window.api('/api/admin/dashboard/stats/online');
 
             if (res && res.status === 'success') {
                 const data = res.data; 
+                
+                // Kiểm tra lại lần nữa vì API call tốn thời gian, 
+                // có thể user đã chuyển trang trong lúc chờ
+                if (!document.getElementById('statOnline')) return;
 
                 updateOdometer('statOnline', data.total);
 
@@ -320,14 +332,18 @@
         }
 
         // --- Run ---
-        window.fetchGeneralStats();
-        window.fetchOnlineStats();
-        window.fetchActiveHistory();
+        setTimeout(() => {
+            window.fetchGeneralStats();
+            window.fetchOnlineStats();
+            window.fetchActiveHistory();
+        }, 50);
 
-        if (onlineInterval) clearInterval(onlineInterval);
-        onlineInterval = setInterval(() => {
-            if (document.getElementById('statOnline')) { window.fetchOnlineStats(); }
-            else { clearInterval(onlineInterval); }
+        window.dashboardInterval = setInterval(() => {
+            if (document.getElementById('statOnline')) { 
+                window.fetchOnlineStats(); 
+            } else { 
+                clearInterval(window.dashboardInterval); 
+            }
         }, 10000);
     }
 </script>

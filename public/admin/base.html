@@ -158,11 +158,11 @@
         <hr class="text-secondary mx-2">
         <li class="nav-item"><a class="nav-link" onclick="loadPage('songs.html', this)"><i
               class="bi bi-music-note-list"></i> Quản lý Bài hát</a></li>
-        <li class="nav-item"><a class="nav-link" onclick="loadPage('moments.html', this)"><i
-              class="bi bi-camera-reels-fill"></i> Khoảnh khắc</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('moments.html', this)">
+            <i class="bi bi-disc-fill"></i> Bài đăng</a></li>
         <hr class="text-secondary mx-2">
         <li class="nav-item"><a class="nav-link" onclick="loadPage('reports.html', this)"><i
-              class="bi bi-flag-fill text-warning"></i> Khiếu nại / Report <span class="badge bg-danger float-end"
+              class="bi bi-flag-fill text-warning"></i> Khiếu nại <span class="badge bg-danger float-end"
               id="reportCount">0</span></a></li>
         <li class="nav-item"><a class="nav-link" onclick="loadPage('notifications.html', this)"><i
               class="bi bi-megaphone-fill text-info"></i> Thông báo hệ thống</a></li>
@@ -198,22 +198,21 @@
 
   <script>
     // ==========================================
-    // 0. QUẢN LÝ INTERVAL (CƠ CHẾ MỚI)
+    // 0. QUẢN LÝ INTERVAL
     // ==========================================
-    // Hijack hàm setInterval để kiểm soát các luồng chạy ngầm
     const originalSetInterval = window.setInterval;
     window.activeIntervals = [];
-    
-    window.setInterval = function(func, delay) {
-        const id = originalSetInterval(func, delay);
-        window.activeIntervals.push(id);
-        return id;
+
+    window.setInterval = function (func, delay) {
+      const id = originalSetInterval(func, delay);
+      window.activeIntervals.push(id);
+      return id;
     };
 
     function clearAllIntervals() {
-        console.log(`🛑 Đang dừng ${window.activeIntervals.length} tiến trình ngầm...`);
-        window.activeIntervals.forEach(clearInterval);
-        window.activeIntervals = [];
+      console.log(`🛑 Đang dừng ${window.activeIntervals.length} tiến trình ngầm...`);
+      window.activeIntervals.forEach(clearInterval);
+      window.activeIntervals = [];
     }
 
     // ==========================================
@@ -223,7 +222,7 @@
     let isRefreshing = false;
     let refreshPromise = null;
     let isSessionExpiredMode = false;
-    
+
     let warningTimer = null;
     let countdownInterval = null;
     const WARNING_BUFFER = 60;
@@ -242,22 +241,25 @@
         const configRes = await fetch('/api/admin-config');
         if (!configRes.ok) throw new Error("Lỗi Config");
         const config = await configRes.json();
-        
+
         const { createClient } = window.supabase;
-        
+
         sbClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
           auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
         });
-        
+
         console.log("✅ Supabase Client Ready.");
 
         scheduleSessionWarning();
-        
+
         const lastPage = localStorage.getItem('last_visited_page');
         if (lastPage) loadPage(lastPage);
         else loadPage('dashboard.html');
 
-        setTimeout(initRealtimeSecurity, 3000);
+        setTimeout(() => {
+          initRealtimeSecurity();
+          window.updateGlobalReportBadge();
+        }, 3000);
 
       } catch (e) {
         console.error("Init Error:", e);
@@ -307,8 +309,8 @@
 
           localStorage.setItem('access_token', newAccess);
           localStorage.setItem('refresh_token', newRefresh);
-          
-          sbClient.auth.setSession({ access_token: newAccess, refresh_token: newRefresh }).catch(()=>{});
+
+          sbClient.auth.setSession({ access_token: newAccess, refresh_token: newRefresh }).catch(() => { });
 
           return newAccess;
 
@@ -330,8 +332,8 @@
     // ==========================================
     window.api = async function (url, options = {}) {
       if (isSessionExpiredMode) {
-          console.warn(`⛔ Đã chặn gọi API ${url} vì phiên đang chờ gia hạn.`);
-          return null; 
+        console.warn(`⛔ Đã chặn gọi API ${url} vì phiên đang chờ gia hạn.`);
+        return null;
       }
 
       let currentToken = localStorage.getItem('access_token');
@@ -343,9 +345,9 @@
         if (!currentToken) return null;
       }
 
-      const headers = { 
-        'Authorization': `Bearer ${currentToken}`, 
-        ...options.headers 
+      const headers = {
+        'Authorization': `Bearer ${currentToken}`,
+        ...options.headers
       };
       if (!(options.body instanceof FormData) && !headers['Content-Type']) {
         headers['Content-Type'] = 'application/json';
@@ -362,11 +364,11 @@
             headers['Authorization'] = `Bearer ${retryToken}`;
             res = await fetch(url, { ...options, headers });
             if (res.status === 401) {
-                handleLogout("Phiên không hợp lệ.");
-                return null;
+              handleLogout("Phiên không hợp lệ.");
+              return null;
             }
           } else {
-             return null; 
+            return null;
           }
         }
 
@@ -426,19 +428,19 @@
     function showSessionModal() {
       const modal = document.getElementById('session-modal');
       const countdownSpan = document.getElementById('session-countdown');
-      
+
       if (modal.style.display !== 'block') {
         modal.style.display = 'block';
-        isSessionExpiredMode = true; 
-        
+        isSessionExpiredMode = true;
+
         clearAllIntervals();
 
         if (sbClient) {
-            console.log("🛑 Tạm ngắt kết nối Realtime để bảo vệ Token...");
-            sbClient.removeAllChannels(); 
+          console.log("🛑 Tạm ngắt kết nối Realtime để bảo vệ Token...");
+          sbClient.removeAllChannels();
         }
       }
-      
+
       if (countdownInterval) clearInterval(countdownInterval);
       updateCountdownUI(countdownSpan);
       countdownInterval = setInterval(() => updateCountdownUI(countdownSpan), 1000);
@@ -449,7 +451,7 @@
       if (!token) return;
       const decoded = parseJwt(token);
       const timeLeft = decoded.exp - Math.floor(Date.now() / 1000);
-      
+
       if (timeLeft > 0) {
         spanElement.innerText = timeLeft;
       } else {
@@ -461,12 +463,12 @@
     function hideSessionModal() {
       document.getElementById('session-modal').style.display = 'none';
       if (countdownInterval) clearInterval(countdownInterval);
-      
+
       isSessionExpiredMode = false;
-      
+
       const currentPage = localStorage.getItem('last_visited_page') || 'dashboard.html';
-      loadPage(currentPage); 
-      
+      loadPage(currentPage);
+
       setTimeout(initRealtimeSecurity, 2000);
     }
 
@@ -475,9 +477,9 @@
       const originalText = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
-      
+
       const newToken = await performRefreshToken();
-      
+
       if (newToken) {
         hideSessionModal();
         scheduleSessionWarning();
@@ -518,7 +520,7 @@
 
     window.loadPage = async function (page, element) {
       clearAllIntervals();
-      
+
       localStorage.setItem('last_visited_page', page);
       document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
       if (element) element.classList.add('active');
@@ -526,10 +528,10 @@
         const savedLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
         if (savedLink) savedLink.classList.add('active');
       }
-      
+
       const content = document.getElementById('pageContent');
       content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
-      
+
       try {
         const res = await fetch(`./${page}`);
         if (!res.ok) throw new Error("404");
@@ -547,7 +549,7 @@
     // Realtime Security
     async function initRealtimeSecurity() {
       const adminInfoStr = localStorage.getItem('admin_info');
-      if (!adminInfoStr || !sbClient) return; 
+      if (!adminInfoStr || !sbClient) return;
       try {
         const user = JSON.parse(adminInfoStr);
         const mySessionTimestamp = new Date().getTime();
@@ -560,13 +562,35 @@
             if (payload.new.last_sign_in_at) {
               const lastSignIn = new Date(payload.new.last_sign_in_at).getTime();
               if (lastSignIn > mySessionTimestamp + 5000) {
-                 sbClient.removeAllChannels();
-                 handleLogout("Tài khoản đang được đăng nhập nơi khác!");
+                sbClient.removeAllChannels();
+                handleLogout("Tài khoản đang được đăng nhập nơi khác!");
               }
             }
           }
         ).subscribe();
+
+        sbClient.channel('global-badge-listener')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
+            console.log("🔔 Có thay đổi Report -> Update Badge");
+            window.updateGlobalReportBadge();
+          })
+          .subscribe();
       } catch (e) { console.error("Realtime Error:", e); }
+    }
+
+    // --- HÀM CẬP NHẬT BADGE REPORT TOÀN CỤC ---
+    window.updateGlobalReportBadge = async function () {
+      try {
+        const res = await window.api('/api/admin/reports/count-pending');
+        const badge = document.getElementById('reportCount');
+        if (badge && res && typeof res.count !== 'undefined') {
+          const count = res.count;
+          badge.innerText = count > 0 ? count : '';
+          badge.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+      } catch (e) {
+        console.error("Lỗi cập nhật badge:", e);
+      }
     }
 
     document.addEventListener("visibilitychange", () => {

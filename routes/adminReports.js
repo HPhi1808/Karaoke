@@ -7,6 +7,8 @@ const { createAndSendNotification } = require('../services/notificationService')
 // --- 1. LẤY DANH SÁCH BÁO CÁO ---
 // routes/adminReports.js
 
+// routes/adminReports.js
+
 router.get('/', verifyToken, requireAdmin, async (req, res) => {
     try {
         const query = `
@@ -14,65 +16,59 @@ router.get('/', verifyToken, requireAdmin, async (req, res) => {
                 r.id, r.reporter_id, r.target_type, r.target_id, 
                 r.reason, r.description, r.status, r.created_at,
                 
-                -- 1. Thông tin NGƯỜI BÁO CÁO (reporter)
+                -- 1. Thông tin NGƯỜI BÁO CÁO (Lấy từ public.users)
                 u.email as reporter_email,
-                u.raw_user_meta_data->>'full_name' as reporter_name,
-                u.raw_user_meta_data->>'avatar_url' as reporter_avatar,
+                u.full_name as reporter_name,
+                u.avatar_url as reporter_avatar,
 
-                -- 2. Thông tin BÀI HÁT (nếu target là song)
+                -- 2. Thông tin BÀI HÁT
                 s.title as song_title,
                 s.artist_name as song_artist,
                 s.image_url as song_image,
 
-                -- 3. Thông tin NGƯỜI BỊ BÁO CÁO (Target User)
+                -- 3. Thông tin NGƯỜI BỊ BÁO CÁO (Target User - public.users)
                 tu.email as target_user_email,
-                tu.raw_user_meta_data->>'full_name' as target_user_name,
-                tu.raw_user_meta_data->>'avatar_url' as target_user_avatar,
+                tu.full_name as target_user_name,
+                tu.avatar_url as target_user_avatar,
 
-                -- 4. Thông tin MOMENT (nếu target là moment)
+                -- 4. Thông tin MOMENT
                 m.description as moment_desc,
                 m.audio_url as moment_audio,
+                m.user_id as moment_owner_id,
+                mu.full_name as moment_owner_name, -- (Lấy từ public.users)
                 
-                -- 5. Thông tin COMMENT (nếu target là comment)
+                -- 5. Thông tin COMMENT
                 mc.content as comment_content,
                 mc.moment_id as comment_moment_id,
+                mc.user_id as comment_owner_id,
+                cu.email as comment_owner_email, 
+                cu.full_name as comment_owner_name, -- (Lấy từ public.users)
+                cu.avatar_url as comment_owner_avatar,
 
+                -- Người xử lý báo cáo
                 res_user.email as resolver_email,
-                res_user.raw_user_meta_data->>'full_name' as resolver_name
+                res_user.full_name as resolver_name
 
             FROM reports r
-            -- Join lấy người báo cáo
-            LEFT JOIN auth.users u ON r.reporter_id = u.id
+            -- Thay auth.users bằng public.users
+            LEFT JOIN public.users u ON r.reporter_id = u.id
             
-            -- Join lấy bài hát (so sánh text = text)
-            LEFT JOIN songs s ON (
-                r.target_type = 'song' 
-                AND r.target_id = s.song_id::text 
-            )
+            LEFT JOIN songs s ON (r.target_type = 'song' AND r.target_id = s.song_id::text)
+            
+            -- Thay auth.users bằng public.users
+            LEFT JOIN public.users tu ON (r.target_type = 'user' AND r.target_id = tu.id::text)
+            
+            LEFT JOIN moments m ON (r.target_type = 'moment' AND r.target_id = m.moment_id::text)
+            -- Thay auth.users bằng public.users
+            LEFT JOIN public.users mu ON m.user_id = mu.id 
+            
+            LEFT JOIN moment_comments mc ON (r.target_type = 'comment' AND r.target_id = mc.id::text)
+            -- Thay auth.users bằng public.users
+            LEFT JOIN public.users cu ON mc.user_id = cu.id
 
-            -- Join lấy User bị báo cáo
-            LEFT JOIN auth.users tu ON (
-                r.target_type = 'user'
-                AND r.target_id = tu.id::text
-            )
-            -- Join Moment
-            LEFT JOIN moments m ON (
-                r.target_type = 'moment'
-                AND r.target_id = m.moment_id::text
-            )
+            LEFT JOIN public.users res_user ON r.resolver_id = res_user.id
 
-            -- Join Comment
-            LEFT JOIN moment_comments mc ON (
-                r.target_type = 'comment'
-                AND r.target_id = mc.id::text
-            )
-
-            -- Join lấy người xử lý báo cáo
-            LEFT JOIN auth.users res_user ON r.resolver_id = res_user.id
-
-            ORDER BY 
-                CASE WHEN r.status = 'pending' THEN 1 ELSE 2 END,
-                r.created_at DESC
+            ORDER BY CASE WHEN r.status = 'pending' THEN 1 ELSE 2 END, r.created_at DESC
         `;
 
         const result = await pool.query(query);

@@ -1,0 +1,293 @@
+<style>
+    .avatar-small {
+        width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid #dee2e6;
+    }
+    .audio-player-sm {
+        height: 40px;           /* Cao hơn xíu cho dễ bấm */
+        width: 100%;            /* Dãn hết cỡ chiều ngang cho phép */
+        min-width: 350px;       /* BẮT BUỘC dài ít nhất 350px (để thanh tua dài ra) */
+        border-radius: 20px;
+        margin-top: 5px;
+        outline: none;
+    }
+
+    .moment-desc {
+        max-width: 400px;       /* Cho phép mô tả dài hơn */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .stat-box {
+        font-size: 0.85rem;
+        display: inline-block;
+        padding: 4px 8px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+        margin-right: 4px;
+    }
+</style>
+
+<div class="card shadow border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="m-0 font-weight-bold text-primary"><i class="bi bi-music-note-list"></i> Quản lý Bài đăng (Moments)</h5>
+        <button class="btn btn-outline-primary btn-sm" onclick="fetchMoments()"><i class="bi bi-arrow-clockwise"></i> Làm mới</button>
+    </div>
+    
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-3">Người đăng</th>
+                        <th>Nội dung & Audio</th>
+                        <th>Tương tác</th>
+                        <th>Thời gian</th>
+                        <th class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="momentsBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="commentsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Bình luận của bài viết</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-striped mb-0">
+                        <tbody id="commentsListBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+{
+    const MOMENT_API = '/api/admin/moments';
+    let realtimeChannel = null;
+    let currentOpenMomentId = null;
+
+    // --- 1. LẤY DỮ LIỆU MOMENTS ---
+    window.fetchMoments = async function(isBackground = false) {
+        const tbody = document.getElementById('momentsBody');
+        
+        if (!isBackground) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
+        }
+
+        try {
+            const res = await window.api(MOMENT_API);
+            if (!res) return;
+            const moments = Array.isArray(res) ? res : [];
+
+            if (moments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-muted">Chưa có bài đăng nào.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = moments.map(m => {
+                const avatar = m.avatar_url || 'https://placehold.co/40?text=U';
+                const name = m.full_name || 'Ẩn danh';
+                const email = m.email || 'No Email';
+                const time = new Date(m.created_at).toLocaleString('vi-VN');
+                const desc = m.description || '<span class="text-muted fst-italic">Không có mô tả</span>';
+
+                return `
+                    <tr id="moment-${m.moment_id}">
+                        <td class="ps-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="${avatar}" class="avatar-small" onerror="this.src='https://placehold.co/40'">
+                                <div>
+                                    <div class="fw-bold text-dark" style="font-size:0.9rem;">${name}</div>
+                                    <div class="text-muted small">${email}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="moment-desc fw-bold mb-1" title="${m.description}">${desc}</div>
+                            <audio controls src="${m.audio_url}" class="audio-player-sm" preload="none"></audio>
+                        </td>
+                        <td>
+                            <div class="d-flex">
+                                <div class="stat-box text-danger" title="Lượt thích"><i class="bi bi-heart-fill"></i> ${m.like_count}</div>
+                                <div class="stat-box text-primary pointer" title="Bình luận" onclick="viewComments(${m.moment_id})">
+                                    <i class="bi bi-chat-dots-fill"></i> ${m.comment_count}
+                                </div>
+                                <div class="stat-box text-secondary" title="Lượt xem"><i class="bi bi-eye-fill"></i> ${m.view_count || 0}</div>
+                            </div>
+                        </td>
+                        <td class="text-muted small">${time}</td>
+                        <td class="text-center">
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewComments(${m.moment_id})" title="Xem bình luận">
+                                    <i class="bi bi-chat-text"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteMoment(${m.moment_id})" title="Xóa bài đăng">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+        } catch (e) {
+            console.error(e);
+            if (!isBackground) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Lỗi tải dữ liệu: ${e.message}</td></tr>`;
+            }
+        }
+    }
+
+    // --- 2. XÓA MOMENT ---
+    window.deleteMoment = async function(id) {
+        if(!confirm('Bạn có chắc chắn muốn xóa bài đăng này không? Hành động này sẽ xóa cả file audio trên Cloud.')) return;
+        
+        try {
+            const res = await window.api(`${MOMENT_API}/${id}`, { method: 'DELETE' });
+            if (res && res.status === 'success') {
+                // Không cần xóa DOM thủ công nữa vì Realtime sẽ tự gọi fetchMoments
+                // Tuy nhiên xóa thủ công giúp UX mượt hơn (phản hồi tức thì)
+                const row = document.getElementById(`moment-${id}`);
+                if(row) row.remove();
+                alert('Đã xóa thành công!');
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Unknown'));
+            }
+        } catch (e) {
+            alert('Lỗi kết nối: ' + e.message);
+        }
+    }
+
+    // --- 3. XEM VÀ QUẢN LÝ COMMENT (MODAL) ---
+    window.viewComments = async function(momentId) {
+        currentOpenMomentId = momentId; // Lưu lại ID đang xem
+        const tbody = document.getElementById('commentsListBody');
+        tbody.innerHTML = '<tr><td class="text-center p-3"><div class="spinner-border spinner-border-sm text-primary"></div> Đang tải bình luận...</td></tr>';
+        
+        // Lắng nghe sự kiện đóng modal để reset biến
+        const modalEl = document.getElementById('commentsModal');
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            currentOpenMomentId = null;
+        });
+
+        new bootstrap.Modal(modalEl).show();
+
+        await loadCommentsForModal(momentId);
+    }
+
+    // Tách hàm load comment riêng để tái sử dụng khi Realtime trigger
+    async function loadCommentsForModal(momentId) {
+        const tbody = document.getElementById('commentsListBody');
+        if (!currentOpenMomentId || currentOpenMomentId != momentId) return;
+
+        try {
+            const res = await window.api(`${MOMENT_API}/${momentId}/comments`);
+            const comments = Array.isArray(res) ? res : [];
+
+            if (comments.length === 0) {
+                tbody.innerHTML = '<tr><td class="text-center p-4 text-muted">Bài viết này chưa có bình luận nào.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = comments.map(c => {
+                const avatar = c.avatar_url || 'https://placehold.co/30';
+                const time = new Date(c.created_at).toLocaleString('vi-VN');
+                
+                return `
+                    <tr id="cmt-${c.id}">
+                        <td style="width: 50px;">
+                            <img src="${avatar}" class="rounded-circle" style="width:35px;height:35px;object-fit:cover;" onerror="this.src='https://placehold.co/30'">
+                        </td>
+                        <td>
+                            <div class="fw-bold" style="font-size:0.85rem;">${c.full_name || c.email}</div>
+                            <div class="text-dark bg-light p-2 rounded d-inline-block mt-1 border" style="max-width: 100%;">${c.content}</div>
+                            <div class="text-muted small mt-1">${time}</div>
+                        </td>
+                        <td class="text-end align-middle">
+                            <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteComment(${c.id})" title="Xóa bình luận này">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+        } catch (e) {
+            tbody.innerHTML = `<tr><td class="text-center text-danger">Lỗi: ${e.message}</td></tr>`;
+        }
+    }
+
+    // --- 4. XÓA COMMENT ---
+    window.deleteComment = async function(commentId) {
+        if(!confirm('Xóa bình luận này?')) return;
+        try {
+            const res = await window.api(`${MOMENT_API}/comments/${commentId}`, { method: 'DELETE' });
+            if (res && res.status === 'success') {
+                // Xóa UI ngay lập tức
+                const row = document.getElementById(`cmt-${commentId}`);
+                if(row) row.remove();
+                // fetchMoments sẽ tự được gọi bởi Realtime để cập nhật số đếm bên ngoài
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Unknown'));
+            }
+        } catch (e) {
+            alert('Lỗi: ' + e.message);
+        }
+    }
+
+    // --- 5. REALTIME (QUAN TRỌNG) ---
+    async function initRealtimeMoments() {
+        if (!sbClient) return;
+
+        const token = localStorage.getItem('access_token');
+        const refreshToken = localStorage.getItem('refresh_token');
+
+        if (token) {
+            await sbClient.auth.setSession({ access_token: token, refresh_token: refreshToken });
+        }
+
+        if (realtimeChannel) sbClient.removeChannel(realtimeChannel);
+
+        // Đăng ký lắng nghe thay đổi trên 3 bảng
+        realtimeChannel = sbClient.channel('admin-moments-changes')
+            // 1. Bảng MOMENTS (Thêm bài, Sửa bài, Xóa bài)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'moments' }, () => {
+                console.log('🔔 Moments changed');
+                fetchMoments(true); // Load lại danh sách ngoài (background)
+            })
+            // 2. Bảng COMMENT (Thêm/Xóa comment)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'moment_comments' }, (payload) => {
+                console.log('🔔 Comments changed');
+                fetchMoments(true); // Cập nhật số lượng comment ở danh sách ngoài
+                
+                // Nếu đang mở modal của đúng bài đăng có comment thay đổi -> Reload modal
+                if (currentOpenMomentId && payload.new.moment_id == currentOpenMomentId || payload.old.moment_id == currentOpenMomentId) {
+                    loadCommentsForModal(currentOpenMomentId);
+                }
+            })
+            // 3. Bảng LIKE (Thêm/Xóa like)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'moment_likes' }, () => {
+                console.log('🔔 Likes changed');
+                fetchMoments(true); // Cập nhật số lượng tim
+            })
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') console.log("✅ Realtime Moments Connected!");
+            });
+    }
+
+    // Init
+    fetchMoments();
+    initRealtimeMoments();
+}
+</script>
