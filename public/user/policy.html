@@ -1,234 +1,301 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chính sách & Quy định - Karaoke Plus</title>
-    <link rel="icon" type="image/png" href="./logo.png">
+    <link rel="icon" type="image/png" href="https://media.karaokeplus.cloud/icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-    <style>
-        :root {
-            --primary-color: #FF00CC;
-            --secondary-color: #00FFFF;
-            --bg-dark: #0a0a1a;
-            --text-color: #ffffff;
-            --glass-bg: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
 
-        * { margin: 0; padding: 0; box_sizing: border-box; }
-
-        html, body { width: 100%; height: 100%; overflow: hidden; }
-
-        body {
-            font-family: 'Montserrat', sans-serif;
-            background-color: var(--bg-dark);
-            background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
-            color: var(--text-color);
-            position: relative;
-        }
-
-        .glow-bg {
-            position: absolute;
-            width: 800px;
-            height: 800px;
-            background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%); /* Đổi chút sang màu xanh cho khác biệt nhẹ */
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 0;
-            animation: pulse 7s infinite alternate;
-        }
-
-        .glass-panel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            
-            width: 90%;
-            max-width: 800px;
-            height: 85vh;
-            
-            z-index: 10;
-            background: var(--glass-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 30px;
-            border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .panel-header {
-            padding: 20px 30px;
-            border-bottom: 1px solid var(--glass-border);
-            text-align: center;
-            background: rgba(0,0,0,0.2);
-            flex-shrink: 0;
-        }
-
-        .mini-logo {
-            width: 40px;
-            height: 40px;
-            vertical-align: middle;
-            border-radius: 10px;
-            margin-right: 10px;
-            object-fit: cover;
-        }
-
-        h1 {
-            display: inline-block;
-            font-size: 1.5rem;
-            vertical-align: middle;
-            font-weight: 700;
-            background: linear-gradient(to right, #fff, #b3b3b3);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        /* NỘI DUNG CHÍNH SÁCH */
-        .panel-content {
-            padding: 40px;
-            overflow-y: auto;
-            flex-grow: 1;
-            text-align: left; /* Văn bản chính sách nên căn trái */
-        }
-
-        /* Custom Scrollbar */
-        .panel-content::-webkit-scrollbar { width: 6px; }
-        .panel-content::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
-        .panel-content::-webkit-scrollbar-thumb { background: rgba(0, 255, 255, 0.3); border-radius: 4px; } /* Scroll màu xanh */
-        .panel-content::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 255, 0.6); }
-
-        h2 {
-            font-size: 1.1rem;
-            color: var(--secondary-color); /* Dùng màu xanh Cyan cho tiêu đề */
-            margin-top: 30px;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 5px;
-        }
-        
-        h2:first-child { margin-top: 0; }
-
-        p, li {
-            font-size: 0.95rem;
-            line-height: 1.7;
-            color: #ccc;
-            margin-bottom: 15px;
-            text-align: justify;
-        }
-
-        ul {
-            list-style-position: inside;
-            margin-bottom: 20px;
-            padding-left: 10px;
-        }
-
-        li { margin-bottom: 8px; }
-
-        strong { color: #fff; }
-
-        .update-date {
-            font-style: italic;
-            color: #666;
-            font-size: 0.8rem;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .panel-footer {
-            padding: 20px;
-            text-align: center;
-            border-top: 1px solid var(--glass-border);
-            font-size: 0.9rem;
-            background: rgba(0,0,0,0.2);
-            flex-shrink: 0;
-        }
-
-        .home-link {
-            color: #888;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            transition: color 0.3s;
-        }
-        .home-link:hover { color: #fff; }
-
-        @keyframes pulse {
-            0% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.8); }
-            100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
-        }
-
-        @media (max-width: 600px) {
-            .glass-panel { width: 95%; height: 90vh; }
-            h1 { font-size: 1.1rem; }
-            .panel-content { padding: 25px; }
-        }
-    </style>
 </head>
+
 <body>
 
     <div class="glow-bg"></div>
+    <div id="app-content">
+        <style>
+            :root {
+                --primary-color: #FF00CC;
+                --secondary-color: #00FFFF;
+                --bg-dark: #0a0a1a;
+                --text-color: #ffffff;
+                --glass-bg: rgba(255, 255, 255, 0.05);
+                --glass-border: rgba(255, 255, 255, 0.1);
+            }
 
-    <div class="glass-panel">
-        <div class="panel-header">
-            <a href="index.html" style="text-decoration: none;">
-                <img src="https://media.karaokeplus.cloud/PictureApp/logo.png" alt="Logo" class="mini-logo">
-                <h1>Quy định & Chính sách</h1>
-            </a>
-        </div>
+            * {
+                margin: 0;
+                padding: 0;
+                box_sizing: border-box;
+            }
 
-        <div class="panel-content">
-            <p class="update-date">Cập nhật lần cuối: Tháng 12/2025</p>
+            html,
+            body {
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+            }
 
-            <h2>1. Giới thiệu chung</h2>
-            <p>Chào mừng bạn đến với <strong>Karaoke Plus</strong>. Khi tải, cài đặt và sử dụng ứng dụng của chúng tôi, bạn đồng ý tuân thủ các Điều khoản sử dụng và Chính sách quyền riêng tư này.</p>
+            body {
+                font-family: 'Montserrat', sans-serif;
+                background-color: var(--bg-dark);
+                background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
+                color: var(--text-color);
+                position: relative;
+            }
 
-            <h2>2. Quyền riêng tư & Dữ liệu</h2>
-            <p>Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn. Dữ liệu chúng tôi thu thập bao gồm:</p>
-            <ul>
-                <li><strong>Thông tin tài khoản:</strong> Tên đăng nhập, Email (để xác thực và khôi phục tài khoản).</li>
-                <li><strong>Dữ liệu sử dụng:</strong> Các bản thu âm bạn tạo ra, lịch sử bài hát, danh sách yêu thích.</li>
-                <li><strong>Quyền truy cập thiết bị:</strong> Micro (để thu âm), Bộ nhớ (để lưu file nhạc tạm thời).</li>
-            </ul>
-            <p>Chúng tôi <strong>KHÔNG</strong> chia sẻ, bán hoặc trao đổi dữ liệu cá nhân của bạn với bất kỳ bên thứ ba nào vì mục đích thương mại.</p>
+            .glow-bg {
+                position: absolute;
+                width: 800px;
+                height: 800px;
+                background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
+                /* Đổi chút sang màu xanh cho khác biệt nhẹ */
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 0;
+                animation: pulse 7s infinite alternate;
+            }
 
-            <h2>3. Bản quyền nội dung</h2>
-            <p><strong>Về bài hát:</strong> Ứng dụng cung cấp nền tảng kỹ thuật để hát karaoke. Bản quyền các bài hát thuộc về các nhạc sĩ, ca sĩ và đơn vị phát hành gốc.</p>
-            <p><strong>Về bản thu âm:</strong> Bạn giữ quyền sở hữu đối với giọng hát và bản thu âm của mình. Tuy nhiên, bằng việc chia sẻ lên cộng đồng (nếu có), bạn cấp cho chúng tôi quyền hiển thị và phát bản thu đó trong phạm vi ứng dụng.</p>
+            .glass-panel {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
 
-            <h2>4. Quy tắc cộng đồng</h2>
-            <p>Để duy trì môi trường lành mạnh, nghiêm cấm các hành vi sau:</p>
-            <ul>
-                <li>Sử dụng ngôn từ thô tục, xúc phạm hoặc quấy rối người dùng khác.</li>
-                <li>Tải lên các bản thu âm có nội dung chính trị, kích động thù địch hoặc vi phạm pháp luật Việt Nam.</li>
-                <li>Spam, quảng cáo trái phép trong phần bình luận hoặc tin nhắn.</li>
-            </ul>
-            <p>Tài khoản vi phạm sẽ bị cảnh báo hoặc bị khóa theo quy định.</p>
+                width: 90%;
+                max-width: 800px;
+                height: 85vh;
 
-            <h2>5. Xóa tài khoản</h2>
-            <p>Bạn có quyền yêu cầu xóa toàn bộ dữ liệu cá nhân của mình khỏi hệ thống của chúng tôi bất kỳ lúc nào. Vui lòng truy cập phần Cài đặt trong ứng dụng hoặc liên hệ qua trang Hỗ trợ để thực hiện.</p>
+                z-index: 10;
+                background: var(--glass-bg);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border-radius: 30px;
+                border: 1px solid var(--glass-border);
+                box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
 
-            <div style="margin-top: 40px; text-align: center; color: #666; font-size: 0.8rem;">
-                &copy; 2026 Karaoke Plus Team.
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .panel-header {
+                padding: 20px 30px;
+                border-bottom: 1px solid var(--glass-border);
+                text-align: center;
+                background: rgba(0, 0, 0, 0.2);
+                flex-shrink: 0;
+            }
+
+            .mini-logo {
+                width: 40px;
+                height: 40px;
+                vertical-align: middle;
+                border-radius: 10px;
+                margin-right: 10px;
+                object-fit: cover;
+            }
+
+            h1 {
+                display: inline-block;
+                font-size: 1.5rem;
+                vertical-align: middle;
+                font-weight: 700;
+                background: linear-gradient(to right, #fff, #b3b3b3);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+
+            /* NỘI DUNG CHÍNH SÁCH */
+            .panel-content {
+                padding: 40px;
+                overflow-y: auto;
+                flex-grow: 1;
+                text-align: left;
+                /* Văn bản chính sách nên căn trái */
+            }
+
+            /* Custom Scrollbar */
+            .panel-content::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .panel-content::-webkit-scrollbar-track {
+                background: rgba(255, 255, 255, 0.05);
+            }
+
+            .panel-content::-webkit-scrollbar-thumb {
+                background: rgba(0, 255, 255, 0.3);
+                border-radius: 4px;
+            }
+
+            /* Scroll màu xanh */
+            .panel-content::-webkit-scrollbar-thumb:hover {
+                background: rgba(0, 255, 255, 0.6);
+            }
+
+            h2 {
+                font-size: 1.1rem;
+                color: var(--secondary-color);
+                /* Dùng màu xanh Cyan cho tiêu đề */
+                margin-top: 30px;
+                margin-bottom: 15px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                padding-bottom: 5px;
+            }
+
+            h2:first-child {
+                margin-top: 0;
+            }
+
+            p,
+            li {
+                font-size: 0.95rem;
+                line-height: 1.7;
+                color: #ccc;
+                margin-bottom: 15px;
+                text-align: justify;
+            }
+
+            ul {
+                list-style-position: inside;
+                margin-bottom: 20px;
+                padding-left: 10px;
+            }
+
+            li {
+                margin-bottom: 8px;
+            }
+
+            strong {
+                color: #fff;
+            }
+
+            .update-date {
+                font-style: italic;
+                color: #666;
+                font-size: 0.8rem;
+                text-align: center;
+                margin-bottom: 30px;
+            }
+
+            .panel-footer {
+                padding: 20px;
+                text-align: center;
+                border-top: 1px solid var(--glass-border);
+                font-size: 0.9rem;
+                background: rgba(0, 0, 0, 0.2);
+                flex-shrink: 0;
+            }
+
+            .home-link {
+                color: #888;
+                text-decoration: none;
+                display: inline-flex;
+                align-items: center;
+                transition: color 0.3s;
+            }
+
+            .home-link:hover {
+                color: #fff;
+            }
+
+            @keyframes pulse {
+                0% {
+                    opacity: 0.3;
+                    transform: translate(-50%, -50%) scale(0.8);
+                }
+
+                100% {
+                    opacity: 0.8;
+                    transform: translate(-50%, -50%) scale(1.1);
+                }
+            }
+
+            @media (max-width: 600px) {
+                .glass-panel {
+                    width: 95%;
+                    height: 90vh;
+                }
+
+                h1 {
+                    font-size: 1.1rem;
+                }
+
+                .panel-content {
+                    padding: 25px;
+                }
+            }
+        </style>
+
+        <div class="glass-panel">
+            <div class="panel-header">
+                <a href="index.html" style="text-decoration: none;">
+                    <img src="https://media.karaokeplus.cloud/PictureApp/logo.png" alt="Logo" class="mini-logo">
+                    <h1>Quy định & Chính sách</h1>
+                </a>
+            </div>
+
+            <div class="panel-content">
+                <p class="update-date">Cập nhật lần cuối: Tháng 12/2025</p>
+
+                <h2>1. Giới thiệu chung</h2>
+                <p>Chào mừng bạn đến với <strong>Karaoke Plus</strong>. Khi tải, cài đặt và sử dụng ứng dụng của chúng
+                    tôi, bạn đồng ý tuân thủ các Điều khoản sử dụng và Chính sách quyền riêng tư này.</p>
+
+                <h2>2. Quyền riêng tư & Dữ liệu</h2>
+                <p>Chúng tôi cam kết bảo vệ thông tin cá nhân của bạn. Dữ liệu chúng tôi thu thập bao gồm:</p>
+                <ul>
+                    <li><strong>Thông tin tài khoản:</strong> Tên đăng nhập, Email (để xác thực và khôi phục tài khoản).
+                    </li>
+                    <li><strong>Dữ liệu sử dụng:</strong> Các bản thu âm bạn tạo ra, lịch sử bài hát, danh sách yêu
+                        thích.</li>
+                    <li><strong>Quyền truy cập thiết bị:</strong> Micro (để thu âm), Bộ nhớ (để lưu file nhạc tạm thời).
+                    </li>
+                </ul>
+                <p>Chúng tôi <strong>KHÔNG</strong> chia sẻ, bán hoặc trao đổi dữ liệu cá nhân của bạn với bất kỳ bên
+                    thứ ba nào vì mục đích thương mại.</p>
+
+                <h2>3. Bản quyền nội dung</h2>
+                <p><strong>Về bài hát:</strong> Ứng dụng cung cấp nền tảng kỹ thuật để hát karaoke. Bản quyền các bài
+                    hát thuộc về các nhạc sĩ, ca sĩ và đơn vị phát hành gốc.</p>
+                <p><strong>Về bản thu âm:</strong> Bạn giữ quyền sở hữu đối với giọng hát và bản thu âm của mình. Tuy
+                    nhiên, bằng việc chia sẻ lên cộng đồng (nếu có), bạn cấp cho chúng tôi quyền hiển thị và phát bản
+                    thu đó trong phạm vi ứng dụng.</p>
+
+                <h2>4. Quy tắc cộng đồng</h2>
+                <p>Để duy trì môi trường lành mạnh, nghiêm cấm các hành vi sau:</p>
+                <ul>
+                    <li>Sử dụng ngôn từ thô tục, xúc phạm hoặc quấy rối người dùng khác.</li>
+                    <li>Tải lên các bản thu âm có nội dung chính trị, kích động thù địch hoặc vi phạm pháp luật Việt
+                        Nam.</li>
+                    <li>Spam, quảng cáo trái phép trong phần bình luận hoặc tin nhắn.</li>
+                </ul>
+                <p>Tài khoản vi phạm sẽ bị cảnh báo hoặc bị khóa theo quy định.</p>
+
+                <h2>5. Xóa tài khoản</h2>
+                <p>Bạn có quyền yêu cầu xóa toàn bộ dữ liệu cá nhân của mình khỏi hệ thống của chúng tôi bất kỳ lúc nào.
+                    Vui lòng truy cập phần Cài đặt trong ứng dụng hoặc liên hệ qua trang Hỗ trợ để thực hiện.</p>
+
+                <div style="margin-top: 40px; text-align: center; color: #666; font-size: 0.8rem;">
+                    &copy; 2026 Karaoke Plus Team.
+                </div>
+            </div>
+
+            <div class="panel-footer">
+                <a href="/" class="home-link">
+                    <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Quay về Trang chủ
+                </a>
             </div>
         </div>
-
-        <div class="panel-footer">
-            <a href="/" class="home-link">
-                <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Quay về Trang chủ
-            </a>
-        </div>
     </div>
-
+    <script src="/user/nav.js"></script>
 </body>
+
 </html>

@@ -104,17 +104,17 @@
 </div>
 
 <script>
-{
-    const REPORT_API = '/api/admin/reports';
-    let allReports = [];
-    let currentFilter = 'pending';
-    let realtimeChannel = null; // Biến lưu kết nối Realtime
+    {
+        const REPORT_API = '/api/admin/reports';
+        let allReports = [];
+        let currentFilter = 'pending';
+        let realtimeChannel = null; // Biến lưu kết nối Realtime
 
-    // --- 1. HÀM TẠO HTML CHO ĐỐI TƯỢNG BỊ REPORT ---
-    function renderTarget(rp) {
-        if (rp.target_type === 'song') {
-            if (rp.song_title) {
-                return `
+        // --- 1. HÀM TẠO HTML CHO ĐỐI TƯỢNG BỊ REPORT ---
+        function renderTarget(rp) {
+            if (rp.target_type === 'song') {
+                if (rp.song_title) {
+                    return `
                     <div class="target-preview">
                         <img src="${rp.song_image || 'https://placehold.co/50'}" class="target-img" onerror="this.src='https://placehold.co/50'">
                         <div>
@@ -124,22 +124,22 @@
                         </div>
                     </div>
                 `;
-            } else {
-                return `
+                } else {
+                    return `
                     <div class="text-muted fst-italic">
                         <i class="bi bi-music-note-list"></i> Bài hát ID: ${rp.target_id}<br>
                         <small class="text-danger">(Không tìm thấy hoặc đã bị xóa)</small>
                     </div>
                 `;
+                }
             }
-        } 
-        else if (rp.target_type === 'user') {
-            const userName = rp.target_user_name || 'Không có tên';
-            const userEmail = rp.target_user_email || 'Không có email';
-            const userAvatar = rp.target_user_avatar || 'https://placehold.co/50?text=U';
+            else if (rp.target_type === 'user') {
+                const userName = rp.target_user_name || 'Không có tên';
+                const userEmail = rp.target_user_email || 'Không có email';
+                const userAvatar = rp.target_user_avatar || 'https://placehold.co/50?text=U';
 
-            if (rp.target_user_email) {
-                return `
+                if (rp.target_user_email) {
+                    return `
                     <div class="target-preview">
                         <img src="${userAvatar}" class="target-img rounded-circle border" onerror="this.src='https://placehold.co/50?text=U'">
                         <div>
@@ -148,27 +148,69 @@
                         </div>
                     </div>
                 `;
-            } else {
-                return `
+                } else {
+                    return `
                     <div class="text-muted">
                         <i class="bi bi-person-x-fill text-secondary"></i> User ID: ${rp.target_id}<br>
                         <small class="text-danger">(Tài khoản không tồn tại)</small>
                     </div>
                 `;
+                }
             }
+            else if (rp.target_type === 'moment') {
+                if (rp.moment_desc !== null) {
+                    const desc = rp.moment_desc || 'Không có mô tả';
+                    return `
+                <div class="target-preview">
+                    <div class="bg-light d-flex align-items-center justify-content-center border rounded" style="width:45px; height:45px;">
+                        <i class="bi bi-mic-fill text-danger fs-5"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark text-truncate" style="max-width: 200px;">${desc}</div>
+                        <div class="small text-muted">
+                            <a href="${rp.moment_audio}" target="_blank" class="text-decoration-none">
+                                <i class="bi bi-play-circle-fill"></i> Nghe audio
+                            </a>
+                        </div>
+                        <span class="badge bg-warning text-dark" style="font-size: 0.65rem;">MOMENT ID: ${rp.target_id}</span>
+                    </div>
+                </div>
+            `;
+                } else {
+                    return `<div class="text-muted fst-italic"><i class="bi bi-mic-mute"></i> Moment ID: ${rp.target_id} (Đã xóa)</div>`;
+                }
+            }
+            else if (rp.target_type === 'comment') {
+                if (rp.comment_content) {
+                    return `
+                <div class="target-preview">
+                    <div class="bg-light d-flex align-items-center justify-content-center border rounded" style="width:45px; height:45px;">
+                        <i class="bi bi-chat-quote-fill text-success fs-5"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark text-break" style="max-width: 250px; font-size: 0.9rem;">"${rp.comment_content}"</div>
+                        <div class="small text-muted">Moment ID: ${rp.comment_moment_id || '?'}</div>
+                        <span class="badge bg-secondary" style="font-size: 0.65rem;">COMMENT ID: ${rp.target_id}</span>
+                    </div>
+                </div>
+            `;
+                } else {
+                    return `<div class="text-muted fst-italic"><i class="bi bi-chat-square-x"></i> Comment ID: ${rp.target_id} (Đã xóa)</div>`;
+                }
+            }
+
+            return `<div>ID: ${rp.target_id} <span class="badge bg-secondary">${rp.target_type}</span></div>`;
         }
-        return `<div>ID: ${rp.target_id} <span class="badge bg-secondary">${rp.target_type}</span></div>`;
-    }
 
-    // --- 2. HÀM TẠO HTML 1 DÒNG ---
-    function generateReportRow(rp) {
-        const reporterName = rp.reporter_name || rp.reporter_email || 'Ẩn danh';
-        const dateStr = new Date(rp.created_at).toLocaleString('vi-VN');
-        const hasDesc = rp.description && rp.description.trim() !== '';
+        // --- 2. HÀM TẠO HTML 1 DÒNG ---
+        function generateReportRow(rp) {
+            const reporterName = rp.reporter_name || rp.reporter_email || 'Ẩn danh';
+            const dateStr = new Date(rp.created_at).toLocaleString('vi-VN');
+            const hasDesc = rp.description && rp.description.trim() !== '';
 
-        let actions = '';
-        if (rp.status === 'pending') {
-            actions = `
+            let actions = '';
+            if (rp.status === 'pending') {
+                actions = `
                 <div class="btn-group">
                     <button class="btn btn-sm btn-success" onclick="updateReportStatus('${rp.id}', 'resolved')" title="Đã xử lý xong">
                         <i class="bi bi-check-lg"></i> Xử lý
@@ -178,12 +220,12 @@
                     </button>
                 </div>
             `;
-        } else {
-            const statusClass = rp.status === 'resolved' ? 'status-resolved' : 'status-rejected';
-            const statusText = rp.status === 'resolved' ? 'Đã giải quyết' : 'Đã từ chối';
-            const resolver = rp.resolver_name || rp.resolver_email || 'Admin';
+            } else {
+                const statusClass = rp.status === 'resolved' ? 'status-resolved' : 'status-rejected';
+                const statusText = rp.status === 'resolved' ? 'Đã giải quyết' : 'Đã từ chối';
+                const resolver = rp.resolver_name || rp.resolver_email || 'Admin';
 
-            actions = `
+                actions = `
                 <div class="d-flex flex-column align-items-center">
                     <span class="status-badge ${statusClass} mb-1">${statusText}</span>
                     <small class="text-muted" style="font-size: 0.75rem;">
@@ -191,16 +233,16 @@
                     </small>
                 </div>
             `;
-        }
+            }
 
-        return `
+            return `
             <tr>
                 <td class="ps-3">${renderTarget(rp)}</td>
                 <td>
                     <div class="fw-bold text-danger mb-1">${rp.reason}</div>
-                    ${hasDesc 
-                        ? `<button class="btn btn-link btn-sm p-0 text-decoration-none" onclick="showDescModal('${encodeURIComponent(rp.reason)}', '${encodeURIComponent(rp.description)}')">Xem mô tả <i class="bi bi-eye"></i></button>` 
-                        : '<span class="text-muted small">Không có mô tả</span>'}
+                    ${hasDesc
+                    ? `<button class="btn btn-link btn-sm p-0 text-decoration-none" onclick="showDescModal('${encodeURIComponent(rp.reason)}', '${encodeURIComponent(rp.description)}')">Xem mô tả <i class="bi bi-eye"></i></button>`
+                    : '<span class="text-muted small">Không có mô tả</span>'}
                 </td>
                 <td>
                     <div class="reporter-info">
@@ -211,137 +253,137 @@
                 <td class="text-center">${actions}</td>
             </tr>
         `;
-    }
-
-    // --- 3. TẢI DỮ LIỆU ---
-    window.fetchReports = async function(isBackground = false) {
-        // Nếu là background fetch (do realtime gọi) thì không hiện loading spinner
-        const tbody = document.getElementById('reportTableBody');
-        if (!isBackground && tbody) {
-             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>';
         }
 
-        try {
-            const res = await window.api(REPORT_API);
-            if (!res) return;
+        // --- 3. TẢI DỮ LIỆU ---
+        window.fetchReports = async function (isBackground = false) {
+            // Nếu là background fetch (do realtime gọi) thì không hiện loading spinner
+            const tbody = document.getElementById('reportTableBody');
+            if (!isBackground && tbody) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-danger"></div></td></tr>';
+            }
 
-            allReports = Array.isArray(res) ? res : [];
+            try {
+                const res = await window.api(REPORT_API);
+                if (!res) return;
+
+                allReports = Array.isArray(res) ? res : [];
+                renderReportTable();
+
+                // Cập nhật badge
+                updateBadge();
+
+            } catch (e) {
+                console.error(e);
+                if (!isBackground && tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Lỗi tải dữ liệu: ${e.message}</td></tr>`;
+            }
+        }
+
+        // --- 4. RENDER VÀ FILTER ---
+        window.filterReports = function (type) {
+            currentFilter = type;
             renderReportTable();
-            
-            // Cập nhật badge
-            updateBadge();
-
-        } catch (e) {
-            console.error(e);
-            if (!isBackground && tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Lỗi tải dữ liệu: ${e.message}</td></tr>`;
-        }
-    }
-
-    // --- 4. RENDER VÀ FILTER ---
-    window.filterReports = function(type) {
-        currentFilter = type;
-        renderReportTable();
-    }
-
-    function renderReportTable() {
-        const tbody = document.getElementById('reportTableBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-
-        let filtered = [];
-        if (currentFilter === 'pending') {
-            filtered = allReports.filter(r => r.status === 'pending');
-        } else {
-            filtered = allReports.filter(r => r.status !== 'pending');
         }
 
-        if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-muted">
+        function renderReportTable() {
+            const tbody = document.getElementById('reportTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            let filtered = [];
+            if (currentFilter === 'pending') {
+                filtered = allReports.filter(r => r.status === 'pending');
+            } else {
+                filtered = allReports.filter(r => r.status !== 'pending');
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-muted">
                 <i class="bi bi-check2-circle display-4"></i>
                 <p class="mt-2">${currentFilter === 'pending' ? 'Tuyệt vời! Không có báo cáo nào chờ xử lý.' : 'Chưa có lịch sử xử lý.'}</p>
             </td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = filtered.map(rp => generateReportRow(rp)).join('');
-    }
-
-    function updateBadge() {
-        const pendingCount = allReports.filter(r => r.status === 'pending').length;
-        const badge = document.getElementById('reportCount');
-        if(badge) badge.innerText = pendingCount > 0 ? pendingCount : '';
-    }
-
-    // --- 5. HÀNH ĐỘNG ---
-    window.updateReportStatus = async function(id, status) {
-        const actionText = status === 'resolved' ? 'Đánh dấu ĐÃ GIẢI QUYẾT' : 'BỎ QUA';
-        if(!confirm(`Bạn muốn ${actionText} báo cáo này?`)) return;
-
-        try {
-            const res = await window.api(`${REPORT_API}/${id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ status })
-            });
-
-            if (res && res.status === 'success') {
-                // Cập nhật Local ngay lập tức để phản hồi nhanh
-                const idx = allReports.findIndex(r => r.id === id);
-                if(idx !== -1) {
-                    allReports[idx].status = status;
-                    try {
-                        const adminInfo = JSON.parse(localStorage.getItem('admin_info') || '{}');
-                        allReports[idx].resolver_name = adminInfo.full_name || 'Bạn';
-                        allReports[idx].resolver_email = adminInfo.email;
-                    } catch(e) {}
-                    renderReportTable();
-                    updateBadge();
-                }
-            } else {
-                alert('Lỗi: ' + (res?.message || 'Unknown'));
+                return;
             }
-        } catch (e) {
-            alert('Lỗi kết nối: ' + e.message);
-        }
-    }
 
-    window.showDescModal = function(reason, desc) {
-        document.getElementById('modalReason').innerText = decodeURIComponent(reason);
-        document.getElementById('modalDesc').innerText = decodeURIComponent(desc);
-        new bootstrap.Modal(document.getElementById('descModal')).show();
-    }
-
-    // --- 6. REALTIME LOGIC ---
-    async function initRealtimeReports() {
-        if (!sbClient) return;
-        
-        const token = localStorage.getItem('access_token');
-        const refreshToken = localStorage.getItem('refresh_token');
-        
-        if (token) {
-            await sbClient.auth.setSession({ 
-                access_token: token, 
-                refresh_token: refreshToken 
-            });
+            tbody.innerHTML = filtered.map(rp => generateReportRow(rp)).join('');
         }
-        if (realtimeChannel) {
-            sbClient.removeChannel(realtimeChannel);
-        }        
-        realtimeChannel = sbClient.channel('admin-reports-changes')
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'reports' },
-                (payload) => {
-                    fetchReports(true); 
+
+        function updateBadge() {
+            const pendingCount = allReports.filter(r => r.status === 'pending').length;
+            const badge = document.getElementById('reportCount');
+            if (badge) badge.innerText = pendingCount > 0 ? pendingCount : '';
+        }
+
+        // --- 5. HÀNH ĐỘNG ---
+        window.updateReportStatus = async function (id, status) {
+            const actionText = status === 'resolved' ? 'Đánh dấu ĐÃ GIẢI QUYẾT' : 'BỎ QUA';
+            if (!confirm(`Bạn muốn ${actionText} báo cáo này?`)) return;
+
+            try {
+                const res = await window.api(`${REPORT_API}/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ status })
+                });
+
+                if (res && res.status === 'success') {
+                    // Cập nhật Local ngay lập tức để phản hồi nhanh
+                    const idx = allReports.findIndex(r => r.id === id);
+                    if (idx !== -1) {
+                        allReports[idx].status = status;
+                        try {
+                            const adminInfo = JSON.parse(localStorage.getItem('admin_info') || '{}');
+                            allReports[idx].resolver_name = adminInfo.full_name || 'Bạn';
+                            allReports[idx].resolver_email = adminInfo.email;
+                        } catch (e) { }
+                        renderReportTable();
+                        updateBadge();
+                    }
+                } else {
+                    alert('Lỗi: ' + (res?.message || 'Unknown'));
                 }
-            )
-            .subscribe((status) => {
-                if (status === 'SUBSCRIBED') {
-                    console.log("✅ Đã kết nối Realtime thành công!");
-                }
-            });
+            } catch (e) {
+                alert('Lỗi kết nối: ' + e.message);
+            }
+        }
+
+        window.showDescModal = function (reason, desc) {
+            document.getElementById('modalReason').innerText = decodeURIComponent(reason);
+            document.getElementById('modalDesc').innerText = decodeURIComponent(desc);
+            new bootstrap.Modal(document.getElementById('descModal')).show();
+        }
+
+        // --- 6. REALTIME LOGIC ---
+        async function initRealtimeReports() {
+            if (!sbClient) return;
+
+            const token = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+
+            if (token) {
+                await sbClient.auth.setSession({
+                    access_token: token,
+                    refresh_token: refreshToken
+                });
+            }
+            if (realtimeChannel) {
+                sbClient.removeChannel(realtimeChannel);
+            }
+            realtimeChannel = sbClient.channel('admin-reports-changes')
+                .on(
+                    'postgres_changes',
+                    { event: '*', schema: 'public', table: 'reports' },
+                    (payload) => {
+                        fetchReports(true);
+                    }
+                )
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log("✅ Đã kết nối Realtime thành công!");
+                    }
+                });
+        }
+        // KHỞI CHẠY
+        fetchReports();
+        initRealtimeReports();
     }
-    // KHỞI CHẠY
-    fetchReports();
-    initRealtimeReports();
-}
 </script>

@@ -196,21 +196,44 @@
         const SONG_API_URL = '/api/admin/songs';
         let allSongsData = [];
 
-        // --- 1. HÀM SINH HTML CHO 1 DÒNG) ---
+        // --- HÀM BẢO MẬT: CHỐNG XSS ---
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text
+                .toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // --- HÀM AN TOÀN CHO JS STRING ---
+        function escapeJsString(text) {
+            if (!text) return "";
+            return text.toString().replace(/'/g, "\\'");
+        }
+
+        // --- 1. HÀM SINH HTML CHO 1 DÒNG ---
         function generateSongRow(song) {
-            const safeTitle = (song.title || '').replace(/'/g, "\\'");
-            const safeArtist = (song.artist_name || '').replace(/'/g, "\\'");
-            const safeGenre = (song.genre || '').replace(/'/g, "\\'");
+            const displayTitle = escapeHtml(song.title);
+            const displayArtist = escapeHtml(song.artist_name);
+            const displayGenre = escapeHtml(song.genre || 'N/A');
+
+            const safeId = song.song_id;
+            const safeTitle = escapeJsString(song.title);
+            const safeArtist = escapeJsString(song.artist_name);
+            const safeGenre = escapeJsString(song.genre);
 
             return `
-                <tr id="song-row-${song.song_id}">
+                <tr id="song-row-${safeId}">
                     <td class="ps-3">
                         <img src="${song.image_url || 'https://placehold.co/50'}" 
                         class="cover-img" onerror="this.src='https://placehold.co/50'">
                     </td>
-                    <td class="fw-bold text-dark">${song.title}</td>
-                    <td class="text-secondary">${song.artist_name}</td>
-                    <td><span class="badge bg-light text-dark border">${song.genre || 'N/A'}</span></td>
+                    <td class="fw-bold text-dark">${displayTitle}</td>
+                    <td class="text-secondary">${displayArtist}</td>
+                    <td><span class="badge bg-light text-dark border">${displayGenre}</span></td>
                     
                     <td class="text-center">
                         <span class="badge bg-white text-secondary border">
@@ -227,12 +250,12 @@
                     <td class="text-center">
                         <div class="btn-group">
                             <button class="btn btn-sm btn-outline-warning" 
-                                onclick="window.openEditModal(${song.song_id}, '${safeTitle}', '${safeArtist}', '${safeGenre}')" 
+                                onclick="window.openEditModal('${safeId}', '${safeTitle}', '${safeArtist}', '${safeGenre}')" 
                                 title="Sửa">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-danger" 
-                                onclick="window.deleteSong(${song.song_id})" 
+                                onclick="window.deleteSong('${safeId}')" 
                                 title="Xóa">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -319,7 +342,11 @@
 
             document.getElementById('loadingOverlay').style.display = 'flex';
             document.getElementById('loadingText').innerText = 'Đang tải lên Server & Cloud R2...';
-            bootstrap.Modal.getInstance(document.getElementById('addSongModal')).hide();
+            
+            // Ẩn modal an toàn
+            const modalEl = document.getElementById('addSongModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if(modalInstance) modalInstance.hide();
 
             try {
                 const result = await window.api(SONG_API_URL, {
@@ -335,22 +362,18 @@
 
                     if (newSong && newSong.song_id) {
                         allSongsData.unshift(newSong);
-
-                        const tbody = document.getElementById('songTableBody');
-                        if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
-
-                        const newRowHtml = generateSongRow(newSong);
-                        tbody.insertAdjacentHTML('afterbegin', newRowHtml);
+                        renderSongTable();
                     } else {
                         await fetchSongs();
                     }
 
                 } else {
                     alert('Lỗi Upload: ' + (result?.message || 'Không xác định'));
-                    new bootstrap.Modal(document.getElementById('addSongModal')).show();
+                    if(modalInstance) modalInstance.show(); // Hiện lại nếu lỗi
                 }
             } catch (error) {
                 alert('Lỗi kết nối: ' + error.message);
+                if(modalInstance) modalInstance.show();
             } finally {
                 document.getElementById('loadingOverlay').style.display = 'none';
             }
@@ -360,7 +383,8 @@
         window.deleteSong = async function (id) {
             if (!confirm('Bạn có chắc chắn muốn xóa bài hát này không?\nHành động này cũng sẽ xóa file trên Cloud.')) return;
 
-            const btn = event.currentTarget;
+            // Tìm button đang được click để hiện loading
+            const btn = event.currentTarget; 
             const originalHtml = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             btn.disabled = true;
@@ -369,7 +393,7 @@
                 const res = await window.api(`${SONG_API_URL}/${id}`, { method: 'DELETE' });
 
                 if (res && (res.status === 'success' || res.ok)) {
-                    allSongsData = allSongsData.filter(s => s.song_id !== id);
+                    allSongsData = allSongsData.filter(s => String(s.song_id) !== String(id));
 
                     const row = document.getElementById(`song-row-${id}`);
                     if (row) {
@@ -377,6 +401,7 @@
                         row.style.opacity = '0';
                         setTimeout(() => row.remove(), 500);
                     }
+                    if (allSongsData.length === 0) renderSongTable();
                 } else {
                     alert('Lỗi xóa: ' + (res?.message || 'Unknown'));
                     btn.innerHTML = originalHtml;
@@ -407,7 +432,10 @@
 
             document.getElementById('loadingOverlay').style.display = 'flex';
             document.getElementById('loadingText').innerText = 'Đang cập nhật dữ liệu...';
-            bootstrap.Modal.getInstance(document.getElementById('editSongModal')).hide();
+            
+            const modalEl = document.getElementById('editSongModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if(modalInstance) modalInstance.hide();
 
             try {
                 const result = await window.api(`${SONG_API_URL}/${id}`, {
@@ -421,28 +449,22 @@
                     const updatedSong = result.data || result.song;
 
                     if (updatedSong && updatedSong.song_id) {
-                        const index = allSongsData.findIndex(s => s.song_id == id);
+                        const index = allSongsData.findIndex(s => String(s.song_id) === String(id));
                         if (index !== -1) {
                             allSongsData[index] = updatedSong;
                         }
-
-                        const oldRow = document.getElementById(`song-row-${id}`);
-                        if (oldRow) {
-                            const temp = document.createElement('tbody');
-                            temp.innerHTML = generateSongRow(updatedSong);
-                            oldRow.replaceWith(temp.firstElementChild);
-                        }
+                        renderSongTable();
                     } else {
-                        // Fallback
                         await fetchSongs();
                     }
 
                 } else {
                     alert('Lỗi: ' + (result?.message || 'Unknown'));
-                    new bootstrap.Modal(document.getElementById('editSongModal')).show();
+                    if(modalInstance) modalInstance.show();
                 }
             } catch (error) {
                 alert('Lỗi: ' + error.message);
+                if(modalInstance) modalInstance.show();
             } finally {
                 document.getElementById('loadingOverlay').style.display = 'none';
             }

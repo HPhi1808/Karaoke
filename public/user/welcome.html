@@ -1,233 +1,247 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Karaoke Plus</title>
-    <link rel="icon" type="image/png" href="./logo.png">
+    <link rel="icon" type="image/png" href="https://media.karaokeplus.cloud/icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
 
-    <style>
-        :root {
-            --primary-color: #FF00CC;
-            --secondary-color: #00FFFF;
-            --bg-dark: #0a0a1a;
-            --text-color: #ffffff;
-        }
+<body>
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    <div class="glow-bg"></div>
+    <div id="app-content">
+        <style>
+            #app-content {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
 
-        html {
-            scroll-behavior: smooth;
-        }
+            :root {
+                --primary-color: #FF00CC;
+                --secondary-color: #00FFFF;
+                --bg-dark: #0a0a1a;
+                --text-color: #ffffff;
+            }
 
-        body {
-            font-family: 'Montserrat', sans-serif;
-            background-color: var(--bg-dark);
-            background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
-            color: var(--text-color);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            padding: 40px 0;
-            overflow-x: hidden;
-        }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-        .top-right-btn {
-            position: absolute;
-            top: 36px;
-            right: 36px;
-            z-index: 100;
-            padding: 15px 30px;
-            border: 1.12px solid rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-            border-radius: 30px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            backdrop-filter: blur(5px);
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+            html {
+                scroll-behavior: smooth;
+            }
 
-        .top-right-btn:hover {
-            background: rgba(255, 0, 204, 0.2);
-            border-color: var(--primary-color);
-            transform: translateY(-2px);
-        }
+            body {
+                font-family: 'Montserrat', sans-serif;
+                background-color: var(--bg-dark);
+                background: radial-gradient(circle at center, #1a1a40 0%, #000000 100%);
+                color: var(--text-color);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                padding: 40px 0;
+                overflow-x: hidden;
+            }
 
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(8px);
-            z-index: 999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-        }
+            .top-right-btn {
+                position: absolute;
+                top: 36px;
+                right: 36px;
+                z-index: 100;
+                padding: 15px 30px;
+                border: 1.12px solid rgba(255, 255, 255, 0.2);
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                border-radius: 30px;
+                font-size: 1rem;
+                font-weight: 700;
+                cursor: pointer;
+                backdrop-filter: blur(5px);
+                transition: all 0.3s ease;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
 
-        .modal-overlay.active {
-            opacity: 1;
-            visibility: visible;
-        }
+            .top-right-btn:hover {
+                background: rgba(255, 0, 204, 0.2);
+                border-color: var(--primary-color);
+                transform: translateY(-2px);
+            }
 
-        .modal-box {
-            background: #1a1a2e;
-            border: 1px solid rgba(255, 0, 204, 0.3);
-            padding: 30px;
-            border-radius: 25px;
-            width: 90%;
-            max-width: 450px;
-            text-align: center;
-            transform: scale(0.9);
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 30px rgba(255, 0, 204, 0.2);
-        }
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.85);
+                backdrop-filter: blur(8px);
+                z-index: 999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+            }
 
-        .modal-overlay.active .modal-box {
-            transform: scale(1);
-        }
+            .modal-overlay.active {
+                opacity: 1;
+                visibility: visible;
+            }
 
-        .modal-title {
-            color: var(--secondary-color);
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-        }
+            .modal-box {
+                background: #1a1a2e;
+                border: 1px solid rgba(255, 0, 204, 0.3);
+                padding: 30px;
+                border-radius: 25px;
+                width: 90%;
+                max-width: 450px;
+                text-align: center;
+                transform: scale(0.9);
+                transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                box-shadow: 0 0 30px rgba(255, 0, 204, 0.2);
+            }
 
-        .modal-buttons {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 25px;
-        }
+            .modal-overlay.active .modal-box {
+                transform: scale(1);
+            }
 
-        .btn-cancel {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: #ccc;
-            padding: 12px 20px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.3s;
-        }
+            .modal-title {
+                color: var(--secondary-color);
+                font-size: 1.2rem;
+                margin-bottom: 15px;
+                text-transform: uppercase;
+            }
 
-        .btn-cancel:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: #fff;
-        }
+            .modal-buttons {
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+                margin-top: 25px;
+            }
 
-        .btn-confirm {
-            background: linear-gradient(45deg, var(--primary-color), #aa00ff);
-            border: none;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 700;
-            transition: 0.3s;
-            min-width: 140px;
-        }
+            .btn-cancel {
+                background: transparent;
+                border: 1px solid rgba(255, 255, 255, 0.3);
+                color: #ccc;
+                padding: 12px 20px;
+                border-radius: 50px;
+                cursor: pointer;
+                font-weight: 600;
+                transition: 0.3s;
+            }
 
-        .btn-confirm.disabled {
-            background: #555;
-            color: #999;
-            cursor: not-allowed;
-            filter: none;
-            box-shadow: none;
-        }
+            .btn-cancel:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+            }
 
-        .glow-bg {
-            position: fixed;
-            width: 80vw;
-            height: 80vw;
-            max-width: 800px;
-            max-height: 800px;
-            background: radial-gradient(circle, rgba(255, 0, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 0;
-            animation: pulse 8s infinite alternate ease-in-out;
-            pointer-events: none;
-        }
+            .btn-confirm {
+                background: linear-gradient(45deg, var(--primary-color), #aa00ff);
+                border: none;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 50px;
+                cursor: pointer;
+                font-weight: 700;
+                transition: 0.3s;
+                min-width: 140px;
+            }
 
-        .container {
-            position: relative;
-            width: 81%;
-            max-width: 720px;
-            text-align: center;
-            z-index: 10;
-            padding: 2.5rem;
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border-radius: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        }
+            .btn-confirm.disabled {
+                background: #555;
+                color: #999;
+                cursor: not-allowed;
+                filter: none;
+                box-shadow: none;
+            }
 
-        .logo {
-            width: 140px;
-            height: auto;
-            margin-bottom: 25px;
-            border-radius: 30px;
-            filter: drop-shadow(0 0 15px rgba(255, 0, 204, 0.5));
-            animation: float 4s ease-in-out infinite;
-        }
+            .glow-bg {
+                position: fixed;
+                width: 80vw;
+                height: 80vw;
+                max-width: 800px;
+                max-height: 800px;
+                background: radial-gradient(circle, rgba(255, 0, 204, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 0;
+                animation: pulse 8s infinite alternate ease-in-out;
+                pointer-events: none;
+            }
 
-        h1 {
-            font-size: clamp(1.5rem, 5vw, 2.2rem);
-            margin-bottom: 8px;
-            background: linear-gradient(to bottom, #ffffff 30%, #b3b3b3 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 900;
-        }
+            .container {
+                position: relative;
+                width: 81%;
+                max-width: 720px;
+                text-align: center;
+                z-index: 10;
+                padding: 2.5rem;
+                background: rgba(255, 255, 255, 0.03);
+                backdrop-filter: blur(15px);
+                -webkit-backdrop-filter: blur(15px);
+                border-radius: 40px;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            }
 
-        h2 {
-            font-size: clamp(0.8rem, 3vw, 1.1rem);
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 25px;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            opacity: 0.9;
-        }
+            .logo {
+                width: 140px;
+                height: auto;
+                margin-bottom: 25px;
+                border-radius: 30px;
+                filter: drop-shadow(0 0 15px rgba(255, 0, 204, 0.5));
+                animation: float 4s ease-in-out infinite;
+            }
 
-        p {
-            font-size: 0.95rem;
-            line-height: 1.7;
-            color: rgba(255, 255, 255, 0.8);
-            margin-bottom: 20px;
-            max-width: 550px;
-            margin-left: auto;
-            margin-right: auto;
-        }
+            h1 {
+                font-size: clamp(1.5rem, 5vw, 2.2rem);
+                margin-bottom: 8px;
+                background: linear-gradient(to bottom, #ffffff 30%, #b3b3b3 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                font-weight: 900;
+            }
 
-        /* .qr-box {
+            h2 {
+                font-size: clamp(0.8rem, 3vw, 1.1rem);
+                font-weight: 700;
+                color: var(--primary-color);
+                margin-bottom: 25px;
+                text-transform: uppercase;
+                letter-spacing: 3px;
+                opacity: 0.9;
+            }
+
+            p {
+                font-size: 0.95rem;
+                line-height: 1.7;
+                color: rgba(255, 255, 255, 0.8);
+                margin-bottom: 20px;
+                max-width: 550px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            /* .qr-box {
             background: white;
             padding: 15px;
             border-radius: 20px;
@@ -240,250 +254,291 @@
         .qr-box:hover {
             transform: scale(1.05);
         } */
-        
-        .note-text {
-            font-size: 0.8rem;
-            color: #ff6b6b;
-            font-style: italic;
-            margin-bottom: 25px;
-        }
 
-        .btn {
-            display: inline-block;
-            padding: 16px 35px;
-            background: linear-gradient(45deg, var(--primary-color), #aa00ff);
-            color: white;
-            text-decoration: none;
-            font-weight: 800;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            border-radius: 50px;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 10px 20px rgba(255, 0, 204, 0.3);
-            border: none;
-        }
-
-        .btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 15px 30px rgba(255, 0, 204, 0.5);
-            filter: brightness(1.1);
-        }
-
-        .secondary-nav {
-            margin-top: 35px;
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .nav-link {
-            color: rgba(255, 255, 255, 0.6);
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 600;
-            padding: 10px 20px;
-            border-radius: 100px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            background: rgba(255, 255, 255, 0.03);
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .nav-link:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.08);
-            border-color: var(--primary-color);
-            transform: translateY(-2px);
-        }
-
-        .nav-link i {
-            color: var(--primary-color);
-            font-size: 1rem;
-        }
-
-        footer {
-            margin-top: 40px;
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.4);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            padding-top: 25px;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-15px); }
-        }
-
-        @keyframes pulse {
-            0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.5; }
-            100% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
-        }
-        
-        @media (max-width: 480px) {
-            body { padding: 20px 0; }
-            .container {
-                padding: 2rem 1rem;
-                width: 90%;
-                border-radius: 30px;
+            .note-text {
+                font-size: 0.8rem;
+                color: #ff6b6b;
+                font-style: italic;
+                margin-bottom: 25px;
             }
-            .logo { width: 110px; }
-            .qr-box { padding: 10px; }
-            .secondary-nav { flex-direction: column; align-items: center; }
-            .nav-link { width: 100%; justify-content: center; }
-            .top-right-btn { top: 15px; right: 15px; padding: 8px 15px; font-size: 0.75rem; }
-        }
-    </style>
-</head>
-<body>
 
-    <div class="glow-bg"></div>
+            .btn {
+                display: inline-block;
+                padding: 16px 35px;
+                background: linear-gradient(45deg, var(--primary-color), #aa00ff);
+                color: white;
+                text-decoration: none;
+                font-weight: 800;
+                font-size: 0.9rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                border-radius: 50px;
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                box-shadow: 0 10px 20px rgba(255, 0, 204, 0.3);
+                border: none;
+            }
 
-    <button id="openExpBtn" class="top-right-btn">
-        <i class="fas fa-rocket"></i> Dùng thử
-    </button>
+            .btn:hover {
+                transform: scale(1.05);
+                box-shadow: 0 15px 30px rgba(255, 0, 204, 0.5);
+                filter: brightness(1.1);
+            }
 
-    <main class="container">
-        <img src="https://media.karaokeplus.cloud/PictureApp/logo.png" alt="Logo Karaoke Plus" class="logo">
-        
-        <header>
-            <h1>Karaoke Plus</h1>
-            <h2>Thỏa Đam Mê - Kết Nối Cảm Xúc</h2>
-        </header>
-        
-        <article>
-            <p>
-                Nhấn nút Tải Về để cài đặt ứng dụng trên thiết bị Android của bạn.
-            </p>
+            .secondary-nav {
+                margin-top: 35px;
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+                flex-wrap: wrap;
+            }
 
-            <div id="qrcode" class="qr-box"></div>
-            
-            <br>
+            .nav-link {
+                color: rgba(255, 255, 255, 0.6);
+                text-decoration: none;
+                font-size: 0.85rem;
+                font-weight: 600;
+                padding: 10px 20px;
+                border-radius: 100px;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                background: rgba(255, 255, 255, 0.03);
+                transition: all 0.3s ease;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
 
-            <a href="#" id="downloadLink" class="btn">
-                <i class="fas fa-download"></i> Tải file APK ngay
-            </a>
-            
-            <p class="note-text" style="margin-top: 15px;">
-                *Lưu ý: Bạn cần cấp quyền "Cài đặt từ nguồn không xác định" nếu được hỏi.
-            </p>
-        </article>
+            .nav-link:hover {
+                color: #fff;
+                background: rgba(255, 255, 255, 0.08);
+                border-color: var(--primary-color);
+                transform: translateY(-2px);
+            }
 
-        <nav class="secondary-nav">
-            <a href="/support" class="nav-link">
-                <i class="fas fa-headset"></i> Hỗ trợ
-            </a>
-            <a href="/policy" class="nav-link">
-                <i class="fas fa-shield-alt"></i> Chính sách
-            </a>
-            <a href="/reviews" class="nav-link">
-                <i class="fas fa-star"></i> Đánh giá
-            </a>
-        </nav>
+            .nav-link i {
+                color: var(--primary-color);
+                font-size: 1rem;
+            }
 
-        <footer>
-            <p>&copy; 2026 Karaoke Plus. All rights reserved.</p>
-        </footer>
-    </main>
+            footer {
+                margin-top: 40px;
+                font-size: 0.75rem;
+                color: rgba(255, 255, 255, 0.4);
+                border-top: 1px solid rgba(255, 255, 255, 0.05);
+                padding-top: 25px;
+            }
 
-    <div id="expModal" class="modal-overlay">
-        <div class="modal-box">
-            <h3 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Lưu ý</h3>
-            <p style="font-size: 0.9rem; margin-bottom: 10px;">
-                Đây là bản dùng thử, một số tính năng (thu âm, đăng tải) có thể bị hạn chế hoặc không hoạt động mượt mà như trên ứng dụng.
-            </p>
-            <p style="font-size: 0.9rem; color: #fff;">
-                Để có trải nghiệm trọn vẹn nhất, hãy tải file APK về máy.
-            </p>
+            @keyframes float {
 
-            <div class="modal-buttons">
-                <button id="closeModalBtn" class="btn-cancel">Quay lại</button>
-                <button id="confirmExpBtn" class="btn-confirm disabled" disabled>
-                    Dùng thử (5)
-                </button>
+                0%,
+                100% {
+                    transform: translateY(0px);
+                }
+
+                50% {
+                    transform: translateY(-15px);
+                }
+            }
+
+            @keyframes pulse {
+                0% {
+                    transform: translate(-50%, -50%) scale(0.9);
+                    opacity: 0.5;
+                }
+
+                100% {
+                    transform: translate(-50%, -50%) scale(1.1);
+                    opacity: 0.8;
+                }
+            }
+
+            @media (max-width: 480px) {
+                body {
+                    padding: 20px 0;
+                }
+
+                .container {
+                    padding: 2rem 1rem;
+                    width: 90%;
+                    border-radius: 30px;
+                }
+
+                .logo {
+                    width: 110px;
+                }
+
+                .qr-box {
+                    padding: 10px;
+                }
+
+                .secondary-nav {
+                    flex-direction: column;
+                    align-items: center;
+                }
+
+                .nav-link {
+                    width: 100%;
+                    justify-content: center;
+                }
+
+                .top-right-btn {
+                    top: 15px;
+                    right: 15px;
+                    padding: 8px 15px;
+                    font-size: 0.75rem;
+                }
+            }
+        </style>
+
+        <button id="openExpBtn" class="top-right-btn">
+            <i class="fas fa-rocket"></i> Dùng thử
+        </button>
+
+        <main class="container">
+            <img src="https://media.karaokeplus.cloud/PictureApp/logo.png" alt="Logo Karaoke Plus" class="logo">
+
+            <header>
+                <h1>Karaoke Plus</h1>
+                <h2>Thỏa Đam Mê - Kết Nối Cảm Xúc</h2>
+            </header>
+
+            <article>
+                <p>
+                    Nhấn nút Tải Về để cài đặt ứng dụng trên thiết bị Android của bạn.
+                </p>
+
+                <div id="qrcode" class="qr-box"></div>
+
+                <br>
+
+                <a href="#" id="downloadLink" class="btn">
+                    <i class="fas fa-download"></i> Tải file APK ngay
+                </a>
+
+                <p class="note-text" style="margin-top: 15px;">
+                    *Lưu ý: Bạn cần cấp quyền "Cài đặt từ nguồn không xác định" nếu được hỏi.
+                </p>
+            </article>
+
+            <nav class="secondary-nav">
+                <a href="/support" class="nav-link">
+                    <i class="fas fa-headset"></i> Hỗ trợ
+                </a>
+                <a href="/policy" class="nav-link">
+                    <i class="fas fa-shield-alt"></i> Chính sách
+                </a>
+                <a href="/reviews" class="nav-link">
+                    <i class="fas fa-star"></i> Đánh giá
+                </a>
+            </nav>
+
+            <footer>
+                <p>&copy; 2026 Karaoke Plus. All rights reserved.</p>
+            </footer>
+        </main>
+
+        <div id="expModal" class="modal-overlay">
+            <div class="modal-box">
+                <h3 class="modal-title"><i class="fas fa-exclamation-triangle"></i> Lưu ý</h3>
+                <p style="font-size: 0.9rem; margin-bottom: 10px;">
+                    Đây là bản dùng thử, một số tính năng (thu âm, đăng tải) có thể bị hạn chế hoặc không hoạt động mượt
+                    mà như trên ứng dụng.
+                </p>
+                <p style="font-size: 0.9rem; color: #fff;">
+                    Để có trải nghiệm trọn vẹn nhất, hãy tải file APK về máy.
+                </p>
+
+                <div class="modal-buttons">
+                    <button id="closeModalBtn" class="btn-cancel">Quay lại</button>
+                    <button id="confirmExpBtn" class="btn-confirm disabled" disabled>
+                        Dùng thử (5)
+                    </button>
+                </div>
             </div>
         </div>
+        <script>
+            {
+                // Cấu hình đường dẫn file APK
+                const APK_URL = "https://media.karaokeplus.cloud/Karaoke%20Plus.apk";
+                const WEB_APP_URL = "https://app.karaokeplus.cloud";
+
+                // 1. Gán link cho nút bấm tải về
+                document.getElementById('downloadLink').href = APK_URL;
+
+                // 2. Tạo mã QR cho file APK
+                // new QRCode(document.getElementById("qrcode"), {
+                //     text: APK_URL,
+                //     width: 160,
+                //     height: 160,
+                //     colorDark : "#000000",
+                //     colorLight : "#ffffff",
+                //     correctLevel : QRCode.CorrectLevel.M
+                // });
+
+                // --- XỬ LÝ LOGIC POPUP DÙNG THỬ ---
+                const openBtn = document.getElementById('openExpBtn');
+                const modal = document.getElementById('expModal');
+                const closeBtn = document.getElementById('closeModalBtn');
+                const confirmBtn = document.getElementById('confirmExpBtn');
+
+                let countdownTimer;
+
+                // Hàm mở Modal
+                openBtn.addEventListener('click', () => {
+                    modal.classList.add('active');
+                    startCountdown();
+                });
+
+                // Hàm đóng Modal
+                closeBtn.addEventListener('click', () => {
+                    modal.classList.remove('active');
+                    clearInterval(countdownTimer);
+                });
+
+                // Hàm xử lý đếm ngược
+                function startCountdown() {
+                    let timeLeft = 5;
+
+                    // Reset trạng thái nút
+                    confirmBtn.disabled = true;
+                    confirmBtn.classList.add('disabled');
+                    confirmBtn.innerText = `Dùng thử (${timeLeft})`;
+
+                    // Bắt đầu đếm
+                    countdownTimer = setInterval(() => {
+                        timeLeft--;
+                        if (timeLeft > 0) {
+                            confirmBtn.innerText = `Dùng thử (${timeLeft})`;
+                        } else {
+                            // Hết giờ -> Mở khóa nút
+                            clearInterval(countdownTimer);
+                            confirmBtn.disabled = false;
+                            confirmBtn.classList.remove('disabled');
+                            confirmBtn.innerText = "Dùng thử";
+                        }
+                    }, 1000);
+                }
+
+                // Xử lý khi bấm nút Dùng thử (sau khi đã mở khóa)
+                confirmBtn.addEventListener('click', () => {
+                    if (!confirmBtn.disabled) {
+                        window.location.href = WEB_APP_URL;
+                    }
+                });
+
+                // Đóng modal khi click ra ngoài vùng modal-box
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.remove('active');
+                        clearInterval(countdownTimer);
+                    }
+                });
+
+            }
+        </script>
     </div>
 
-    <script>
-        // Cấu hình đường dẫn file APK
-        const APK_URL = "https://media.karaokeplus.cloud/Karaoke%20Plus.apk";
-        const WEB_APP_URL = "https://app.karaokeplus.cloud";
 
-        // 1. Gán link cho nút bấm tải về
-        document.getElementById('downloadLink').href = APK_URL;
-
-        // 2. Tạo mã QR cho file APK
-        // new QRCode(document.getElementById("qrcode"), {
-        //     text: APK_URL,
-        //     width: 160,
-        //     height: 160,
-        //     colorDark : "#000000",
-        //     colorLight : "#ffffff",
-        //     correctLevel : QRCode.CorrectLevel.M
-        // });
-
-        // --- XỬ LÝ LOGIC POPUP DÙNG THỬ ---
-        const openBtn = document.getElementById('openExpBtn');
-        const modal = document.getElementById('expModal');
-        const closeBtn = document.getElementById('closeModalBtn');
-        const confirmBtn = document.getElementById('confirmExpBtn');
-        
-        let countdownTimer;
-
-        // Hàm mở Modal
-        openBtn.addEventListener('click', () => {
-            modal.classList.add('active');
-            startCountdown();
-        });
-
-        // Hàm đóng Modal
-        closeBtn.addEventListener('click', () => {
-            modal.classList.remove('active');
-            clearInterval(countdownTimer);
-        });
-
-        // Hàm xử lý đếm ngược
-        function startCountdown() {
-            let timeLeft = 5;
-            
-            // Reset trạng thái nút
-            confirmBtn.disabled = true;
-            confirmBtn.classList.add('disabled');
-            confirmBtn.innerText = `Dùng thử (${timeLeft})`;
-
-            // Bắt đầu đếm
-            countdownTimer = setInterval(() => {
-                timeLeft--;
-                if (timeLeft > 0) {
-                    confirmBtn.innerText = `Dùng thử (${timeLeft})`;
-                } else {
-                    // Hết giờ -> Mở khóa nút
-                    clearInterval(countdownTimer);
-                    confirmBtn.disabled = false;
-                    confirmBtn.classList.remove('disabled');
-                    confirmBtn.innerText = "Dùng thử";
-                }
-            }, 1000);
-        }
-
-        // Xử lý khi bấm nút Dùng thử (sau khi đã mở khóa)
-        confirmBtn.addEventListener('click', () => {
-            if (!confirmBtn.disabled) {
-                window.location.href = WEB_APP_URL;
-            }
-        });
-
-        // Đóng modal khi click ra ngoài vùng modal-box
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('active');
-                clearInterval(countdownTimer);
-            }
-        });
-    </script>
+    <script src="/user/nav.js"></script>
 </body>
+
 </html>

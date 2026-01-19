@@ -1,291 +1,307 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đánh Giá - Karaoke Plus</title>
-    <link rel="icon" type="image/png" href="./logo.png">
+    <link rel="icon" type="image/png" href="https://media.karaokeplus.cloud/icon.png">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <style>
-        :root {
-            --primary-color: #FF00CC;
-            --secondary-color: #00FFFF;
-            --bg-dark: #0a0a1a;
-            --text-color: #ffffff;
-            --glass-bg: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Montserrat', sans-serif;
-            background-color: var(--bg-dark);
-            background: radial-gradient(circle at top center, #1a1a40 0%, #000000 100%);
-            color: var(--text-color);
-            min-height: 100vh;
-            padding: 40px 20px;
-        }
-
-        /* --- Header --- */
-        .page-header {
-            max-width: 1000px;
-            margin: 0 auto 40px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .back-btn {
-            color: rgba(255,255,255,0.7);
-            text-decoration: none;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            transition: 0.3s;
-            padding: 10px 20px;
-            background: var(--glass-bg);
-            border-radius: 30px;
-            border: 1px solid var(--glass-border);
-        }
-
-        .back-btn:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.1);
-            transform: translateX(-5px);
-        }
-
-        h1 {
-            font-size: clamp(1.5rem, 4vw, 2rem);
-            background: linear-gradient(to right, #fff, #b3b3b3);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-transform: uppercase;
-            font-weight: 900;
-            text-align: right;
-        }
-
-        /* --- Tổng quan (Summary) --- */
-        .summary-container {
-            max-width: 1000px;
-            margin: 0 auto 40px;
-            background: rgba(255, 0, 204, 0.05);
-            border: 1px solid rgba(255, 0, 204, 0.2);
-            border-radius: 20px;
-            padding: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 40px;
-            flex-wrap: wrap;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 0 30px rgba(255, 0, 204, 0.1);
-        }
-
-        .rating-big {
-            font-size: 4rem;
-            font-weight: 900;
-            color: var(--primary-color);
-            line-height: 1;
-        }
-
-        .rating-stars {
-            color: #FFD700;
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
-
-        .total-reviews {
-            color: rgba(255,255,255,0.6);
-            font-size: 0.9rem;
-        }
-
-        /* --- Grid Đánh giá --- */
-        .reviews-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .review-card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 25px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .review-card:hover {
-            transform: translateY(-5px);
-            background: rgba(255, 255, 255, 0.06);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-            border-color: rgba(255, 0, 204, 0.3);
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .avatar {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background-color: #333;
-            background-size: cover;
-            background-position: center;
-            border: 2px solid var(--primary-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #fff;
-            font-size: 1.2rem;
-        }
-
-        .user-meta h3 {
-            font-size: 1rem;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 2px;
-        }
-
-        .review-date {
-            font-size: 0.75rem;
-            color: rgba(255,255,255,0.4);
-        }
-
-        .card-stars {
-            color: #FFD700;
-            font-size: 0.9rem;
-            margin-bottom: 15px;
-        }
-
-        .review-content {
-            font-size: 0.95rem;
-            line-height: 1.6;
-            color: rgba(255,255,255,0.85);
-            flex-grow: 1;
-        }
-
-        /* --- Loading & States --- */
-        .loading-spinner {
-            text-align: center;
-            padding: 50px;
-            color: var(--secondary-color);
-            font-size: 1.2rem;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 50px;
-            color: rgba(255,255,255,0.5);
-            grid-column: 1 / -1;
-        }
-
-        @media (max-width: 600px) {
-            .summary-container { flex-direction: column; gap: 10px; text-align: center; }
-            .page-header { flex-direction: column-reverse; gap: 20px; align-items: flex-start; }
-            h1 { align-self: center; }
-        }
-    </style>
 </head>
+
 <body>
+    <div id="app-content">
+        <style>
+            :root {
+                --primary-color: #FF00CC;
+                --secondary-color: #00FFFF;
+                --bg-dark: #0a0a1a;
+                --text-color: #ffffff;
+                --glass-bg: rgba(255, 255, 255, 0.03);
+                --glass-border: rgba(255, 255, 255, 0.08);
+            }
 
-    <header class="page-header">
-        <a href="/" class="back-btn">
-            <i class="fas fa-arrow-left"></i> Quay về trang chủ
-        </a>
-        <h1>Cộng Đồng Đánh Giá</h1>
-    </header>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
-    <div class="summary-container">
-        <div style="text-align: center;">
-            <div id="avgRating" class="rating-big">--</div>
-            <div class="rating-stars">
-                <i class="fas fa-star"></i>
-                <i class="fas fa-star"></i>
-                <i class="fas fa-star"></i>
-                <i class="fas fa-star"></i>
-                <i class="fas fa-star"></i>
-            </div>
-            <div id="totalReviews" class="total-reviews">Đang tải dữ liệu...</div>
-        </div>
-    </div>
+            body {
+                font-family: 'Montserrat', sans-serif;
+                background-color: var(--bg-dark);
+                background: radial-gradient(circle at top center, #1a1a40 0%, #000000 100%);
+                color: var(--text-color);
+                min-height: 100vh;
+                padding: 40px 20px;
+            }
 
-    <main id="reviewsList" class="reviews-grid">
-        <div class="loading-spinner">
-            <i class="fas fa-circle-notch fa-spin"></i> Đang tải đánh giá...
-        </div>
-    </main>
+            /* --- Header --- */
+            .page-header {
+                max-width: 1000px;
+                margin: 0 auto 40px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
 
-    <script>
-        function formatDate(isoString) {
-            const date = new Date(isoString);
-            return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-        }
+            .back-btn {
+                color: rgba(255, 255, 255, 0.7);
+                text-decoration: none;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                transition: 0.3s;
+                padding: 10px 20px;
+                background: var(--glass-bg);
+                border-radius: 30px;
+                border: 1px solid var(--glass-border);
+            }
 
-        function renderStars(rating) {
-            let html = '';
-            for (let i = 1; i <= 5; i++) {
-                if (i <= rating) {
-                    html += '<i class="fas fa-star"></i> ';
-                } else {
-                    html += '<i class="far fa-star"></i> ';
+            .back-btn:hover {
+                color: #fff;
+                background: rgba(255, 255, 255, 0.1);
+                transform: translateX(-5px);
+            }
+
+            h1 {
+                font-size: clamp(1.5rem, 4vw, 2rem);
+                background: linear-gradient(to right, #fff, #b3b3b3);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                text-transform: uppercase;
+                font-weight: 900;
+                text-align: right;
+            }
+
+            /* --- Tổng quan (Summary) --- */
+            .summary-container {
+                max-width: 1000px;
+                margin: 0 auto 40px;
+                background: rgba(255, 0, 204, 0.05);
+                border: 1px solid rgba(255, 0, 204, 0.2);
+                border-radius: 20px;
+                padding: 30px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 40px;
+                flex-wrap: wrap;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 0 30px rgba(255, 0, 204, 0.1);
+            }
+
+            .rating-big {
+                font-size: 4rem;
+                font-weight: 900;
+                color: var(--primary-color);
+                line-height: 1;
+            }
+
+            .rating-stars {
+                color: #FFD700;
+                font-size: 1.5rem;
+                margin-bottom: 5px;
+            }
+
+            .total-reviews {
+                color: rgba(255, 255, 255, 0.6);
+                font-size: 0.9rem;
+            }
+
+            /* --- Grid Đánh giá --- */
+            .reviews-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+                gap: 20px;
+                max-width: 1000px;
+                margin: 0 auto;
+            }
+
+            .review-card {
+                background: var(--glass-bg);
+                border: 1px solid var(--glass-border);
+                border-radius: 20px;
+                padding: 25px;
+                transition: transform 0.3s ease, box-shadow 0.3s ease;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .review-card:hover {
+                transform: translateY(-5px);
+                background: rgba(255, 255, 255, 0.06);
+                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+                border-color: rgba(255, 0, 204, 0.3);
+            }
+
+            .user-info {
+                display: flex;
+                align-items: center;
+                gap: 15px;
+                margin-bottom: 15px;
+            }
+
+            .avatar {
+                width: 45px;
+                height: 45px;
+                border-radius: 50%;
+                background-color: #333;
+                background-size: cover;
+                background-position: center;
+                border: 2px solid var(--primary-color);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: bold;
+                color: #fff;
+                font-size: 1.2rem;
+            }
+
+            .user-meta h3 {
+                font-size: 1rem;
+                font-weight: 700;
+                color: #fff;
+                margin-bottom: 2px;
+            }
+
+            .review-date {
+                font-size: 0.75rem;
+                color: rgba(255, 255, 255, 0.4);
+            }
+
+            .card-stars {
+                color: #FFD700;
+                font-size: 0.9rem;
+                margin-bottom: 15px;
+            }
+
+            .review-content {
+                font-size: 0.95rem;
+                line-height: 1.6;
+                color: rgba(255, 255, 255, 0.85);
+                flex-grow: 1;
+            }
+
+            /* --- Loading & States --- */
+            .loading-spinner {
+                text-align: center;
+                padding: 50px;
+                color: var(--secondary-color);
+                font-size: 1.2rem;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 50px;
+                color: rgba(255, 255, 255, 0.5);
+                grid-column: 1 / -1;
+            }
+
+            @media (max-width: 600px) {
+                .summary-container {
+                    flex-direction: column;
+                    gap: 10px;
+                    text-align: center;
+                }
+
+                .page-header {
+                    flex-direction: column-reverse;
+                    gap: 20px;
+                    align-items: flex-start;
+                }
+
+                h1 {
+                    align-self: center;
                 }
             }
-            return html;
-        }
+        </style>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <header class="page-header">
+            <a href="/" class="back-btn">
+                <i class="fas fa-arrow-left"></i> Quay về trang chủ
+            </a>
+            <h1>Cộng Đồng Đánh Giá</h1>
+        </header>
 
-        // --- GỌI API SERVER ---
-        async function loadReviews() {
-            const reviewsContainer = document.getElementById('reviewsList');
-            const avgRatingEl = document.getElementById('avgRating');
-            const totalReviewsEl = document.getElementById('totalReviews');
+        <div class="summary-container">
+            <div style="text-align: center;">
+                <div id="avgRating" class="rating-big">--</div>
+                <div class="rating-stars">
+                    <i class="fas fa-star"></i>
+                    <i class="fas fa-star"></i>
+                    <i class="fas fa-star"></i>
+                    <i class="fas fa-star"></i>
+                    <i class="fas fa-star"></i>
+                </div>
+                <div id="totalReviews" class="total-reviews">Đang tải dữ liệu...</div>
+            </div>
+        </div>
 
-            try {
-                const response = await fetch('/api/reviews-list');
-                const result = await response.json();
+        <main id="reviewsList" class="reviews-grid">
+            <div class="loading-spinner">
+                <i class="fas fa-circle-notch fa-spin"></i> Đang tải đánh giá...
+            </div>
+        </main>
+        <script>
+            function formatDate(isoString) {
+                const date = new Date(isoString);
+                return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+            }
 
-                if (!result.success) {
-                    throw new Error(result.message || "Lỗi tải dữ liệu");
+            function renderStars(rating) {
+                let html = '';
+                for (let i = 1; i <= 5; i++) {
+                    if (i <= rating) {
+                        html += '<i class="fas fa-star"></i> ';
+                    } else {
+                        html += '<i class="far fa-star"></i> ';
+                    }
                 }
+                return html;
+            }
 
-                const reviews = result.data;
+            // --- GỌI API SERVER ---
+            async function loadReviews() {
+                const reviewsContainer = document.getElementById('reviewsList');
+                const avgRatingEl = document.getElementById('avgRating');
+                const totalReviewsEl = document.getElementById('totalReviews');
 
-                if (!reviews || reviews.length === 0) {
-                    reviewsContainer.innerHTML = '<div class="empty-state">Chưa có đánh giá nào. Hãy tải App và là người đầu tiên!</div>';
-                    avgRatingEl.innerText = "0.0";
-                    totalReviewsEl.innerText = "0 đánh giá";
-                    return;
-                }
+                try {
+                    const response = await fetch('/api/reviews-list');
+                    const result = await response.json();
 
-                const totalScore = reviews.reduce((sum, item) => sum + item.rating, 0);
-                const avg = (totalScore / reviews.length).toFixed(1);
+                    if (!result.success) {
+                        throw new Error(result.message || "Lỗi tải dữ liệu");
+                    }
 
-                avgRatingEl.innerText = avg;
-                totalReviewsEl.innerText = `${reviews.length} đánh giá gần đây`;
+                    const reviews = result.data;
 
-                reviewsContainer.innerHTML = reviews.map(item => {
-                    const user = item.users;
-                    const name = user?.full_name || user?.username || "Người dùng ẩn danh";
-                    
-                    // Logic hiển thị avatar
-                    const avatarHtml = user?.avatar_url 
-                        ? `<div class="avatar" style="background-image: url('${user.avatar_url}')"></div>`
-                        : `<div class="avatar">${name.charAt(0).toUpperCase()}</div>`;
+                    if (!reviews || reviews.length === 0) {
+                        reviewsContainer.innerHTML = '<div class="empty-state">Chưa có đánh giá nào. Hãy tải App và là người đầu tiên!</div>';
+                        avgRatingEl.innerText = "0.0";
+                        totalReviewsEl.innerText = "0 đánh giá";
+                        return;
+                    }
 
-                    return `
+                    const totalScore = reviews.reduce((sum, item) => sum + item.rating, 0);
+                    const avg = (totalScore / reviews.length).toFixed(1);
+
+                    avgRatingEl.innerText = avg;
+                    totalReviewsEl.innerText = `${reviews.length} đánh giá gần đây`;
+
+                    reviewsContainer.innerHTML = reviews.map(item => {
+                        const user = item.users;
+                        const name = user?.full_name || user?.username || "Người dùng ẩn danh";
+
+                        // Logic hiển thị avatar
+                        const avatarHtml = user?.avatar_url
+                            ? `<div class="avatar" style="background-image: url('${user.avatar_url}')"></div>`
+                            : `<div class="avatar">${name.charAt(0).toUpperCase()}</div>`;
+
+                        return `
                         <div class="review-card">
                             <div class="user-info">
                                 ${avatarHtml}
@@ -302,14 +318,23 @@
                             </div>
                         </div>
                     `;
-                }).join('');
+                    }).join('');
 
-            } catch (err) {
-                console.error("Lỗi:", err);
-                reviewsContainer.innerHTML = `<div class="empty-state" style="color:#ff6b6b">Không thể tải dữ liệu đánh giá.<br>Vui lòng thử lại sau.</div>`;
+                } catch (err) {
+                    console.error("Lỗi:", err);
+                    reviewsContainer.innerHTML = `<div class="empty-state" style="color:#ff6b6b">Không thể tải dữ liệu đánh giá.<br>Vui lòng thử lại sau.</div>`;
+                }
             }
-        }
-        document.addEventListener('DOMContentLoaded', loadReviews);
-    </script>
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadReviews);
+            } else {
+                loadReviews();
+            }
+        </script>
+    </div>
+
+
+    <script src="/user/nav.js"></script>
 </body>
+
 </html>

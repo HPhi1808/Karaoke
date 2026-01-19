@@ -38,8 +38,15 @@ const upload = multer({
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('audio/') || file.mimetype === 'application/octet-stream') {
             cb(null, true);
-        } else {
-            cb(new Error('Chỉ chấp nhận file âm thanh!'), false);
+        } 
+        else if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        }
+        else if (file.mimetype === 'text/plain' || file.originalname.endsWith('.lrc')) {
+            cb(null, true);
+        }
+        else {
+            cb(new Error(`Không hỗ trợ định dạng file này: ${file.mimetype}`), false);
         }
     }
 });
