@@ -15,6 +15,8 @@ async function sendPushNotification(userIds, heading, content, data) {
             contents: { en: content },
             data: data,
             channel_for_external_user_ids: "push",
+            small_icon: "ic_stat_icon_notification",
+            android_accent_color: "FFFF00CC"
         };
 
         const response = await axios.post(
