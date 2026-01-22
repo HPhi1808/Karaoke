@@ -68,6 +68,53 @@
         </div>
     </div>
 
+    <div class="row g-4 mb-4">
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #f6c23e !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">User Mới (7 ngày)
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewUsers7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-person-plus-fill text-warning fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #e74a3b !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Moment Mới (7 ngày)
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewMoments7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-camera-reels-fill text-danger fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #36b9cc !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Nhạc Mới (7 ngày)</div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewSongs7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-music-note-beamed text-info fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-xl-12 col-lg-12 mb-4">
             <div class="card shadow border-0">
@@ -213,13 +260,13 @@
         window.fetchGeneralStats = async function () {
             const statUsersEl = document.getElementById('statUsers');
             const statGuestsEl = document.getElementById('statGuests');
-            
+
             if (!statUsersEl || !statGuestsEl) return;
 
             const res = await window.api('/api/admin/dashboard/stats/general');
             if (res && res.status === 'success') {
-                if(statUsersEl) statUsersEl.innerText = res.data.total_users;
-                if(statGuestsEl) statGuestsEl.innerText = res.data.total_guests;
+                if (statUsersEl) statUsersEl.innerText = res.data.total_users;
+                if (statGuestsEl) statGuestsEl.innerText = res.data.total_guests;
             }
         }
 
@@ -231,8 +278,8 @@
             const res = await window.api('/api/admin/dashboard/stats/online');
 
             if (res && res.status === 'success') {
-                const data = res.data; 
-                
+                const data = res.data;
+
                 // Kiểm tra lại lần nữa vì API call tốn thời gian, 
                 // có thể user đã chuyển trang trong lúc chờ
                 if (!document.getElementById('statOnline')) return;
@@ -300,7 +347,24 @@
             }
         }
 
-        // --- 4. Chart Logic ---
+        // --- 4. Growth Stats ---
+        window.fetchGrowthStats = async function () {
+            const elUser7d = document.getElementById('statNewUsers7d');
+            const elMoment7d = document.getElementById('statNewMoments7d');
+            const elSong7d = document.getElementById('statNewSongs7d');
+
+            if (!elUser7d) return;
+
+            const res = await window.api('/api/admin/dashboard/stats/growth');
+
+            if (res && res.status === 'success') {
+                if (elUser7d) elUser7d.innerText = "+" + res.data.new_users_7d;
+                if (elMoment7d) elMoment7d.innerText = "+" + res.data.new_moments_7d;
+                if (elSong7d) elSong7d.innerText = "+" + res.data.new_songs_7d;
+            }
+        }
+
+        // --- 5. Chart Logic ---
         window.fetchActiveHistory = async function () {
             try {
                 await ensureChartJsLoaded();
@@ -336,13 +400,14 @@
             window.fetchGeneralStats();
             window.fetchOnlineStats();
             window.fetchActiveHistory();
+            window.fetchGrowthStats();
         }, 50);
 
         window.dashboardInterval = setInterval(() => {
-            if (document.getElementById('statOnline')) { 
-                window.fetchOnlineStats(); 
-            } else { 
-                clearInterval(window.dashboardInterval); 
+            if (document.getElementById('statOnline')) {
+                window.fetchOnlineStats();
+            } else {
+                clearInterval(window.dashboardInterval);
             }
         }, 10000);
     }

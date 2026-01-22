@@ -5,7 +5,7 @@ const pool = require('../config/db');
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
-// --- 1. HELPER: Gửi thông báo qua OneSignal (Code của bạn) ---
+// --- 1. HELPER: Gửi thông báo qua OneSignal ---
 async function sendPushNotification(userIds, heading, content, data) {
     try {
         const body = {
