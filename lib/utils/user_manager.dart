@@ -10,7 +10,6 @@ class UserManager {
   static final UserManager instance = UserManager._internal();
   UserManager._internal();
 
-  // --- VARIABLES ---
   StreamSubscription<List<Map<String, dynamic>>>? _userDbSubscription;
   StreamSubscription<AuthState>? _authSubscription;
   bool _isInitialized = false;

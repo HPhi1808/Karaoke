@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Đã thêm
 import '../../../services/auth_service.dart';
 import '../../../services/user_service.dart';
 import '../../../models/user_model.dart';
@@ -8,7 +9,6 @@ import 'edit_profile_screen.dart';
 import 'black_list_screen.dart';
 import 'policy_and_support_screen.dart';
 import 'review_app_screen.dart';
-
 
 class MeScreen extends StatefulWidget {
   final VoidCallback onLogoutClick;
@@ -30,14 +30,37 @@ class _MeScreenState extends State<MeScreen> {
     _loadUserData();
   }
 
+  // --- HÀM TẢI DỮ LIỆU: ĐÃ KHẮC PHỤC LỖI GẠCH ĐỎ VÀ THÊM ĐỒNG BỘ TÊN ---
   Future<void> _loadUserData() async {
     bool currentGuestStatus = AuthService.instance.isGuest;
     try {
       if (!currentGuestStatus) {
+        // 1. Lấy dữ liệu gốc từ Service
         final profile = await UserService.instance.getUserProfile();
+
+        // 2. Lấy dữ liệu bổ sung từ Local (SharedPrefs)
+        final prefs = await SharedPreferences.getInstance();
+        String localFullName = prefs.getString('user_name') ?? profile.fullName ?? "Người dùng";
+        String localBio = prefs.getString('user_bio') ?? profile.bio ?? "Chưa có giới thiệu.";
+        String localGender = prefs.getString('user_gender') ?? profile.gender ?? "Nam";
+        String? localBirthdate = prefs.getString('user_birthdate');
+
         if (mounted) {
           setState(() {
-            _userProfile = profile;
+            _userProfile = UserModel(
+              id: profile.id,
+              email: profile.email,
+              username: profile.username,
+              fullName: localFullName, // Cập nhật tên từ Local
+              avatarUrl: profile.avatarUrl,
+              role: profile.role,
+              region: profile.region,
+              likesCount: profile.likesCount,
+              followersCount: profile.followersCount,
+              followingCount: profile.followingCount,
+              bio: localBio, // Cập nhật Bio từ Local
+              gender: localGender, // Cập nhật Giới tính từ Local
+            );
             _isGuest = false;
             _isLoading = false;
           });
@@ -65,6 +88,19 @@ class _MeScreenState extends State<MeScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  // --- HÀM ĐIỀU HƯỚNG: ĐỢI KẾT QUẢ ĐỂ CẬP NHẬT UI ---
+  Future<void> _goToEditProfile() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+    );
+
+    // Nếu quay về và có tín hiệu đã lưu (true), tải lại dữ liệu ngay
+    if (result == true) {
+      _loadUserData();
     }
   }
 
@@ -192,7 +228,6 @@ class _MeScreenState extends State<MeScreen> {
                   }
                 },
               ),
-
               _buildStatItem(
                 _userProfile?.followersCount.toString() ?? "0",
                 "Follower",
@@ -210,7 +245,6 @@ class _MeScreenState extends State<MeScreen> {
                   }
                 },
               ),
-
               _buildStatItem(
                 _userProfile?.likesCount.toString() ?? "0",
                 "Thích",
@@ -282,18 +316,12 @@ class _MeScreenState extends State<MeScreen> {
     );
   }
 
-  // --- EDIT BUTTON ---
   Widget _buildEditButton() {
     return SizedBox(
       width: double.infinity,
       height: 36,
       child: OutlinedButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-          );
-        },
+        onPressed: _goToEditProfile, // Đã đổi sang hàm chờ kết quả cập nhật
         style: OutlinedButton.styleFrom(
           side: BorderSide(color: Colors.grey.shade400),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -303,7 +331,6 @@ class _MeScreenState extends State<MeScreen> {
     );
   }
 
-  // --- MENU BUTTONS ---
   Widget _buildMenuButtons() {
     return Column(
       children: [
@@ -316,7 +343,6 @@ class _MeScreenState extends State<MeScreen> {
           _buildMenuRow(Icons.star_outline, "Đánh giá", () => Navigator.pushNamed(context, '/review_app')),
         ],
 
-        // Nút Đăng xuất / Đăng nhập
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(_isGuest ? Icons.login : Icons.logout, color: Colors.red),
@@ -341,10 +367,9 @@ class _MeScreenState extends State<MeScreen> {
   }
 }
 
-// SKELETON
+// SKELETON (Giữ nguyên)
 class _MeSkeletonLoading extends StatelessWidget {
   const _MeSkeletonLoading();
-
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
