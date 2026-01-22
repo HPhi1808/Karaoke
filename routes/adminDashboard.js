@@ -78,4 +78,40 @@ router.get('/active-history', verifyToken, requireAdmin, async (req, res) => {
     }
 });
 
+
+// --- 4. THỐNG KÊ TĂNG TRƯỞNG TRONG 7 NGÀY QUA ---
+router.get('/stats/growth', verifyToken, requireAdmin, async (req, res) => {
+    try {
+        const timeFrame = "NOW() - INTERVAL '7 days'";
+
+        // 1. User mới
+        const newUsersQuery = `SELECT COUNT(*) FROM users WHERE created_at >= (${timeFrame}) AND role = 'user'`;
+        
+        // 2. Bài đăng (Moment) mới
+        const newMomentsQuery = `SELECT COUNT(*) FROM moments WHERE created_at >= (${timeFrame})`;
+
+        // 3. Bài hát (Song) mới [MỚI THÊM]
+        const newSongsQuery = `SELECT COUNT(*) FROM songs WHERE created_at >= (${timeFrame})`;
+
+        const [usersRes, momentsRes, songsRes] = await Promise.all([
+            pool.query(newUsersQuery),
+            pool.query(newMomentsQuery),
+            pool.query(newSongsQuery)
+        ]);
+
+        res.json({
+            status: 'success',
+            data: {
+                new_users_7d: parseInt(usersRes.rows[0].count),
+                new_moments_7d: parseInt(momentsRes.rows[0].count),
+                new_songs_7d: parseInt(songsRes.rows[0].count)
+            }
+        });
+
+    } catch (err) {
+        console.error("Lỗi thống kê tăng trưởng:", err);
+        res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
 module.exports = router;
