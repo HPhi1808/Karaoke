@@ -40,18 +40,24 @@
         <h5 class="m-0 font-weight-bold text-primary">🎵 Kho Nhạc Karaoke</h5>
 
         <div class="d-flex gap-2">
-            <div class="input-group" style="width: 300px;">
+            <div class="input-group" style="width: 250px;">
                 <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
                 <input type="text" id="searchSong" class="form-control border-start-0"
-                    placeholder="Tìm bài hát, ca sĩ...">
+                    placeholder="Tìm bài hát...">
             </div>
+
+            <a href="https://colab.research.google.com/drive/1WGn2Sl9ZYrqYKAQqfb3JZpF_AxOLnkOB?usp=sharing" 
+               target="_blank" 
+               class="btn btn-outline-success text-nowrap"
+               title="Dùng AI tạo file lyric tự động">
+                <i class="bi bi-magic"></i> Tạo file .lrc
+            </a>
 
             <button class="btn btn-primary text-nowrap" onclick="openAddModal()">
                 <i class="bi bi-cloud-upload-fill"></i> Thêm bài hát
             </button>
         </div>
     </div>
-
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
