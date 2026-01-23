@@ -121,7 +121,7 @@ const adminMomentsRouter = require('./routes/adminMoments');
 const userNotificationsRouter = require('./routes/userNotifications');
 const userReviewsRouter = require('./routes/reviewsUser');
 const userMomentsRouter = require('./routes/userMoments');
-const userUploadAudioRouter = require('./routes/userUploadAudio');
+const userUploadRouter = require('./routes/userUpload');
 const convertDatabaseRouter = require('./routes/convertDataBase');
 
 
@@ -135,7 +135,7 @@ app.get('/api/reviews-list', userReviewsRouter.getPublicReviews);
 // API User
 app.use('/api/user/notifications', userNotificationsRouter);
 app.use('/api/user/moments', userMomentsRouter);
-app.use('/api/user/upload-audio', userUploadAudioRouter);
+app.use('/api/user/upload', userUploadRouter);
 
 // API Admin (Cần Token + Quyền Admin)
 app.use('/api/admin/users', verifyToken, requireAdmin, adminUsersRouter);

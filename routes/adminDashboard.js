@@ -90,7 +90,7 @@ router.get('/stats/growth', verifyToken, requireAdmin, async (req, res) => {
         // 2. Bài đăng (Moment) mới
         const newMomentsQuery = `SELECT COUNT(*) FROM moments WHERE created_at >= (${timeFrame})`;
 
-        // 3. Bài hát (Song) mới [MỚI THÊM]
+        // 3. Bài hát (Song) mới
         const newSongsQuery = `SELECT COUNT(*) FROM songs WHERE created_at >= (${timeFrame})`;
 
         const [usersRes, momentsRes, songsRes] = await Promise.all([
