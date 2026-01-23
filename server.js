@@ -7,14 +7,14 @@ const { isUsingBackup } = require('./config/supabaseClient');
 
 const app = express();
 const corsOptions = {
-  origin: [
-    'https://app.karaokeplus.cloud',
-    'https://karaokeplus.cloud',
-    'http://localhost:3000',
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+    origin: [
+        'https://app.karaokeplus.cloud',
+        'https://karaokeplus.cloud',
+        'http://localhost:3000',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 };
 
 app.use(cors(corsOptions));
@@ -118,6 +118,7 @@ const adminGuestsRouter = require('./routes/adminGuests');
 const adminNotificationsRouter = require('./routes/adminNotifications');
 const adminReportsRouter = require('./routes/adminReports');
 const adminMomentsRouter = require('./routes/adminMoments');
+const adminEventsRouter = require('./routes/adminEvents');
 const userNotificationsRouter = require('./routes/userNotifications');
 const userReviewsRouter = require('./routes/reviewsUser');
 const userMomentsRouter = require('./routes/userMoments');
@@ -145,6 +146,7 @@ app.use('/api/admin/guests', verifyToken, requireAdmin, adminGuestsRouter);
 app.use('/api/admin/notifications', verifyToken, requireAdmin, adminNotificationsRouter);
 app.use('/api/admin/reports', verifyToken, requireAdmin, adminReportsRouter);
 app.use('/api/admin/moments', verifyToken, requireAdmin, adminMomentsRouter);
+app.use('/api/admin/events', verifyToken, requireAdmin, adminEventsRouter);
 
 
 // --- KHỞI CHẠY SERVER ---

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý Sự kiện</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="card shadow border-0 mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="m-0 font-weight-bold text-primary">
+                    <i class="bi bi-calendar-event"></i> Quản lý Sự kiện
+                </h5>
+                <button class="btn btn-primary text-nowrap" onclick="showEventForm()">
+                    <i class="bi bi-plus-circle"></i> Thêm sự kiện
+                </button>
+            </div>
+
+            <div class="card-body p-0">
+                <!-- Modal Popup -->
+                <div id="eventModal" class="modal fade" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-music-note-beamed"></i> <span id="modalTitle">Upload Sự kiện
+                                        Mới</span>
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white"
+                                    data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="eventForm">
+                                    <input type="hidden" id="eventId">
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Tiêu đề <span
+                                                    class="text-danger">*</span></label>
+                                            <input id="title" class="form-control" placeholder="Vd: Sự kiện Tết 2026"
+                                                required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Phần thưởng</label>
+                                            <input id="rewards" class="form-control"
+                                                placeholder="Vd: 1000đ, 500đ, 300đ hoặc JSON mảng phần thưởng">
+                                        </div>
+
+                                        <div class="col-md-12">
+                                            <label class="form-label fw-bold">Nội dung</label>
+                                            <textarea id="description" class="form-control" rows="3"
+                                                placeholder="Mô tả chi tiết về sự kiện..."></textarea>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Ngày bắt đầu <span
+                                                    class="text-danger">*</span></label>
+                                            <input id="start_date" type="datetime-local" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">Ngày kết thúc</label>
+                                            <input id="end_date" type="datetime-local" class="form-control">
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    Hủy
+                                </button>
+                                <button type="submit" form="eventForm" class="btn btn-success">
+                                    <i class="bi bi-cloud-upload"></i> Upload Ngay
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="ps-3">Tiêu đề</th>
+                                <th>Nội dung</th>
+                                <th>Ngày bắt đầu</th>
+                                <th>Ngày kết thúc</th>
+                                <th>Phần thưởng</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API = '/api/admin/events';
+        let allEventsData = [];
+        let eventModal;
+
+        // Đợi window.api sẵn sàng
+        function waitForApi() {
+            return new Promise((resolve) => {
+                if (window.api && typeof window.api === 'function') {
+                    resolve();
+                } else {
+                    const checkInterval = setInterval(() => {
+                        if (window.api && typeof window.api === 'function') {
+                            clearInterval(checkInterval);
+                            resolve();
+                        }
+                    }, 100);
+                }
+            });
+        }
+
+        function renderEventsTable() {
+            const tbody = document.getElementById('eventsTable');
+            tbody.innerHTML = '';
+
+            if (!allEventsData.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            Không có sự kiện
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            allEventsData.forEach(ev => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${ev.title || ''}</td>
+                    <td>${ev.description || ''}</td>
+                    <td>${ev.start_date ? new Date(ev.start_date).toLocaleString('vi-VN') : ''}</td>
+                    <td>${ev.end_date ? new Date(ev.end_date).toLocaleString('vi-VN') : ''}</td>
+                    <td>
+                        ${Array.isArray(ev.rewards)
+                        ? ev.rewards.map((r, i) => `
+                                <span style="display:block;color:${i === 0 ? '#d32f2f' : i === 1 ? '#1976d2' : '#388e3c'}">
+                                    ${r.title ? `<b>${r.title}:</b> ` : ''}${r.value}
+                                </span>
+                              `).join('')
+                        : ''}
+                    </td>
+                    <td>
+                        <button class="btn btn-warning btn-sm me-1" onclick="editEvent('${ev.id}')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function fetchEvents() {
+            const tbody = document.getElementById('eventsTable');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                await waitForApi();
+
+                console.log('🔍 Fetching events from:', API);
+                console.log('✅ window.api available:', typeof window.api);
+
+                const data = await window.api(API);
+
+                console.log('📦 Dữ liệu nhận được:', data);
+
+                allEventsData = Array.isArray(data) ? data : [];
+                renderEventsTable();
+            } catch (err) {
+                console.error('❌ Lỗi tải dữ liệu:', err);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-danger py-4">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            Lỗi: ${err.message || 'Không thể kết nối đến server'}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function showEventForm() {
+            document.getElementById('eventForm').reset();
+            document.getElementById('eventId').value = '';
+            document.getElementById('modalTitle').textContent = 'Upload Sự kiện Mới';
+            eventModal.show();
+        }
+
+        function hideEventForm() {
+            eventModal.hide();
+        }
+
+        window.editEvent = async function (id) {
+            try {
+                await waitForApi();
+
+                console.log('✏️ Editing event:', id);
+                const ev = await window.api(API + '/' + id);
+
+                document.getElementById('eventId').value = ev.id;
+                document.getElementById('title').value = ev.title || '';
+                document.getElementById('rewards').value = Array.isArray(ev.rewards) ? JSON.stringify(ev.rewards, null, 2) : '';
+                document.getElementById('description').value = ev.description || '';
+                document.getElementById('start_date').value = ev.start_date ? ev.start_date.slice(0, 16) : '';
+                document.getElementById('end_date').value = ev.end_date ? ev.end_date.slice(0, 16) : '';
+                document.getElementById('modalTitle').textContent = 'Chỉnh sửa Sự kiện';
+                eventModal.show();
+            } catch (err) {
+                console.error('❌ Lỗi tải sự kiện:', err);
+                alert('Không thể tải thông tin sự kiện: ' + (err.message || 'Lỗi không xác định'));
+            }
+        }
+
+        window.deleteEvent = async function (id) {
+            if (!confirm('Xoá sự kiện này?')) return;
+
+            try {
+                await waitForApi();
+
+                console.log('🗑️ Deleting event:', id);
+                const result = await window.api(API + '/' + id, { method: 'DELETE' });
+
+                console.log('✅ Kết quả xóa:', result);
+                fetchEvents();
+            } catch (err) {
+                console.error('❌ Lỗi xóa sự kiện:', err);
+                alert('Không thể xóa sự kiện: ' + (err.message || 'Lỗi không xác định'));
+            }
+        }
+
+        document.getElementById('eventForm').onsubmit = async function (e) {
+            e.preventDefault();
+
+            try {
+                await waitForApi();
+
+                const id = document.getElementById('eventId').value;
+                let rewardValue = document.getElementById('rewards').value;
+                let rewardsParsed = [];
+
+                if (rewardValue.trim()) {
+                    try {
+                        rewardsParsed = JSON.parse(rewardValue);
+                        if (!Array.isArray(rewardsParsed)) throw new Error('Phải là mảng');
+                    } catch {
+                        let vals = rewardValue.split(/,|\n/).map(v => v.trim()).filter(Boolean);
+                        rewardsParsed = [
+                            { title: "Giải Nhất", value: vals[0] || "" },
+                            { title: "Giải Nhì", value: vals[1] || vals[0] || "" },
+                            { title: "Giải Ba", value: vals[2] || vals[0] || "" }
+                        ];
+                    }
+                }
+
+                const data = {
+                    title: title.value,
+                    description: description.value,
+                    start_date: start_date.value,
+                    end_date: end_date.value,
+                    rewards: rewardsParsed
+                };
+
+                console.log('💾 Dữ liệu gửi đi:', data);
+                console.log('📤 Method:', id ? 'PUT' : 'POST');
+
+                const result = await window.api(id ? API + '/' + id : API, {
+                    method: id ? 'PUT' : 'POST',
+                    body: JSON.stringify(data)
+                });
+
+                console.log('✅ Kết quả lưu:', result);
+                hideEventForm();
+                fetchEvents();
+            } catch (err) {
+                console.error('❌ Lỗi lưu sự kiện:', err);
+                alert('Không thể lưu sự kiện: ' + (err.message || 'Lỗi không xác định'));
+            }
+        };
+
+        (async function init() {
+            await waitForApi();
+            eventModal = new bootstrap.Modal(document.getElementById('eventModal'));
+            fetchEvents();
+        })();
+    </script>
+</body>
+
+</html>

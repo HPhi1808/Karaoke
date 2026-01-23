@@ -133,7 +133,7 @@ async function generatePresignedUrl(fileName, fileType) {
         Bucket: process.env.R2_BUCKET_NAME,
         Key: fileName,
         ContentType: fileType,
-        ACL: 'public-read',
+        // ACL: 'public-read',
     });
 
     const uploadUrl = await getSignedUrl(r2Client, command, { expiresIn: 300 });
