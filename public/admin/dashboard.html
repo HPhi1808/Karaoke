@@ -1,0 +1,414 @@
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="text-gray-800 fw-bold"><i class="bi bi-speedometer2"></i> Tổng Quan Hệ Thống</h4>
+        <div>
+            <span class="text-muted small me-2">Cập nhật realtime: <span
+                    class="badge bg-success pulse-animation">Bật</span></span>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #1cc88a !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Đang trực tuyến
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800 d-flex align-items-center"
+                                style="height: 1.2em; overflow: hidden;" id="statOnline">
+                                <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                            </div>
+
+                            <div class="mt-1" style="font-size: 0.85rem;">
+                                <span class="text-primary fw-bold" id="statOnlineMembers">...</span> <span
+                                    class="text-muted">thành viên</span>
+                                <span class="text-muted mx-1">•</span>
+                                <span class="text-secondary fw-bold" id="statOnlineGuests">...</span> <span
+                                    class="text-muted">khách</span>
+                            </div>
+
+                        </div>
+                        <div class="col-auto"><i class="bi bi-broadcast text-success fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #4e73df !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Tổng User
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statUsers">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-people-fill text-primary fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #36b9cc !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Tổng Guest</div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statGuests">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-person-badge text-info fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #f6c23e !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">User Mới (7 ngày)
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewUsers7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-person-plus-fill text-warning fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #e74a3b !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Bài đăng Mới (7 ngày)
+                            </div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewMoments7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-camera-reels-fill text-danger fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-4 col-md-6">
+            <div class="card shadow border-0 h-100 py-2" style="border-left: 4px solid #36b9cc !important;">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Nhạc Mới (7 ngày)</div>
+                            <div class="h3 mb-0 font-weight-bold text-gray-800" id="statNewSongs7d">...</div>
+                        </div>
+                        <div class="col-auto"><i class="bi bi-music-note-beamed text-info fs-2"></i></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-12 col-lg-12 mb-4">
+            <div class="card shadow border-0">
+                <div
+                    class="card-header py-3 d-flex flex-row align-items-center justify-content-between bg-white border-bottom-0">
+                    <h6 class="m-0 font-weight-bold text-primary">
+                        <i class="bi bi-graph-up"></i> Biến động User Online (24h qua)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="activeHistoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-12 col-lg-12 mb-4">
+            <div class="card shadow border-0">
+                <div class="card-header py-3 bg-white border-bottom-0">
+                    <h6 class="m-0 font-weight-bold text-success">
+                        <i class="bi bi-person-check-fill"></i> Danh sách đang Online
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-striped align-middle mb-0">
+                            <thead class="bg-light sticky-top">
+                                <tr>
+                                    <th class="ps-4">User Info</th>
+                                    <th>Vai trò</th>
+                                    <th>Hoạt động gần nhất</th>
+                                    <th class="text-center">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="onlineUsersTable">
+                                <tr>
+                                    <td colspan="4" class="text-center py-3">Đang quét người dùng...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .digit-container {
+        display: inline-block;
+        overflow: hidden;
+        height: 1.2em;
+        line-height: 1.2em;
+        position: relative;
+    }
+
+    .digit-strip {
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.8s cubic-bezier(0.1, 0.7, 0.1, 1);
+        will-change: transform;
+    }
+
+    .digit-strip span {
+        height: 1.2em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .online-dot {
+        height: 10px;
+        width: 10px;
+        background-color: #1cc88a;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 0 rgba(28, 200, 138, 1);
+        animation: pulse-green 2s infinite;
+    }
+
+    @keyframes pulse-green {
+        0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(28, 200, 138, 0.7);
+        }
+
+        70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 6px rgba(28, 200, 138, 0);
+        }
+
+        100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(28, 200, 138, 0);
+        }
+    }
+</style>
+
+<script>
+    {
+        let onlineInterval;
+        let historyChart = null;
+
+        // --- 1. Load Chart.js ---
+        async function ensureChartJsLoaded() {
+            if (typeof Chart !== 'undefined') return;
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+
+        // --- 2. Odometer Helpers ---
+        function updateOdometer(elementId, value) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const valStr = value.toString();
+            if (!el.classList.contains('odometer-initialized')) {
+                el.classList.add('odometer-initialized'); el.innerHTML = '';
+                valStr.split('').forEach(d => el.appendChild(createDigitColumn(d)));
+            } else {
+                if (el.children.length !== valStr.length) { el.innerHTML = ''; valStr.split('').forEach(d => el.appendChild(createDigitColumn(d))); }
+                else {
+                    Array.from(el.children).forEach((col, i) => {
+                        col.querySelector('.digit-strip').style.transform = `translateY(-${parseInt(valStr[i]) * 10}%)`;
+                    });
+                }
+            }
+        }
+        function createDigitColumn(d) {
+            const c = document.createElement('div'); c.className = 'digit-container';
+            const s = document.createElement('div'); s.className = 'digit-strip';
+            for (let i = 0; i <= 9; i++) { const n = document.createElement('span'); n.innerText = i; s.appendChild(n); }
+            s.style.transform = `translateY(-${parseInt(d) * 10}%)`; c.appendChild(s); return c;
+        }
+
+        // --- 3. CÁC HÀM GỌI API ---
+
+        window.fetchGeneralStats = async function () {
+            const statUsersEl = document.getElementById('statUsers');
+            const statGuestsEl = document.getElementById('statGuests');
+
+            if (!statUsersEl || !statGuestsEl) return;
+
+            const res = await window.api('/api/admin/dashboard/stats/general');
+            if (res && res.status === 'success') {
+                if (statUsersEl) statUsersEl.innerText = res.data.total_users;
+                if (statGuestsEl) statGuestsEl.innerText = res.data.total_guests;
+            }
+        }
+
+        // --- XỬ LÝ DỮ LIỆU ONLINE ---
+        window.fetchOnlineStats = async function () {
+            const statOnlineEl = document.getElementById('statOnline');
+            if (!statOnlineEl) return;
+
+            const res = await window.api('/api/admin/dashboard/stats/online');
+
+            if (res && res.status === 'success') {
+                const data = res.data;
+
+                // Kiểm tra lại lần nữa vì API call tốn thời gian, 
+                // có thể user đã chuyển trang trong lúc chờ
+                if (!document.getElementById('statOnline')) return;
+
+                updateOdometer('statOnline', data.total);
+
+                document.getElementById('statOnlineMembers').innerText = data.members;
+                document.getElementById('statOnlineGuests').innerText = data.guests;
+
+                // 3. Vẽ bảng danh sách
+                const tbody = document.getElementById('onlineUsersTable');
+                const getTimeAgo = (dateString) => {
+                    if (!dateString) return 'Không rõ';
+                    const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
+                    let interval = seconds / 31536000;
+                    if (interval > 1) return Math.floor(interval) + " năm trước";
+                    interval = seconds / 2592000;
+                    if (interval > 1) return Math.floor(interval) + " tháng trước";
+                    interval = seconds / 86400;
+                    if (interval > 1) return Math.floor(interval) + " ngày trước";
+                    interval = seconds / 3600;
+                    if (interval > 1) return Math.floor(interval) + " giờ trước";
+                    interval = seconds / 60;
+                    if (interval > 1) return Math.floor(interval) + " phút trước";
+                    return "Vừa xong";
+                };
+
+                if (data.users_list && data.users_list.length > 0) {
+                    tbody.innerHTML = data.users_list.map(u => {
+                        const timeStr = getTimeAgo(u.last_active_at);
+                        const displayName = (u.full_name && u.full_name.trim() !== "") ? u.full_name : u.username;
+                        const hasAvatar = u.avatar_url && u.avatar_url.trim() !== '';
+                        const avatarHtml = hasAvatar
+                            ? `<img src="${u.avatar_url}" alt="Avt" class="rounded-circle me-2" style="width:35px; height:35px; object-fit: cover; border: 1px solid #e3e6f0;">`
+                            : `<div class="bg-gradient-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width:35px; height:35px; font-weight:bold; font-size: 14px;">${displayName.charAt(0).toUpperCase()}</div>`;
+
+                        const roleBadge = u.role === 'admin'
+                            ? '<span class="badge bg-danger">ADMIN</span>'
+                            : (u.role === 'guest' ? '<span class="badge bg-secondary">Guest</span>' : '<span class="badge bg-primary">User</span>');
+
+                        return `
+                            <tr>
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        ${avatarHtml}
+                                        <div class="d-flex flex-column">
+                                            <span class="fw-bold text-dark text-truncate" style="max-width: 150px;">${displayName}</span>
+                                            ${(u.full_name && u.username) ? `<small class="text-muted" style="font-size: 0.75rem;">@${u.username}</small>` : ''}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>${roleBadge}</td>
+                                <td class="text-muted small"><i class="bi bi-clock"></i> ${timeStr}</td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center gap-2">
+                                        <div class="online-dot"></div> <span class="small text-success fw-bold">Online</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Hiện không có ai đang online.</td></tr>';
+                }
+            }
+        }
+
+        // --- 4. Growth Stats ---
+        window.fetchGrowthStats = async function () {
+            const elUser7d = document.getElementById('statNewUsers7d');
+            const elMoment7d = document.getElementById('statNewMoments7d');
+            const elSong7d = document.getElementById('statNewSongs7d');
+
+            if (!elUser7d) return;
+
+            const res = await window.api('/api/admin/dashboard/stats/growth');
+
+            if (res && res.status === 'success') {
+                if (elUser7d) elUser7d.innerText = "+" + res.data.new_users_7d;
+                if (elMoment7d) elMoment7d.innerText = "+" + res.data.new_moments_7d;
+                if (elSong7d) elSong7d.innerText = "+" + res.data.new_songs_7d;
+            }
+        }
+
+        // --- 5. Chart Logic ---
+        window.fetchActiveHistory = async function () {
+            try {
+                await ensureChartJsLoaded();
+                const data = await window.api('/api/admin/dashboard/active-history');
+                if (!Array.isArray(data)) return;
+                const labels = data.map(d => {
+                    const date = new Date(d.recorded_at);
+                    return date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
+                });
+                const values = data.map(d => d.active_count);
+                const canvas = document.getElementById('activeHistoryChart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(78, 115, 223, 0.5)');
+                gradient.addColorStop(1, 'rgba(78, 115, 223, 0.0)');
+                if (historyChart) historyChart.destroy();
+                historyChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'User Online', data: values, backgroundColor: gradient, borderColor: '#4e73df', fill: true, tension: 0.4, pointRadius: 4,
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 12 } }, y: { beginAtZero: true, grid: { borderDash: [2], drawBorder: false } } } }
+                });
+            } catch (e) { console.error("Lỗi vẽ biểu đồ:", e); }
+        }
+
+        // --- Run ---
+        setTimeout(() => {
+            window.fetchGeneralStats();
+            window.fetchOnlineStats();
+            window.fetchActiveHistory();
+            window.fetchGrowthStats();
+        }, 50);
+
+        window.dashboardInterval = setInterval(() => {
+            if (document.getElementById('statOnline')) {
+                window.fetchOnlineStats();
+            } else {
+                clearInterval(window.dashboardInterval);
+            }
+        }, 10000);
+    }
+</script>

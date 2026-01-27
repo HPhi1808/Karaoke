@@ -1,0 +1,450 @@
+<div class="card shadow border-0 mb-4">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="m-0 font-weight-bold text-primary">Danh sách Người dùng</h5>
+        <div class="input-group" style="width: 300px;">
+            <input type="text" id="searchUser" class="form-control" placeholder="Tìm tên, email...">
+            <button class="btn btn-primary">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="text-center">Avatar</th>
+                        <th>Họ tên</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-link text-dark text-decoration-none dropdown-toggle fw-bold p-0"
+                                    type="button" id="roleFilterDropdown" data-bs-toggle="dropdown"
+                                    aria-expanded="false">
+                                    <span id="roleFilterLabel">Vai trò</span>
+                                </button>
+                                <ul class="dropdown-menu shadow" aria-labelledby="roleFilterDropdown">
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('all', this)">Tất cả (All)</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('admin', this)">Admin (Hoạt động)</a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="window.filterRole('user', this)">User (Hoạt động)</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="window.filterRole('locked', this)"><i class="bi bi-lock-fill"></i> Đã khoá (Banned)</a></li>
+                                </ul>
+                            </div>
+                        </th>
+                        <th>Ngày tạo</th>
+                        <th class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="messageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-envelope-exclamation"></i> Gửi Thông Báo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="msgForm">
+                    <input type="hidden" id="msgUserId">
+                    <div class="mb-3">
+                        <label class="form-label">Người nhận:</label>
+                        <input type="text" class="form-control" id="msgUserName" disabled readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Loại tin nhắn</label>
+                        <select class="form-select" id="msgType">
+                            <option value="warning">⚠️ Cảnh báo vi phạm</option>
+                            <option value="info">ℹ️ Thông báo hệ thống</option>
+                            <option value="success">🎁 Quà tặng/Khuyến khích</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tiêu đề</label>
+                        <input type="text" class="form-control" id="msgTitle" placeholder="Ví dụ: Cảnh báo vi phạm" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nội dung chi tiết</label>
+                        <textarea class="form-control" id="msgContent" rows="4" placeholder="Nhập nội dung..." required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="window.submitMessage()">Gửi ngay</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="lockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-lock-fill"></i> Khoá Tài Khoản</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Bạn đang thao tác với user: <strong id="lockUserName"></strong></p>
+                <input type="hidden" id="lockUserId">
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Chọn thời gian khoá:</label>
+                    <div class="list-group">
+                        <label class="list-group-item">
+                            <input class="form-check-input me-1" type="radio" name="lockDuration" value="1h" checked>
+                            Khoá 1 Giờ
+                        </label>
+                        <label class="list-group-item">
+                            <input class="form-check-input me-1" type="radio" name="lockDuration" value="24h">
+                            Khoá 24 Giờ (1 ngày)
+                        </label>
+                        <label class="list-group-item">
+                            <input class="form-check-input me-1" type="radio" name="lockDuration" value="7d">
+                            Khoá 7 Ngày
+                        </label>
+                        <label class="list-group-item list-group-item-danger">
+                            <input class="form-check-input me-1" type="radio" name="lockDuration" value="forever">
+                            Khoá Vĩnh Viễn (Cấm cửa)
+                        </label>
+                        <label class="list-group-item list-group-item-success">
+                            <input class="form-check-input me-1" type="radio" name="lockDuration" value="unlock">
+                            🔓 MỞ KHOÁ (User hoạt động lại)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-danger" onclick="window.submitLock()">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    {
+        // --- 1. BIẾN CỤC BỘ ---
+        let allUsersData = [];
+        let currentRoleFilter = 'none';
+        let currentSearchTerm = '';
+        let hasLoadedData = false;
+
+        // --- 2. HÀM SINH HTML CHO 1 DÒNG ---
+        function generateRowHtml(u, currentUserId, currentUserRole) {
+            if (!u.username) return '';
+
+            const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+            const safeName = (u.full_name || u.username || '').replace(/'/g, "\\'");
+            
+            let actionButtons = '';
+            
+            // Logic hiển thị nút
+            if (u.id !== currentUserId) {
+                if (u.role === 'guest' || !u.role) {
+                     actionButtons = '<span class="text-muted small fst-italic">Guest</span>';
+                }
+                else {
+                    const canEdit = currentUserRole === 'own' || (currentUserRole === 'admin' && u.role === 'user');
+                    
+                    if (canEdit) {
+                        if (u.role !== 'own') {
+                            const btnClass = u.role === 'admin' ? 'btn-secondary' : 'btn-warning';
+                            const btnText = u.role === 'admin' ? 'Hạ User' : 'Lên Admin';
+                            actionButtons += `<button class="btn btn-sm ${btnClass} me-1" onclick="window.toggleRole('${u.id}','${u.role}')" title="Đổi quyền">${btnText}</button>`;
+                        }
+
+                        const lockIcon = isLocked ? '<i class="bi bi-unlock-fill"></i>' : '<i class="bi bi-lock-fill"></i>';
+                        const lockClass = isLocked ? 'btn-success' : 'btn-dark';
+                        const lockTitle = isLocked ? 'Mở khoá' : 'Khoá tài khoản';
+                        actionButtons += `<button class="btn btn-sm ${lockClass} me-1" onclick="window.openLockModal('${u.id}', '${safeName}')" title="${lockTitle}">${lockIcon}</button>`;
+
+
+                        actionButtons += `<button class="btn btn-sm btn-info text-white" onclick="window.openMsgModal('${u.id}', '${safeName}')" title="Gửi tin"><i class="bi bi-envelope"></i></button>`;
+                    } else {
+                        if (currentUserRole === 'admin' && (u.role === 'admin' || u.role === 'own')) {
+                            actionButtons = '<span class="text-muted small fst-italic">Không đủ quyền</span>';
+                        }
+                    }
+                }
+            } else {
+                actionButtons = '<span class="badge bg-info">Bạn</span>';
+            }
+
+            const statusBadge = isLocked ? '<span class="badge bg-danger ms-2"><i class="bi bi-lock-fill"></i> Locked</span>' : '';
+            const rowClass = isLocked ? 'table-secondary' : '';
+
+            return `
+                <tr id="user-row-${u.id}" class="${rowClass}">
+                    <td class="text-center">
+                        <img src="${u.avatar_url || 'https://media.karaokeplus.cloud/PictureApp/defautl.jpg'}" class="rounded-circle border" width="40" height="40" style="object-fit: cover;">
+                    </td>
+                    <td class="fw-bold text-dark">${u.full_name || 'Chưa đặt tên'} ${statusBadge}</td>
+                    <td class="text-muted">@${u.username}</td>
+                    <td>${u.email}</td>
+                    <td class="text-center">
+                        <span class="badge ${u.role === 'own' ? 'bg-dark' : u.role === 'admin' ? 'bg-danger' : 'bg-success'}">
+                        ${u.role.toUpperCase()}
+                        </span>
+                    </td>
+                    <td>${new Date(u.created_at).toLocaleDateString('vi-VN')}</td>
+                    <td class="text-center">${actionButtons}</td>
+                </tr>
+            `;
+        }
+
+        // --- 3. HÀM CẬP NHẬT 1 DÒNG CỤC BỘ ---
+        function updateLocalRow(userId, newData) {
+            const index = allUsersData.findIndex(u => u.id === userId);
+            if (index !== -1) {
+                allUsersData[index] = { ...allUsersData[index], ...newData };
+                const updatedUser = allUsersData[index];
+                if (!updatedUser.username) return;
+
+                let currentUserId = null; 
+                let currentUserRole = '';
+                try {
+                    const adminInfo = JSON.parse(localStorage.getItem('admin_info'));
+                    currentUserId = adminInfo?.id;
+                    currentUserRole = adminInfo?.role;
+                } catch(e) {}
+
+                const oldRow = document.getElementById(`user-row-${userId}`);
+                if (oldRow) {
+                    const temp = document.createElement('tbody');
+                    const html = generateRowHtml(updatedUser, currentUserId, currentUserRole);
+                    if (html) {
+                        temp.innerHTML = html;
+                        oldRow.replaceWith(temp.firstElementChild);
+                    }
+                }
+                
+                renderTable(); 
+            }
+        }
+
+        // --- 4. CÁC HÀM HÀNH ĐỘNG ---
+        
+        window.toggleRole = async function (id, currentRole) {
+            const user = allUsersData.find(u => u.id === id);
+            if (!user) return;
+
+            const newRole = currentRole === 'admin' ? 'user' : 'admin';
+            if (!confirm(`Bạn muốn đổi quyền user này thành ${newRole.toUpperCase()}?`)) return;
+
+            const res = await window.api(`/api/admin/users/${id}/role`, {
+                method: 'PATCH',
+                body: JSON.stringify({ role: newRole })
+            });
+
+            if (res && res.status === 'success') {
+                updateLocalRow(id, { role: newRole });
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Không thể đổi quyền'));
+            }
+        };
+
+        window.submitLock = async function () {
+            const userId = document.getElementById('lockUserId').value;
+            const duration = document.querySelector('input[name="lockDuration"]:checked').value;
+            
+            const btn = document.querySelector('#lockModal .btn-danger');
+            const originalText = btn.innerText;
+            btn.innerText = 'Xử lý...';
+            btn.disabled = true;
+
+            const res = await window.api(`/api/admin/users/${userId}/lock`, {
+                method: 'POST',
+                body: JSON.stringify({ duration })
+            });
+
+            btn.innerText = originalText;
+            btn.disabled = false;
+
+            if (res && res.status === 'success') {
+                bootstrap.Modal.getInstance(document.getElementById('lockModal')).hide();
+                
+                let newLockedUntil = null;
+                if (duration !== 'unlock') {
+                    const now = new Date();
+                    if (duration === '1h') now.setHours(now.getHours() + 1);
+                    if (duration === '24h') now.setDate(now.getDate() + 1);
+                    if (duration === '7d') now.setDate(now.getDate() + 7);
+                    if (duration === 'forever') now.setFullYear(now.getFullYear() + 100);
+                    newLockedUntil = now.toISOString();
+                }
+
+                updateLocalRow(userId, { locked_until: newLockedUntil });
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Thất bại'));
+            }
+        }
+
+        window.openMsgModal = function (userId, userName) {
+            document.getElementById('msgUserId').value = userId;
+            document.getElementById('msgUserName').value = userName;
+            document.getElementById('msgTitle').value = '';
+            document.getElementById('msgContent').value = '';
+            new bootstrap.Modal(document.getElementById('messageModal')).show();
+        };
+
+        window.submitMessage = async function () {
+            const userId = document.getElementById('msgUserId').value;
+            const title = document.getElementById('msgTitle').value;
+            const message = document.getElementById('msgContent').value;
+            const type = document.getElementById('msgType').value;
+            if (!title || !message) { alert('Vui lòng nhập đủ thông tin!'); return; }
+            
+            const btn = document.querySelector('#messageModal .btn-primary');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Đang gửi...';
+
+            const res = await window.api(`/api/admin/users/${userId}/message`, {
+                method: 'POST', body: JSON.stringify({ title, message, type })
+            });
+            btn.disabled = false; btn.innerHTML = originalText;
+
+            if (res && res.status === 'success') {
+                alert('Gửi thành công!');
+                bootstrap.Modal.getInstance(document.getElementById('messageModal')).hide();
+            } else {
+                alert('Lỗi: ' + (res?.message || 'Thất bại'));
+            }
+        };
+
+        window.openLockModal = function (id, name) {
+            document.getElementById('lockUserId').value = id;
+            document.getElementById('lockUserName').innerText = name;
+            document.querySelector('input[name="lockDuration"][value="24h"]').checked = true;
+            new bootstrap.Modal(document.getElementById('lockModal')).show();
+        };
+
+        // --- 5. LOGIC LỌC & RENDER BẢNG ---
+        window.filterRole = async function (role, element) {
+            currentRoleFilter = role;
+            document.querySelectorAll('.dropdown-item').forEach(el => el.classList.remove('active'));
+            if (element) element.classList.add('active');
+            
+            const labelMap = { 
+                'all': 'Tất cả', 
+                'admin': 'Admin', 
+                'user': 'User', 
+                'locked': 'Đã khoá'
+            };
+            document.getElementById('roleFilterLabel').innerText = labelMap[role] || 'Vai trò';
+
+            if (!hasLoadedData) await loadDataFromServer();
+            else renderTable();
+        }
+
+        const searchInput = document.getElementById('searchUser');
+        if (searchInput) {
+            searchInput.oninput = function (e) {
+                currentSearchTerm = e.target.value.toLowerCase();
+                if (currentRoleFilter === 'none' && currentSearchTerm.length > 0) {
+                      currentRoleFilter = 'all';
+                      document.getElementById('roleFilterLabel').innerText = 'Tất cả';
+                      if (!hasLoadedData) loadDataFromServer();
+                      else renderTable();
+                } else {
+                      renderTable();
+                }
+            };
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('usersTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            let currentUserId = null; 
+            let currentUserRole = '';
+            try {
+                const adminInfo = JSON.parse(localStorage.getItem('admin_info'));
+                currentUserId = adminInfo?.id; 
+                currentUserRole = adminInfo?.role;
+            } catch (e) {}
+
+            if (currentRoleFilter === 'none') {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-funnel display-4"></i><p class="mt-3">Vui lòng chọn <strong>Vai trò</strong>.</p></td></tr>`;
+                return;
+            }
+
+            const filteredUsers = allUsersData.filter(u => {
+                if (!u.username) return false;
+
+                // 1. LOẠI BỎ GUEST (Chỉ hiện ở trang thống kê riêng)
+                if (u.role === 'guest' || !u.role) return false;
+
+                // 2. LOGIC LOCKED
+                const isLocked = u.locked_until && new Date(u.locked_until) > new Date();
+
+                // Nếu chọn lọc "Đã khoá": Chỉ hiện user bị khoá (bất kể role admin/user)
+                if (currentRoleFilter === 'locked') {
+                    if (!isLocked) return false;
+                }
+                // Nếu chọn Admin hoặc User: Mặc định chỉ hiện user KHÔNG BỊ KHOÁ (Active)
+                else if (currentRoleFilter === 'user') {
+                    if (u.role !== 'user' || isLocked) return false;
+                }
+                else if (currentRoleFilter === 'admin') {
+                    if (u.role !== 'admin' || isLocked) return false;
+                }
+                // Nếu chọn "Tất cả": Hiện hết (trừ Guest) để nhìn tổng quan
+                else if (currentRoleFilter === 'all') {
+                    // Không làm gì, cho qua hết
+                }
+
+                // 3. Admin không thấy Own
+                if (currentUserRole === 'admin' && u.role === 'own') {
+                    return false; 
+                }
+
+                // 4. Tìm kiếm
+                const term = currentSearchTerm;
+                const matchSearch = (u.full_name || '').toLowerCase().includes(term) || (u.username || '').toLowerCase().includes(term) || (u.email || '').toLowerCase().includes(term);
+                
+                return matchSearch;
+            });
+
+            if (filteredUsers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">Không tìm thấy kết quả phù hợp.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredUsers.map(u => generateRowHtml(u, currentUserId, currentUserRole)).join('');
+        }
+
+        async function loadDataFromServer() {
+            const tbody = document.getElementById('usersTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><div class="spinner-border text-primary"></div> Đang tải dữ liệu...</td></tr>';
+
+            const data = await window.api('/api/admin/users');
+            if (!data || (data.status && data.status !== 'success' && !Array.isArray(data))) {
+                 if(data && Array.isArray(data)) {} 
+                 else {
+                      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">Lỗi: ${data?.message || 'Không tải được dữ liệu'}</td></tr>`;
+                      return;
+                 }
+            }
+
+            const rawData = Array.isArray(data) ? data : (data.users || []);
+            allUsersData = rawData.filter(u => u.username && u.username.trim() !== '');
+            
+            hasLoadedData = true;
+            renderTable();
+        }
+
+        renderTable();
+    }
+</script>

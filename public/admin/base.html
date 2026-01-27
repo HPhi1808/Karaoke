@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>Karaoke Admin Panel</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" />
+  <style>
+    /* 1. CSS Giao diện */
+    body {
+      background: #f0f2f5;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .navbar {
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      flex-shrink: 0;
+      z-index: 1030;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: 260px;
+      height: 100%;
+      background: #343a40;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .sidebar .nav-link {
+      color: #ddd;
+      border-radius: 8px;
+      margin: 5px 10px;
+      cursor: pointer;
+    }
+
+    .sidebar .nav-link:hover,
+    .sidebar .nav-link.active {
+      background: #495057;
+      color: white;
+    }
+
+    .content-area {
+      flex-grow: 1;
+      height: 100%;
+      background: #f8f9fa;
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    /* CSS MODAL */
+    .session-modal {
+      display: none;
+      position: fixed;
+      z-index: 9999;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+    }
+
+    .session-content {
+      background-color: #fff;
+      margin: 10% auto;
+      padding: 25px;
+      border-radius: 12px;
+      width: 400px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .session-actions {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .session-timer {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #dc3545;
+      display: block;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <nav class="navbar navbar-dark shadow sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#"><i class="bi bi-mic-fill"></i> Karaoke Admin</a>
+      <div class="text-white d-flex align-items-center">
+        <span class="me-3">Xin chào: <strong id="adminName">Admin</strong></span>
+        <button id="btnLogout" class="btn btn-outline-light btn-sm" onclick="logout()">
+          <i class="bi bi-box-arrow-right"></i> Đăng xuất
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="d-flex main-container">
+    <div class="sidebar p-3 d-none d-md-block" style="width: 260px;">
+      <ul class="nav flex-column">
+        <li class="nav-item"><a class="nav-link active" onclick="loadPage('dashboard.html', this)"><i
+              class="bi bi-speedometer2"></i> Tổng quan</a></li>
+        <hr class="text-secondary mx-2">
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('users.html', this)"><i
+              class="bi bi-people-fill"></i> Quản lý Users</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('guests.html', this)"><i
+              class="bi bi-person-badge"></i> Quản lý Guest</a></li>
+        <hr class="text-secondary mx-2">
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('songs.html', this)"><i
+              class="bi bi-music-note-list"></i> Quản lý Bài hát</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('moments.html', this)">
+            <i class="bi bi-disc-fill"></i> Quản lý Bài đăng</a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('events.html', this)"><i
+              class="bi bi-calendar-event"></i> Quản lý Sự kiện</a></li>
+        <hr class="text-secondary mx-2">
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('reports.html', this)"><i
+              class="bi bi-flag-fill text-warning"></i> Quản lý Khiếu nại <span class="badge bg-danger float-end"
+              id="reportCount">0</span></a></li>
+        <li class="nav-item"><a class="nav-link" onclick="loadPage('notifications.html', this)"><i
+              class="bi bi-megaphone-fill text-info"></i> Thông báo hệ thống</a></li>
+      </ul>
+    </div>
+
+    <div class="flex-grow-1 p-4 content-area">
+      <div id="pageContent">
+        <div class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2">Đang tải dữ liệu...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="session-modal" class="session-modal">
+    <div class="session-content">
+      <div class="mb-3"><i class="bi bi-alarm text-warning" style="font-size: 3rem;"></i></div>
+      <h4>Phiên làm việc sắp hết hạn!</h4>
+      <p class="text-muted">Để bảo mật, hệ thống sẽ tự động đăng xuất sau:</p>
+      <span id="session-countdown" class="session-timer">60</span>
+      <p>giây nữa.</p>
+      <div class="session-actions">
+        <button onclick="logout()" class="btn btn-secondary"><i class="bi bi-box-arrow-right"></i> Đăng xuất</button>
+        <button onclick="triggerRefreshToken()" class="btn btn-primary" id="btnExtend"><i
+            class="bi bi-arrow-clockwise"></i> Gia hạn thêm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // ==========================================
+    // 0. QUẢN LÝ INTERVAL
+    // ==========================================
+    const originalSetInterval = window.setInterval;
+    window.activeIntervals = [];
+
+    window.setInterval = function (func, delay) {
+      const id = originalSetInterval(func, delay);
+      window.activeIntervals.push(id);
+      return id;
+    };
+
+    function clearAllIntervals() {
+      console.log(`🛑 Đang dừng ${window.activeIntervals.length} tiến trình ngầm...`);
+      window.activeIntervals.forEach(clearInterval);
+      window.activeIntervals = [];
+    }
+
+    // ==========================================
+    // 1. BIẾN TOÀN CỤC
+    // ==========================================
+    let sbClient = null;
+    let isRefreshing = false;
+    let refreshPromise = null;
+    let isSessionExpiredMode = false;
+
+    let warningTimer = null;
+    let countdownInterval = null;
+    const WARNING_BUFFER = 60;
+
+    // ==========================================
+    // 2. KHỞI TẠO APP
+    // ==========================================
+    async function initApp() {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        window.location.replace('/admin/login.html');
+        return;
+      }
+
+      try {
+        const configRes = await fetch('/api/admin-config');
+        if (!configRes.ok) throw new Error("Lỗi Config");
+        const config = await configRes.json();
+
+        const { createClient } = window.supabase;
+
+        sbClient = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+          auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
+        });
+
+        console.log("✅ Supabase Client Ready.");
+
+        scheduleSessionWarning();
+
+        const lastPage = localStorage.getItem('last_visited_page');
+        if (lastPage) loadPage(lastPage);
+        else loadPage('dashboard.html');
+
+        setTimeout(() => {
+          initRealtimeSecurity();
+          window.updateGlobalReportBadge();
+        }, 3000);
+
+      } catch (e) {
+        console.error("Init Error:", e);
+        handleLogout();
+      }
+    }
+
+    // ==========================================
+    // 3. LOGIC REFRESH TOKEN (RAW API)
+    // ==========================================
+    async function performRefreshToken() {
+      if (isRefreshing) return refreshPromise;
+
+      isRefreshing = true;
+      console.log("🔄 Bắt đầu Refresh Token...");
+
+      refreshPromise = (async () => {
+        try {
+          const rfToken = localStorage.getItem('refresh_token');
+          if (!rfToken) throw new Error("Không có Refresh Token");
+          if (!sbClient) throw new Error("Client chưa init");
+
+          const supabaseUrl = sbClient.supabaseUrl;
+          const supabaseKey = sbClient.supabaseKey;
+
+          const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`
+            },
+            body: JSON.stringify({ refresh_token: rfToken })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            console.error("❌ API Error:", data);
+            throw new Error(data.error_description || "Lỗi Refresh");
+          }
+
+          const newAccess = data.access_token;
+          const newRefresh = data.refresh_token;
+
+          console.log(`✅ Refresh thành công!`);
+
+          localStorage.setItem('access_token', newAccess);
+          localStorage.setItem('refresh_token', newRefresh);
+
+          sbClient.auth.setSession({ access_token: newAccess, refresh_token: newRefresh }).catch(() => { });
+
+          return newAccess;
+
+        } catch (err) {
+          console.error("💀 Refresh chết:", err.message);
+          handleLogout("Phiên bản đăng nhập hết hạn.");
+          return null;
+        } finally {
+          isRefreshing = false;
+          refreshPromise = null;
+        }
+      })();
+
+      return refreshPromise;
+    }
+
+    // ==========================================
+    // 4. WINDOW.API
+    // ==========================================
+    window.api = async function (url, options = {}) {
+      if (isSessionExpiredMode) {
+        console.warn(`⛔ Đã chặn gọi API ${url} vì phiên đang chờ gia hạn.`);
+        return null;
+      }
+
+      let currentToken = localStorage.getItem('access_token');
+
+      // Check hạn token
+      if (isTokenExpired(currentToken)) {
+        console.warn("⚠️ Token hết hạn (Local Check). Refreshing...");
+        currentToken = await performRefreshToken();
+        if (!currentToken) return null;
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${currentToken}`,
+        ...options.headers
+      };
+      if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      try {
+        let res = await fetch(url, { ...options, headers });
+
+        // Xử lý 401
+        if (res.status === 401) {
+          console.warn(`⚠️ API ${url} báo 401. Thử Refresh...`);
+          const retryToken = await performRefreshToken();
+          if (retryToken) {
+            headers['Authorization'] = `Bearer ${retryToken}`;
+            res = await fetch(url, { ...options, headers });
+            if (res.status === 401) {
+              handleLogout("Phiên không hợp lệ.");
+              return null;
+            }
+          } else {
+            return null;
+          }
+        }
+
+        if (res.status === 403) {
+          const err = await res.clone().json().catch(() => ({}));
+          if (err.status === 'locked') handleLogout(err.message);
+        }
+
+        const data = await res.json();
+        if (Array.isArray(data)) return data;
+        return { ok: res.ok, status: res.status, ...data };
+
+      } catch (err) { return { status: 'error', message: "Lỗi kết nối" }; }
+    };
+
+    // ==========================================
+    // 5. QUẢN LÝ THỜI GIAN & MODAL
+    // ==========================================
+    function parseJwt(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+          return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      } catch (e) { return null; }
+    }
+
+    function isTokenExpired(token) {
+      if (!token) return true;
+      const decoded = parseJwt(token);
+      if (!decoded || !decoded.exp) return true;
+      return Date.now() >= (decoded.exp * 1000) - 10000;
+    }
+
+    function scheduleSessionWarning() {
+      if (warningTimer) clearTimeout(warningTimer);
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const decoded = parseJwt(token);
+      if (!decoded || !decoded.exp) return;
+
+      const now = Math.floor(Date.now() / 1000);
+      const secondsUntilWarning = (decoded.exp - now) - WARNING_BUFFER;
+
+      if (secondsUntilWarning > 0) {
+        warningTimer = setTimeout(showSessionModal, secondsUntilWarning * 1000);
+      } else {
+        showSessionModal();
+      }
+    }
+
+    function showSessionModal() {
+      const modal = document.getElementById('session-modal');
+      const countdownSpan = document.getElementById('session-countdown');
+
+      if (modal.style.display !== 'block') {
+        modal.style.display = 'block';
+        isSessionExpiredMode = true;
+
+        clearAllIntervals();
+
+        if (sbClient) {
+          console.log("🛑 Tạm ngắt kết nối Realtime để bảo vệ Token...");
+          sbClient.removeAllChannels();
+        }
+      }
+
+      if (countdownInterval) clearInterval(countdownInterval);
+      updateCountdownUI(countdownSpan);
+      countdownInterval = setInterval(() => updateCountdownUI(countdownSpan), 1000);
+    }
+
+    function updateCountdownUI(spanElement) {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+      const decoded = parseJwt(token);
+      const timeLeft = decoded.exp - Math.floor(Date.now() / 1000);
+
+      if (timeLeft > 0) {
+        spanElement.innerText = timeLeft;
+      } else {
+        clearInterval(countdownInterval);
+        handleLogout("Hết giờ. Đăng xuất.");
+      }
+    }
+
+    function hideSessionModal() {
+      document.getElementById('session-modal').style.display = 'none';
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      isSessionExpiredMode = false;
+
+      const currentPage = localStorage.getItem('last_visited_page') || 'dashboard.html';
+      loadPage(currentPage);
+
+      setTimeout(initRealtimeSecurity, 2000);
+    }
+
+    async function triggerRefreshToken() {
+      const btn = document.getElementById('btnExtend');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang xử lý...';
+
+      const newToken = await performRefreshToken();
+
+      if (newToken) {
+        hideSessionModal();
+        scheduleSessionWarning();
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = originalText; }, 500);
+      } else {
+        logout();
+      }
+    }
+
+    // ==========================================
+    // 6. UI & CÁC HÀM KHÁC
+    // ==========================================
+    const adminInfo = localStorage.getItem('admin_info');
+    if (adminInfo) {
+      try {
+        const user = JSON.parse(adminInfo);
+        document.getElementById('adminName').innerText = user.full_name || user.email || 'Admin';
+      } catch (e) { }
+    }
+
+    function handleLogout(message = null) {
+      if (message) alert(message);
+      localStorage.clear();
+      window.location.replace('/admin/login.html');
+    }
+
+    async function logout() {
+      const btn = document.getElementById('btnLogout');
+      if (btn) btn.innerHTML = 'Đang xuất...';
+      try {
+        const adminInfoStr = localStorage.getItem('admin_info');
+        if (adminInfoStr) {
+          const user = JSON.parse(adminInfoStr);
+          await window.api('/api/auth/logout', { method: 'POST', body: JSON.stringify({ userId: user.id }) });
+        }
+      } catch (e) { } finally { handleLogout(); }
+    }
+
+    window.loadPage = async function (page, element) {
+      clearAllIntervals();
+
+      localStorage.setItem('last_visited_page', page);
+      document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+      if (element) element.classList.add('active');
+      else {
+        const savedLink = document.querySelector(`.sidebar .nav-link[onclick*="'${page}'"]`);
+        if (savedLink) savedLink.classList.add('active');
+      }
+
+      const content = document.getElementById('pageContent');
+      content.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
+      try {
+        const res = await fetch(`./${page}`);
+        if (!res.ok) throw new Error("404");
+        const html = await res.text();
+        content.innerHTML = html;
+        content.querySelectorAll('script').forEach(s => {
+          const ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+          s.remove();
+        });
+      } catch (e) { content.innerHTML = `<div class="alert alert-danger m-4">Lỗi: ${e.message}</div>`; }
+    };
+
+    // Realtime Security
+    async function initRealtimeSecurity() {
+      const adminInfoStr = localStorage.getItem('admin_info');
+      if (!adminInfoStr || !sbClient) return;
+      try {
+        const user = JSON.parse(adminInfoStr);
+        const mySessionTimestamp = new Date().getTime();
+        console.log("🛡️ Realtime Active (Shared Client)");
+        sbClient.channel('security-check').on('postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${user.id}` },
+          (payload) => {
+            if (payload.new.locked_until && new Date(payload.new.locked_until) > new Date())
+              handleLogout("Tài khoản bị khóa!");
+            if (payload.new.last_sign_in_at) {
+              const lastSignIn = new Date(payload.new.last_sign_in_at).getTime();
+              if (lastSignIn > mySessionTimestamp + 5000) {
+                sbClient.removeAllChannels();
+                handleLogout("Tài khoản đang được đăng nhập nơi khác!");
+              }
+            }
+          }
+        ).subscribe();
+
+        sbClient.channel('global-badge-listener')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
+            console.log("🔔 Có thay đổi Report -> Update Badge");
+            window.updateGlobalReportBadge();
+          })
+          .subscribe();
+      } catch (e) { console.error("Realtime Error:", e); }
+    }
+
+    // --- HÀM CẬP NHẬT BADGE REPORT TOÀN CỤC ---
+    window.updateGlobalReportBadge = async function () {
+      try {
+        const res = await window.api('/api/admin/reports/count-pending');
+        const badge = document.getElementById('reportCount');
+        if (badge && res && typeof res.count !== 'undefined') {
+          const count = res.count;
+          badge.innerText = count > 0 ? count : '';
+          badge.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+      } catch (e) {
+        console.error("Lỗi cập nhật badge:", e);
+      }
+    }
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === 'visible') scheduleSessionWarning();
+    });
+
+    initApp();
+  </script>
+</body>
+
+</html>
