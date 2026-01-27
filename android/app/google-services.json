@@ -1,0 +1,77 @@
+{
+  "project_info": {
+    "project_number": "575075728372",
+    "firebase_url": "https://karaokeapp-b1dfb-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "karaokeapp-b1dfb",
+    "storage_bucket": "karaokeapp-b1dfb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:575075728372:android:c2ec47871dc4dd616ad7a1",
+        "android_client_info": {
+          "package_name": "com.example.inclass"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzmqZ0Ks25EwWgl-RbbzuS31gmIHrX-Xs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:575075728372:android:caec3c8f486e49cf6ad7a1",
+        "android_client_info": {
+          "package_name": "com.example.karaokeapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "575075728372-6u6407tpueogpki18brqj33jhukv0cnk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.karaokeapp",
+            "certificate_hash": "8e1c76ad937501d08456c6bf4dac469deb2c659c"
+          }
+        },
+        {
+          "client_id": "575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzmqZ0Ks25EwWgl-RbbzuS31gmIHrX-Xs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "575075728372-4450bgdh0h1h8qnk12d4v13q82ufo2qb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
